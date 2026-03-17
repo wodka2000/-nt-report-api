@@ -56,6 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_posts_angolo ON posts(angolo);
 
 
 async def init_db() -> None:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(_SCHEMA)
         await db.commit()
