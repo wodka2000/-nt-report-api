@@ -229,7 +229,14 @@ def run() -> None:
     # ── Import posts ────────────────────────────────────────────────────────────
     posts = _parse_reports()
     post_count = 0
+    existing_keys = set(
+        (r[0], r[1], r[2]) for r in
+        con.execute("SELECT post_date, source_file, post_num FROM posts").fetchall()
+    )
     for post in posts:
+        key = (post["post_date"], post["source_file"], post["post_num"])
+        if key in existing_keys:
+            continue
         con.execute("""
             INSERT INTO posts (doc_id, post_date, post_time, post_num,
                                focus, angolo, topic, normas, body, source_file)
