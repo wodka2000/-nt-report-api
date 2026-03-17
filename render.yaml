@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: nt-report-api
+    runtime: python
+    buildCommand: pip install -r web/requirements-web.txt
+    startCommand: uvicorn web.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false           # Inserisci manualmente nella dashboard Render
+      - key: NT_DATA_DIR
+        value: /data          # Disco persistente montato qui
+    disk:
+      name: nt-data
+      mountPath: /data
+      sizeGB: 1               # ~$0.25/mese

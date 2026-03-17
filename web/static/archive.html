@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archivio Post — NT Report</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { max-width: 960px; margin: 0 auto; padding: 1rem 1.5rem; }
+    header { border-bottom: 1px solid var(--pico-muted-border-color); margin-bottom: 2rem; padding-bottom: 1rem; }
+    header nav { display: flex; gap: 1.5rem; align-items: center; }
+    header nav a { text-decoration: none; color: var(--pico-muted-color); font-size: .9rem; }
+    header nav a:hover { color: var(--pico-primary); }
+    .filters { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: .75rem; align-items: end; margin-bottom: 1.5rem; }
+    @media (max-width: 700px) { .filters { grid-template-columns: 1fr 1fr; } }
+    .filters label { margin-bottom: 0; font-size: .85rem; }
+    .badge {
+      display: inline-block; padding: .15rem .5rem; border-radius: 999px;
+      font-size: .75rem; font-weight: 600; line-height: 1.4;
+      background: var(--pico-primary-background); color: var(--pico-primary-inverse);
+    }
+    .badge-norma { background: var(--pico-secondary-background); color: var(--pico-secondary-inverse); }
+    article { border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; cursor: pointer; transition: box-shadow .15s; }
+    article:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    article h4 { margin: 0 0 .4rem; font-size: 1rem; line-height: 1.3; }
+    article .meta { font-size: .8rem; color: var(--pico-muted-color); margin-bottom: .5rem; display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+    article .excerpt { font-size: .9rem; color: var(--pico-color); margin: .5rem 0 0; line-height: 1.5; }
+    article .full-body { display: none; font-size: .9rem; line-height: 1.6; margin-top: .75rem; white-space: pre-wrap; border-top: 1px solid var(--pico-muted-border-color); padding-top: .75rem; }
+    article.expanded .full-body { display: block; }
+    article.expanded .excerpt { display: none; }
+    .pagination { display: flex; gap: .5rem; justify-content: center; margin-top: 2rem; align-items: center; }
+    .pagination button { padding: .4rem .9rem; }
+    #status { text-align: center; color: var(--pico-muted-color); padding: 2rem; }
+    #total-count { font-size: .9rem; color: var(--pico-muted-color); margin-bottom: 1rem; }
+    .hashtags { font-size: .8rem; color: var(--pico-primary); margin-top: .5rem; }
+  </style>
+</head>
+<body>
+<header>
+  <nav>
+    <strong>NT Report</strong>
+    <a href="index.html">Home</a>
+    <a href="archive.html" aria-current="page">Archivio</a>
+  </nav>
+</header>
+
+<main>
+  <h2>Archivio post LinkedIn</h2>
+
+  <div class="filters">
+    <div>
+      <label for="f-topic">Categoria</label>
+      <select id="f-topic"><option value="">Tutte</option></select>
+    </div>
+    <div>
+      <label for="f-norma">Norma</label>
+      <select id="f-norma"><option value="">Tutte</option></select>
+    </div>
+    <div>
+      <label for="f-from">Dal</label>
+      <input type="date" id="f-from">
+    </div>
+    <div>
+      <label for="f-to">Al</label>
+      <input type="date" id="f-to">
+    </div>
+    <div>
+      <button id="btn-search" onclick="search()">Cerca</button>
+    </div>
+  </div>
+
+  <div id="total-count"></div>
+  <div id="results"><p id="status">Caricamento…</p></div>
+
+  <div class="pagination" id="pagination" style="display:none">
+    <button id="btn-prev" onclick="changePage(-1)">← Precedente</button>
+    <span id="page-info"></span>
+    <button id="btn-next" onclick="changePage(1)">Successiva →</button>
+  </div>
+</main>
+
+<script>
+const API = '/api';
+let state = { page: 1, pages: 1, topic: '', norma: '', dateFrom: '', dateTo: '' };
+
+const TOPIC_LABELS = {
+  energia: '⚡ Energia', gioco: '🎰 Gioco',
+  tecnologia: '💻 Tecnologia', concessioni: '📋 Concessioni', altro: '📌 Altro'
+};
+
+async function init() {
+  const [topics, normas] = await Promise.all([
+    fetch(`${API}/topics`).then(r => r.json()),
+    fetch(`${API}/normas`).then(r => r.json()),
+  ]);
+
+  const tSel = document.getElementById('f-topic');
+  Object.entries(topics).forEach(([k, v]) => {
+    tSel.insertAdjacentHTML('beforeend', `<option value="${k}">${v}</option>`);
+  });
+
+  const nSel = document.getElementById('f-norma');
+  normas.forEach(({canonical}) => {
+    nSel.insertAdjacentHTML('beforeend',
+      `<option value="${encodeURIComponent(canonical)}">${canonical}</option>`);
+  });
+
+  await search();
+}
+
+function search() {
+  state.page = 1;
+  state.topic    = document.getElementById('f-topic').value;
+  state.norma    = document.getElementById('f-norma').value;
+  state.dateFrom = document.getElementById('f-from').value;
+  state.dateTo   = document.getElementById('f-to').value;
+  load();
+}
+
+function changePage(delta) {
+  state.page = Math.max(1, Math.min(state.pages, state.page + delta));
+  load();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function load() {
+  document.getElementById('status').textContent = 'Caricamento…';
+  document.getElementById('results').innerHTML = '<p id="status">Caricamento…</p>';
+
+  const params = new URLSearchParams({ page: state.page, page_size: 20 });
+  if (state.topic)    params.set('topic', state.topic);
+  if (state.norma)    params.set('norma', decodeURIComponent(state.norma));
+  if (state.dateFrom) params.set('date_from', state.dateFrom);
+  if (state.dateTo)   params.set('date_to', state.dateTo);
+
+  const data = await fetch(`${API}/posts?${params}`).then(r => r.json());
+  state.pages = data.pages;
+
+  document.getElementById('total-count').textContent =
+    data.total === 0 ? 'Nessun risultato.' : `${data.total} post trovati`;
+
+  const container = document.getElementById('results');
+  if (!data.items.length) {
+    container.innerHTML = '<p>Nessun post per i filtri selezionati.</p>';
+    document.getElementById('pagination').style.display = 'none';
+    return;
+  }
+
+  container.innerHTML = data.items.map(p => renderPost(p)).join('');
+
+  const pag = document.getElementById('pagination');
+  pag.style.display = data.pages > 1 ? 'flex' : 'none';
+  document.getElementById('page-info').textContent = `Pagina ${state.page} di ${state.pages}`;
+  document.getElementById('btn-prev').disabled = state.page <= 1;
+  document.getElementById('btn-next').disabled = state.page >= state.pages;
+}
+
+function renderPost(p) {
+  const label  = TOPIC_LABELS[p.topic] || p.topic || '';
+  const date   = p.post_date || '';
+  const focus  = p.focus && p.focus !== 'tutto il documento' ? p.focus : '';
+  const angolo = p.angolo || '';
+  const body   = (p.body || '').trim();
+  const excerpt = body.length > 280 ? body.slice(0, 280) + '…' : body;
+
+  // Estrai hashtags dal fondo del testo
+  const hashMatch = body.match(/(#\w[\w\d]*(?: +#\w[\w\d]*)*)$/m);
+  const hashtags  = hashMatch ? hashMatch[0] : '';
+  const cleanBody = hashtags ? body.slice(0, body.lastIndexOf(hashtags)).trim() : body;
+
+  const normas = (() => {
+    try { return JSON.parse(p.normas || '[]'); } catch { return []; }
+  })();
+
+  const docLabel = p.doc_titolo ? `<span>${escHtml(p.doc_titolo)}</span>` : '';
+  const focusLabel = focus ? `<span>${escHtml(focus)}</span>` : '';
+
+  return `
+  <article onclick="togglePost(this)">
+    <div class="meta">
+      <span>${date}</span>
+      ${label ? `<span class="badge">${label}</span>` : ''}
+      ${normas.map(n => `<span class="badge badge-norma">${escHtml(n)}</span>`).join('')}
+      ${docLabel}
+      ${focusLabel}
+    </div>
+    <div class="excerpt">${escHtml(excerpt)}</div>
+    <div class="full-body">${escHtml(cleanBody)}${hashtags ? `\n\n<span class="hashtags">${escHtml(hashtags)}</span>` : ''}</div>
+  </article>`;
+}
+
+function togglePost(el) {
+  el.classList.toggle('expanded');
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

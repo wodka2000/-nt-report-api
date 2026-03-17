@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NT Report</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { max-width: 800px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .hero { text-align: center; padding: 3rem 0 2rem; }
+    .hero h1 { font-size: 2.2rem; margin-bottom: .5rem; }
+    .hero p { font-size: 1.1rem; color: var(--pico-muted-color); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin: 2.5rem 0; }
+    .card { border: 1px solid var(--pico-muted-border-color); border-radius: 10px; padding: 1.5rem; }
+    .card h3 { margin: 0 0 .5rem; font-size: 1rem; }
+    .card p { font-size: .9rem; color: var(--pico-muted-color); margin: 0 0 1rem; }
+    footer { text-align: center; font-size: .8rem; color: var(--pico-muted-color); margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--pico-muted-border-color); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <h1>NT Report</h1>
+    <p>Aggiornamenti normativi settimanali su energia, gioco, tecnologia e concessioni.<br>
+    Generati con analisi documentale assistita da AI.</p>
+    <a href="archive.html" role="button">Vai all'archivio →</a>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h3>📚 Archivio post</h3>
+      <p>Tutti i post LinkedIn, filtrabili per categoria tematica e riferimento normativo.</p>
+      <a href="archive.html">Sfoglia →</a>
+    </div>
+    <div class="card">
+      <h3>💬 Domande sui documenti</h3>
+      <p>Fai domande sui documenti citati nei post. Risposte con citazioni testuali.</p>
+      <a href="#" aria-disabled="true">Prossimamente</a>
+    </div>
+    <div class="card">
+      <h3>📄 Carica documento</h3>
+      <p>Carica un PDF, ottieni un'analisi strutturata e genera un post LinkedIn.</p>
+      <a href="#" aria-disabled="true">Prossimamente</a>
+    </div>
+  </div>
+
+  <details>
+    <summary>Come funziona</summary>
+    <p>Il sistema raccoglie documenti normativi (proposte di regolamento, mandati negoziali, briefing istituzionali),
+    li analizza per chunk con Claude AI, estrae struttura e riferimenti normativi, e genera post LinkedIn
+    secondo un formato editoriale definito.</p>
+    <p>Ogni post riporta fatti, dati e riferimenti normativi presenti esclusivamente nel documento di origine.
+    Nessuna speculazione, nessun commento soggettivo.</p>
+  </details>
+</main>
+<footer>
+  NT Report · Generato con <a href="https://claude.ai/claude-code">Claude Code</a>
+</footer>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"J:/2026/NT/Report\" && py -3.12 -m py_compile bot.py && echo \"OK\")",
+      "Bash(python -m py_compile bot.py)",
+      "Bash(find J:/2026/NT/Report -name *.html -o -name *.css -o -name *.js)",
+      "Bash(python -c \"from web.core.engine import TOPICS, _NORMA_ALIASES, BASE_DIR; print\\(''OK — TOPICS:'', list\\(TOPICS.keys\\(\\)\\)\\); print\\(''NORMA_ALIASES:'', len\\(_NORMA_ALIASES\\), ''voci''\\); print\\(''BASE_DIR:'', BASE_DIR\\)\")",
+      "Bash(python -m web.scripts.import_reports)",
+      "Bash(pip install:*)",
+      "Bash(python -c \":*)"
+    ]
+  }
+}

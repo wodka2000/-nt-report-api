@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Database e dati sensibili
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+data/
+
+# PDF e file bot
+pdf_bytes/
+*.pkl
+logs/
+
+# Chiavi e segreti
+.env
+*.env
+secrets.py
+
+# Script locali con secrets
+avvia.bat
+avvia_web.bat
+
+# File Windows
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
