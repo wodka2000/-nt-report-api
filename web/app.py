@@ -17,6 +17,18 @@ _STATIC = Path(__file__).parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # Import automatico dei report se il DB è vuoto
+    import aiosqlite
+    from web.core.db import DB_PATH
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM posts") as cur:
+            count = (await cur.fetchone())[0]
+    if count == 0:
+        import logging
+        logging.getLogger(__name__).info("DB vuoto — eseguo import_reports")
+        from web.scripts.import_reports import run as import_run
+        import asyncio
+        await asyncio.get_event_loop().run_in_executor(None, import_run)
     yield
 
 

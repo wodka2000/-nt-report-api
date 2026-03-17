@@ -23,8 +23,8 @@ from web.core.db import DB_PATH, _SCHEMA
 
 # ── Costanti ────────────────────────────────────────────────────────────────────
 
-REPORTS_DIR  = BASE_DIR / "reports"
-PICKLE_PATH  = BASE_DIR / "data" / "persistence.pkl"
+REPORTS_DIR   = _ROOT / "reports"          # nel repo, non sul disco dati
+PICKLE_PATH   = BASE_DIR / "data" / "persistence.pkl"
 PDF_BYTES_DIR = BASE_DIR / "data" / "pdf_bytes"
 
 # Mappa emoji→chiave topic presente negli header dei report
@@ -113,7 +113,7 @@ def _parse_reports() -> list[dict]:
                 "topic":       topic,
                 "normas":      json.dumps(normas),
                 "body":        body,
-                "source_file": str(md_file.relative_to(BASE_DIR)),
+                "source_file": md_file.name,
             }
 
         # Post precedenti al primo ## header (formato vecchio)
