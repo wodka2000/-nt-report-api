@@ -2045,7 +2045,8 @@ async def cmd_aggiorna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await msg.edit_text(f"✅ git pull completato:\n<code>{output[:800]}</code>\n\nRiavvio tra 3 secondi…", parse_mode="HTML")
 
     await asyncio.sleep(3)
-    subprocess.Popen(["sudo", "systemctl", "restart", "ntreportbot"])
+    import os, signal
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
