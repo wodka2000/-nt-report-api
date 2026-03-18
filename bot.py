@@ -2021,11 +2021,13 @@ async def _end_chat_session(reply_msg, context: ContextTypes.DEFAULT_TYPE):
 # ── Monitor manuale ────────────────────────────────────────────────────────────
 
 async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Avvia il monitor manualmente (senza aspettare le 08:00)."""
+    """Avvia il monitor manualmente. Con argomento filtra per nome fonte: /monitor arera"""
     context.bot_data["owner_chat_id"] = update.effective_chat.id
-    await update.message.reply_text("🔍 Avvio scansione fonti normative…")
+    source_filter = " ".join(context.args).strip() if context.args else None
+    msg = f"🔍 Scansione fonte: <b>{source_filter}</b>…" if source_filter else "🔍 Avvio scansione fonti normative…"
+    await update.message.reply_text(msg, parse_mode="HTML")
     from monitor import run_monitor
-    await run_monitor(context)
+    await run_monitor(context, source_filter=source_filter)
 
 
 async def cmd_aggiorna(update: Update, context: ContextTypes.DEFAULT_TYPE):

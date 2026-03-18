@@ -270,11 +270,24 @@ def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "") -> s
 
 # ── Job principale ──────────────────────────────────────────────────────────────
 
-async def run_monitor(context) -> None:
-    """Eseguito ogni giorno alle 08:00 UTC dal JobQueue del bot."""
+async def run_monitor(context, source_filter: str | None = None) -> None:
+    """Eseguito ogni giorno alle 08:00 UTC dal JobQueue del bot.
+
+    source_filter: se indicato, processa solo la fonte il cui nome contiene
+                   questa stringa (case-insensitive). Utile per test manuali.
+    """
     from bot import TOPICS
 
-    logger.info("Monitor: avvio scansione")
+    sources = _load_sources()
+    if source_filter:
+        sources = [s for s in sources if source_filter.lower() in s["name"].lower()]
+        if not sources:
+            chat_id = context.bot_data.get("owner_chat_id")
+            if chat_id:
+                await context.bot.send_message(chat_id, f"⚠️ Nessuna fonte trovata con filtro: <code>{source_filter}</code>", parse_mode="HTML")
+            return
+
+    logger.info(f"Monitor: avvio scansione ({len(sources)} fonti)")
 
     chat_id = context.bot_data.get("owner_chat_id")
     if not chat_id:
@@ -290,7 +303,7 @@ async def run_monitor(context) -> None:
     errori: list[str] = []
     trovati: int = 0
 
-    for source in SOURCES:
+    for source in sources:
         name = source["name"]
         url  = source["url"]
 
