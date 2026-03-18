@@ -29,12 +29,12 @@ logger = logging.getLogger(__name__)
 SOURCES = [
     {
         "name": "Gazzetta Ufficiale",
-        "url": "https://www.gazzettaufficiale.it/rss/homepage.xml",
+        "url": "https://www.gazzettaufficiale.it/rss/serie_generale.xml",
         "type": "rss",
     },
     {
         "name": "ARERA",
-        "url": "https://www.arera.it/it/comunicati.htm",
+        "url": "https://www.arera.it/comunicati-stampa",
         "type": "html",
     },
 ]
@@ -190,6 +190,7 @@ async def _fetch_content(url: str) -> str:
 
 def _assess_relevance(titolo: str, sommario: str) -> dict:
     """Usa Haiku per valutare la rilevanza (score 0-10)."""
+    import re
     from bot import call_claude
     prompt = _RELEVANCE_PROMPT.format(
         settori=_SETTORI_DESC,
@@ -199,13 +200,18 @@ def _assess_relevance(titolo: str, sommario: str) -> dict:
     try:
         msg = call_claude(
             model="claude-haiku-4-5-20251001",
-            max_tokens=150,
+            max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
         )
-        return json.loads(msg.content[0].text)
+        text = msg.content[0].text.strip()
+        # Estrai il blocco JSON anche se ci sono testi attorno
+        match = re.search(r'\{[^{}]+\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        return json.loads(text)
     except Exception as e:
         logger.warning(f"Errore valutazione rilevanza: {e}")
-        return {"score": 0, "settore": "altro", "motivo": "errore"}
+        return {"score": 0, "settore": "altro", "motivo": "errore parsing"}
 
 
 def _generate_post(fonte: str, titolo: str, contenuto: str) -> str:
