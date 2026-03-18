@@ -33,6 +33,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 
 | Nome | URL | Tipo | Settori | Note |
 |------|-----|------|---------|------|
+| PV Magazine Italia | https://www.pv-magazine.it/feed/ | rss | energia | |
 
 ---
 
