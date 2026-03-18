@@ -343,10 +343,10 @@ async def run_monitor(context) -> None:
             if len(bozza) <= 600:
                 anteprima = bozza
             else:
-                # Taglia all'ultimo punto entro 600 caratteri
+                # Taglia sempre all'ultimo punto entro 600 caratteri
                 taglio = bozza[:600].rfind(".")
-                if taglio < 100:   # solo se davvero nessun punto trovato
-                    taglio = 600
+                if taglio == -1:
+                    taglio = 599  # nessun punto trovato: taglio duro
                 anteprima = bozza[:taglio + 1] + "…"
             testo = (
                 f"📋 *Nuovo documento — {name}*\n"
