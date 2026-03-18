@@ -1,0 +1,366 @@
+"""
+monitor.py — Agente di monitoraggio normativo.
+
+Ogni giorno alle 08:00 UTC:
+  1. Scarica RSS/pagine web dalle fonti configurate
+  2. Valuta rilevanza con Claude Haiku (0-10)
+  3. Se score >= 5: scarica contenuto completo, genera bozza post con Sonnet
+  4. Notifica via Telegram con bottoni [Usa questo post] [Ignora]
+
+Integrato nel bot via JobQueue — non va eseguito direttamente.
+"""
+
+import json
+import asyncio
+import logging
+import sqlite3
+from pathlib import Path
+from urllib.parse import urlparse
+
+import httpx
+import feedparser
+from bs4 import BeautifulSoup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+logger = logging.getLogger(__name__)
+
+# ── Configurazione fonti ────────────────────────────────────────────────────────
+
+SOURCES = [
+    {
+        "name": "Gazzetta Ufficiale",
+        "url": "https://www.gazzettaufficiale.it/rss/homepage.xml",
+        "type": "rss",
+    },
+    {
+        "name": "ARERA",
+        "url": "https://www.arera.it/it/comunicati.htm",
+        "type": "html",
+    },
+]
+
+_SETTORI_DESC = """
+- energia: regolazione energetica, elettricità, gas, rinnovabili, ARERA, mercati energetici, tariffe
+- gioco: gioco pubblico, concessioni giochi, ADM, slot machine, scommesse, lotterie, gioco online
+- tecnologia: AI Act, GDPR, DSA, DMA, NIS2, Data Act, cybersecurity, intelligenza artificiale, dati personali, piattaforme digitali
+- concessioni: concessioni pubbliche, demanio, appalti, gare pubbliche, autorizzazioni, licenze
+""".strip()
+
+_RELEVANCE_PROMPT = """\
+Sei un assistente legale specializzato in diritto dell'energia, gioco pubblico, \
+tecnologia (AI Act, GDPR, DSA) e concessioni pubbliche italiane ed europee.
+
+Valuta la rilevanza del seguente documento per uno studio legale italiano attivo in questi settori:
+{settori}
+
+Documento:
+Titolo: {titolo}
+Sommario: {sommario}
+
+Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo:
+{{"score": <intero 0-10>, "settore": "<energia|gioco|tecnologia|concessioni|altro>", "motivo": "<max 20 parole in italiano>"}}
+"""
+
+_POST_PROMPT = """\
+Genera un post LinkedIn professionale in italiano sul seguente documento normativo.
+
+Fonte: {fonte}
+Titolo: {titolo}
+
+Contenuto del documento:
+{contenuto}
+
+Regole:
+- Tono professionale, mai sensazionalistico
+- Solo fatti e riferimenti normativi presenti nel documento
+- Nessuna speculazione o opinione soggettiva
+- Massimo 1300 caratteri (testo + hashtag)
+- Termina con 3-5 hashtag pertinenti
+"""
+
+
+# ── Database locale per tracciare i documenti già visti ────────────────────────
+
+def _db_path() -> Path:
+    from bot import BASE_DIR
+    return BASE_DIR / "data" / "monitor.db"
+
+
+def _init_db() -> None:
+    path = _db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(path)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS seen_docs (
+            url      TEXT PRIMARY KEY,
+            title    TEXT,
+            source   TEXT,
+            score    REAL,
+            seen_at  TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    con.commit()
+    con.close()
+
+
+def _is_seen(url: str) -> bool:
+    con = sqlite3.connect(_db_path())
+    row = con.execute("SELECT 1 FROM seen_docs WHERE url=?", (url,)).fetchone()
+    con.close()
+    return row is not None
+
+
+def _mark_seen(url: str, title: str, source: str, score: float) -> None:
+    con = sqlite3.connect(_db_path())
+    con.execute(
+        "INSERT OR IGNORE INTO seen_docs (url, title, source, score) VALUES (?,?,?,?)",
+        (url, title, source, score),
+    )
+    con.commit()
+    con.close()
+
+
+# ── Fetch fonti ─────────────────────────────────────────────────────────────────
+
+async def _fetch_rss(url: str) -> list[dict] | None:
+    """Scarica un feed RSS. Restituisce None se la fonte non è raggiungibile."""
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        feed = feedparser.parse(resp.text)
+        return [
+            {
+                "url":     entry.get("link", ""),
+                "title":   entry.get("title", ""),
+                "summary": entry.get("summary", ""),
+            }
+            for entry in feed.entries[:30]
+            if entry.get("link")
+        ]
+    except Exception as e:
+        logger.error(f"Errore fetch RSS {url}: {e}")
+        return None
+
+
+async def _fetch_html_links(url: str) -> list[dict] | None:
+    """Scrapa una pagina HTML cercando link a comunicati/provvedimenti."""
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        soup = BeautifulSoup(resp.text, "html.parser")
+        base = urlparse(url)
+        seen_urls: set[str] = set()
+        items = []
+        for a in soup.find_all("a", href=True):
+            text = a.get_text(strip=True)
+            href = a["href"]
+            if not text or len(text) < 15:
+                continue
+            if href.startswith("/"):
+                href = f"{base.scheme}://{base.netloc}{href}"
+            elif not href.startswith("http"):
+                continue
+            if href in seen_urls:
+                continue
+            seen_urls.add(href)
+            items.append({"url": href, "title": text, "summary": ""})
+            if len(items) >= 40:
+                break
+        return items
+    except Exception as e:
+        logger.error(f"Errore fetch HTML {url}: {e}")
+        return None
+
+
+async def _fetch_content(url: str) -> str:
+    """Scarica e restituisce il testo principale di una pagina."""
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        return soup.get_text(separator="\n", strip=True)[:8000]
+    except Exception as e:
+        logger.error(f"Errore fetch contenuto {url}: {e}")
+        return ""
+
+
+# ── Valutazione e generazione ───────────────────────────────────────────────────
+
+def _assess_relevance(titolo: str, sommario: str) -> dict:
+    """Usa Haiku per valutare la rilevanza (score 0-10)."""
+    from bot import call_claude
+    prompt = _RELEVANCE_PROMPT.format(
+        settori=_SETTORI_DESC,
+        titolo=titolo,
+        sommario=(sommario or "(nessun sommario)")[:600],
+    )
+    try:
+        msg = call_claude(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return json.loads(msg.content[0].text)
+    except Exception as e:
+        logger.warning(f"Errore valutazione rilevanza: {e}")
+        return {"score": 0, "settore": "altro", "motivo": "errore"}
+
+
+def _generate_post(fonte: str, titolo: str, contenuto: str) -> str:
+    """Usa Sonnet per generare la bozza del post LinkedIn."""
+    from bot import call_claude
+    prompt = _POST_PROMPT.format(
+        fonte=fonte,
+        titolo=titolo,
+        contenuto=contenuto[:6000],
+    )
+    msg = call_claude(
+        model="claude-sonnet-4-6",
+        max_tokens=900,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return msg.content[0].text.strip()
+
+
+# ── Job principale ──────────────────────────────────────────────────────────────
+
+async def run_monitor(context) -> None:
+    """Eseguito ogni giorno alle 08:00 UTC dal JobQueue del bot."""
+    from bot import TOPICS
+
+    logger.info("Monitor: avvio scansione")
+
+    chat_id = context.bot_data.get("owner_chat_id")
+    if not chat_id:
+        logger.warning("Monitor: owner_chat_id non trovato — manda /start al bot per registrarti")
+        return
+
+    _init_db()
+
+    # Contatore bozze salvate in bot_data per i callback
+    drafts: dict = context.bot_data.setdefault("monitor_drafts", {})
+    draft_counter: int = context.bot_data.get("monitor_draft_counter", 0)
+
+    errori: list[str] = []
+    trovati: int = 0
+
+    for source in SOURCES:
+        name = source["name"]
+        url  = source["url"]
+
+        items = (
+            await _fetch_rss(url)
+            if source["type"] == "rss"
+            else await _fetch_html_links(url)
+        )
+
+        if items is None:
+            errori.append(name)
+            logger.warning(f"Monitor: fonte non raggiungibile — {name}")
+            continue
+
+        logger.info(f"Monitor: {name} — {len(items)} elementi da controllare")
+
+        for item in items:
+            item_url = item["url"]
+            if not item_url or _is_seen(item_url):
+                continue
+
+            # Valutazione rapida con Haiku
+            relevance = _assess_relevance(item["title"], item["summary"])
+            score   = float(relevance.get("score", 0))
+            settore = relevance.get("settore", "altro")
+            motivo  = relevance.get("motivo", "")
+
+            _mark_seen(item_url, item["title"], name, score)
+
+            if score < 5:
+                continue
+
+            trovati += 1
+            logger.info(f"Monitor: documento rilevante [{score}/10] — {item['title'][:60]}")
+
+            # Fetch contenuto completo + genera bozza
+            contenuto = await _fetch_content(item_url)
+            bozza     = _generate_post(name, item["title"], contenuto)
+
+            # Salva bozza in bot_data per il callback
+            draft_counter += 1
+            draft_id = str(draft_counter)
+            drafts[draft_id] = {"titolo": item["title"], "bozza": bozza, "url": item_url}
+            context.bot_data["monitor_draft_counter"] = draft_counter
+
+            # Messaggio Telegram
+            topic_label = TOPICS.get(settore, "📌 Altro")
+            anteprima = bozza[:800] + ("…" if len(bozza) > 800 else "")
+            testo = (
+                f"📋 *Nuovo documento — {name}*\n"
+                f"Score: {score:.0f}/10 · {topic_label}\n"
+                f"*{item['title'][:120]}*\n"
+                f"_{motivo}_\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"{anteprima}"
+            )
+
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Usa questo post", callback_data=f"mon_usa:{draft_id}"),
+                InlineKeyboardButton("🗑 Ignora",          callback_data="mon_ignora"),
+            ]])
+
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=testo,
+                parse_mode="Markdown",
+                reply_markup=keyboard,
+                disable_web_page_preview=True,
+            )
+
+            await asyncio.sleep(3)  # pausa tra notifiche
+
+    # Riepilogo finale
+    if errori:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"⚠️ Fonti non raggiungibili oggi: {', '.join(errori)}",
+        )
+    if trovati == 0 and not errori:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="✅ Monitoraggio completato — nessun nuovo documento rilevante oggi.",
+        )
+
+    logger.info(f"Monitor: completato. Rilevanti: {trovati}, errori fonti: {len(errori)}")
+
+
+# ── Callback handlers (da registrare in bot.py) ─────────────────────────────────
+
+async def handle_mon_usa_cb(update, context) -> None:
+    """Utente ha cliccato 'Usa questo post' — mostra il testo completo."""
+    query = update.callback_query
+    await query.answer()
+
+    draft_id = query.data.split(":", 1)[1]
+    drafts   = context.bot_data.get("monitor_drafts", {})
+    draft    = drafts.get(draft_id)
+
+    if not draft:
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text("⚠️ Bozza non più disponibile.")
+        return
+
+    await query.edit_message_reply_markup(reply_markup=None)
+    await query.message.reply_text(
+        f"📝 *Post completo — copia e incolla su LinkedIn:*\n\n{draft['bozza']}\n\n"
+        f"🔗 Fonte: {draft['url']}",
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )
+
+
+async def handle_mon_ignora_cb(update, context) -> None:
+    """Utente ha cliccato 'Ignora' — rimuove i bottoni."""
+    query = update.callback_query
+    await query.answer("Documento ignorato.")
+    await query.edit_message_reply_markup(reply_markup=None)

@@ -942,6 +942,8 @@ def topic_keyboard(msg_id: int) -> InlineKeyboardMarkup:
 # ── Handlers ───────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Salva il chat_id del proprietario per le notifiche del monitor
+    context.bot_data["owner_chat_id"] = update.effective_chat.id
     await update.message.reply_text(
         "👋 *Benvenuto!*\n\n"
         "Questo è il tuo canale per i report LinkedIn.\n\n"
@@ -2016,6 +2018,16 @@ async def _end_chat_session(reply_msg, context: ContextTypes.DEFAULT_TYPE):
     await reply_msg.reply_text(msg, parse_mode="Markdown")
 
 
+# ── Monitor manuale ────────────────────────────────────────────────────────────
+
+async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Avvia il monitor manualmente (senza aspettare le 08:00)."""
+    context.bot_data["owner_chat_id"] = update.effective_chat.id
+    await update.message.reply_text("🔍 Avvio scansione fonti normative…")
+    from monitor import run_monitor
+    await run_monitor(context)
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -2028,7 +2040,12 @@ def main():
     data_dir.mkdir(exist_ok=True)
     persistence = PicklePersistence(filepath=data_dir / "persistence.pkl")
 
-    app = Application.builder().token(TELEGRAM_TOKEN).persistence(persistence).build()
+    app = (
+        Application.builder()
+        .token(TELEGRAM_TOKEN)
+        .persistence(persistence)
+        .build()
+    )
 
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("help",    cmd_start))
@@ -2036,6 +2053,16 @@ def main():
     app.add_handler(CommandHandler("pulisci", cmd_pulisci))
     app.add_handler(CommandHandler("chat",    cmd_chat))
     app.add_handler(CommandHandler("fine",    cmd_fine))
+    app.add_handler(CommandHandler("monitor", cmd_monitor))
+
+    # Monitor callbacks
+    from monitor import run_monitor, handle_mon_usa_cb, handle_mon_ignora_cb
+    app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,    pattern=r"^mon_usa:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb, pattern=r"^mon_ignora$"))
+
+    # Job giornaliero alle 08:00 UTC
+    from datetime import time as dt_time
+    app.job_queue.run_daily(run_monitor, time=dt_time(hour=8, minute=0))
 
     app.add_handler(CallbackQueryHandler(handle_chat_select_cb,        pattern=r"^chat_sel:"))
     app.add_handler(CallbackQueryHandler(handle_chat_fine_cb,          pattern=r"^chat_fine$"))
