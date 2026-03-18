@@ -44,11 +44,9 @@ SOURCES = [
     },
     {
         "name": "ARERA",
-        "url": "https://www.arera.it/it/comunicati.htm",
+        "url": "https://www.arera.it/comunicati-stampa/",
         "type": "html",
-        "link_filter": ["comunicati", "delibera", "provvedimento", "decisione",
-                        "determina", "relazione", "rapporto", "consultazione",
-                        "/docs/", "/atti/", "/comunicati/"],
+        "link_filter": ["/comunicati-stampa/dettaglio/"],
     },
 ]
 
