@@ -201,6 +201,9 @@ def _parse_pickle() -> list[dict]:
 
 def run() -> None:
     print(f"DB: {DB_PATH}")
+    print(f"REPORTS_DIR: {REPORTS_DIR} (exists: {REPORTS_DIR.exists()})")
+    md_files = list(REPORTS_DIR.glob("*.md")) if REPORTS_DIR.exists() else []
+    print(f"  File .md trovati: {[f.name for f in md_files]}")
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     con = sqlite3.connect(DB_PATH)
