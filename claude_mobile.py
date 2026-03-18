@@ -1,13 +1,14 @@
 """
 claude_mobile.py — Bot Telegram per controllare Claude Code da mobile.
 
-Ogni messaggio ricevuto viene passato a Claude Code via `claude --print --continue`.
-Claude può leggere e modificare i file del progetto, eseguire comandi, committare.
+Ogni messaggio viene passato a `claude --print` con gli ultimi 3 scambi
+come contesto (domanda + risposta troncata a 1000 caratteri).
 
 Avvio:
     CLAUDE_BOT_TOKEN=<token> python claude_mobile.py
 
 Primo utilizzo: manda /start al bot per registrare il tuo chat ID.
+Comandi: /nuova — azzera la cronologia e inizia da zero.
 """
 
 import asyncio
@@ -29,7 +30,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 CLAUDE_BOT_TOKEN = os.environ.get("CLAUDE_BOT_TOKEN", "")
-PROJECT_DIR = Path(__file__).parent
+PROJECT_DIR      = Path(__file__).parent
+
+MAX_TURNS        = 3     # scambi da passare come contesto
+MAX_REPLY_CHARS  = 1000  # caratteri di risposta da conservare in storico
+
+
+def _build_prompt(history: list[dict], nuovo_messaggio: str) -> str:
+    """Costruisce il prompt con lo storico + il nuovo messaggio."""
+    parti = [
+        "Sei Claude Code, stai lavorando al progetto NT Report.\n"
+        "Puoi leggere e modificare i file nella directory corrente.\n"
+        "Stai rispondendo a un messaggio arrivato via Telegram mobile.\n"
+    ]
+    if history:
+        parti.append("--- Contesto conversazione precedente ---")
+        for turn in history:
+            parti.append(f"Utente: {turn['user']}")
+            parti.append(f"Claude: {turn['claude']}")
+        parti.append("--- Fine contesto ---\n")
+    parti.append(f"Utente: {nuovo_messaggio}")
+    return "\n".join(parti)
 
 
 # ── Comandi ────────────────────────────────────────────────────────────────────
@@ -37,28 +58,29 @@ PROJECT_DIR = Path(__file__).parent
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     context.bot_data["owner_chat_id"] = chat_id
+    context.bot_data.setdefault("history", [])
     await update.message.reply_text(
         f"✅ Chat ID registrato: <code>{chat_id}</code>\n\n"
         "Scrivimi qualsiasi messaggio e lo passerò a Claude Code.\n"
-        "Claude può leggere e modificare i file del progetto.",
+        "Claude può leggere e modificare i file del progetto.\n\n"
+        "/nuova — inizia una nuova conversazione",
         parse_mode="HTML",
     )
 
 
 async def cmd_nuova(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Inizia una nuova conversazione (non usa --continue)."""
-    context.bot_data["prima_sessione"] = True
-    await update.message.reply_text("🔄 Prossimo messaggio inizierà una nuova conversazione.")
+    context.bot_data["history"] = []
+    await update.message.reply_text("🔄 Conversazione azzerata.")
 
 
 # ── Messaggio in arrivo ────────────────────────────────────────────────────────
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
+    chat_id  = update.effective_chat.id
     owner_id = context.bot_data.get("owner_chat_id")
 
     if owner_id and chat_id != owner_id:
-        return  # ignora chiunque non sia il proprietario
+        return
 
     testo = update.message.text or update.message.caption or ""
     if not testo:
@@ -66,25 +88,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     thinking = await update.message.reply_text("⏳ Claude sta elaborando…")
 
-    prima_sessione = context.bot_data.pop("prima_sessione", False)
+    history: list[dict] = context.bot_data.setdefault("history", [])
+    prompt  = _build_prompt(history[-MAX_TURNS:], testo)
 
     try:
-        cmd = ["claude", "--print", "-p", testo]
-        if not prima_sessione:
-            cmd.insert(1, "--continue")
-
-        loop = asyncio.get_event_loop()
+        loop   = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
             lambda: subprocess.run(
-                cmd,
+                ["claude", "--print", "-p", prompt],
                 cwd=str(PROJECT_DIR),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=300,
             ),
         )
-
         risposta = result.stdout.strip()
         if result.returncode != 0 and not risposta:
             risposta = f"⚠️ Errore:\n{result.stderr.strip()[:1000]}"
@@ -94,18 +113,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except FileNotFoundError:
         risposta = "⚠️ Comando `claude` non trovato. Assicurati che Claude Code sia installato e nel PATH."
 
+    # Salva turno nello storico (risposta troncata)
+    history.append({
+        "user":   testo,
+        "claude": risposta[:MAX_REPLY_CHARS] + ("…" if len(risposta) > MAX_REPLY_CHARS else ""),
+    })
+    context.bot_data["history"] = history
+
     await thinking.delete()
 
-    # Telegram: max 4096 caratteri per messaggio
-    chunk_size = 4000
-    parti = [risposta[i:i + chunk_size] for i in range(0, len(risposta), chunk_size)]
-    for parte in parti:
-        await update.message.reply_text(parte)
+    # Invia risposta (max 4000 caratteri per messaggio Telegram)
+    for i in range(0, len(risposta), 4000):
+        await update.message.reply_text(risposta[i:i + 4000])
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-def main():
+async def main():
     if not CLAUDE_BOT_TOKEN:
         raise ValueError("CLAUDE_BOT_TOKEN non impostato")
 
@@ -128,8 +152,13 @@ def main():
     ))
 
     logger.info("claude_mobile: avvio polling")
-    app.run_polling(drop_pending_updates=True)
+    async with app:
+        await app.start()
+        await app.updater.start_polling(drop_pending_updates=True)
+        await asyncio.Event().wait()
+        await app.updater.stop()
+        await app.stop()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
