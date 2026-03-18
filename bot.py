@@ -2028,6 +2028,26 @@ async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await run_monitor(context)
 
 
+async def cmd_aggiorna(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Fa git pull e riavvia il servizio systemd."""
+    import subprocess, asyncio
+    msg = await update.message.reply_text("⏳ Aggiornamento in corso…")
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: subprocess.run(
+            ["git", "-C", "/opt/ntreportbot", "pull"],
+            capture_output=True, text=True, timeout=30,
+        )
+    )
+    output = (result.stdout + result.stderr).strip() or "(nessun output)"
+    await msg.edit_text(f"✅ git pull completato:\n<code>{output[:800]}</code>\n\nRiavvio tra 3 secondi…", parse_mode="HTML")
+
+    await asyncio.sleep(3)
+    subprocess.Popen(["sudo", "systemctl", "restart", "ntreportbot"])
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -2053,7 +2073,8 @@ def main():
     app.add_handler(CommandHandler("pulisci", cmd_pulisci))
     app.add_handler(CommandHandler("chat",    cmd_chat))
     app.add_handler(CommandHandler("fine",    cmd_fine))
-    app.add_handler(CommandHandler("monitor", cmd_monitor))
+    app.add_handler(CommandHandler("monitor",  cmd_monitor))
+    app.add_handler(CommandHandler("aggiorna", cmd_aggiorna))
 
     # Monitor callbacks
     from monitor import run_monitor, handle_mon_usa_cb, handle_mon_ignora_cb
@@ -2094,7 +2115,8 @@ def main():
         await application.bot.set_my_commands([
             BotCommand("start",   "Benvenuto e istruzioni"),
             BotCommand("report",  "Genera post LinkedIn dai documenti"),
-            BotCommand("monitor", "Scansiona fonti normative ora"),
+            BotCommand("monitor",  "Scansiona fonti normative ora"),
+            BotCommand("aggiorna", "Aggiorna bot dal server (git pull + restart)"),
             BotCommand("chat",    "Apri sessione domande su un PDF"),
             BotCommand("fine",    "Chiudi sessione chat"),
             BotCommand("pulisci", "Svuota la memoria"),
