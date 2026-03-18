@@ -270,24 +270,30 @@ def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "") -> s
 
 # ── Job principale ──────────────────────────────────────────────────────────────
 
-async def run_monitor(context, source_filter: str | None = None) -> None:
-    """Eseguito ogni giorno alle 08:00 UTC dal JobQueue del bot.
-
-    source_filter: se indicato, processa solo la fonte il cui nome contiene
-                   questa stringa (case-insensitive). Utile per test manuali.
+async def show_monitor_menu(context) -> None:
+    """Manda il messaggio con la tastiera inline per scegliere la fonte da scansionare.
+    Usato sia dal job giornaliero che dal comando /monitor.
     """
-    from bot import TOPICS
+    chat_id = context.bot_data.get("owner_chat_id")
+    if not chat_id:
+        logger.warning("Monitor: owner_chat_id non trovato — manda /start al bot per registrarti")
+        return
 
     sources = _load_sources()
-    if source_filter:
-        sources = [s for s in sources if source_filter.lower() in s["name"].lower()]
-        if not sources:
-            chat_id = context.bot_data.get("owner_chat_id")
-            if chat_id:
-                await context.bot.send_message(chat_id, f"⚠️ Nessuna fonte trovata con filtro: <code>{source_filter}</code>", parse_mode="HTML")
-            return
+    buttons = [[InlineKeyboardButton(s["name"], callback_data=f"mon_fonte:{i}")]
+               for i, s in enumerate(sources)]
+    buttons.append([InlineKeyboardButton("📋 Tutte le fonti", callback_data="mon_fonte:all")])
 
-    logger.info(f"Monitor: avvio scansione ({len(sources)} fonti)")
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="🔍 Quale fonte vuoi scansionare?",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+async def _run_scan(context, sources: list[dict]) -> None:
+    """Esegue la scansione sulle fonti indicate e notifica i risultati."""
+    from bot import TOPICS
 
     chat_id = context.bot_data.get("owner_chat_id")
     if not chat_id:
@@ -424,6 +430,31 @@ async def run_monitor(context, source_filter: str | None = None) -> None:
 
 
 # ── Callback handlers (da registrare in bot.py) ─────────────────────────────────
+
+async def handle_mon_fonte_cb(update, context) -> None:
+    """Utente ha scelto la fonte dal menu — avvia la scansione."""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_reply_markup(reply_markup=None)
+
+    token = query.data.split(":", 1)[1]  # "all" oppure indice numerico
+    sources = _load_sources()
+
+    if token == "all":
+        selected = sources
+        label = "tutte le fonti"
+    else:
+        idx = int(token)
+        selected = [sources[idx]] if idx < len(sources) else []
+        label = selected[0]["name"] if selected else "fonte sconosciuta"
+
+    if not selected:
+        await query.message.reply_text("⚠️ Fonte non trovata.")
+        return
+
+    await query.message.reply_text(f"🔍 Scansione: <b>{label}</b>…", parse_mode="HTML")
+    await _run_scan(context, selected)
+
 
 async def handle_mon_usa_cb(update, context) -> None:
     """Utente ha cliccato 'Usa questo post' — mostra il testo completo."""

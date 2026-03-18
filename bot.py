@@ -2021,13 +2021,10 @@ async def _end_chat_session(reply_msg, context: ContextTypes.DEFAULT_TYPE):
 # ── Monitor manuale ────────────────────────────────────────────────────────────
 
 async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Avvia il monitor manualmente. Con argomento filtra per nome fonte: /monitor arera"""
+    """Mostra il menu inline per scegliere quale fonte monitorare."""
     context.bot_data["owner_chat_id"] = update.effective_chat.id
-    source_filter = " ".join(context.args).strip() if context.args else None
-    msg = f"🔍 Scansione fonte: <b>{source_filter}</b>…" if source_filter else "🔍 Avvio scansione fonti normative…"
-    await update.message.reply_text(msg, parse_mode="HTML")
-    from monitor import run_monitor
-    await run_monitor(context, source_filter=source_filter)
+    from monitor import show_monitor_menu
+    await show_monitor_menu(context)
 
 
 async def cmd_aggiorna(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2080,13 +2077,14 @@ def main():
     app.add_handler(CommandHandler("aggiorna", cmd_aggiorna))
 
     # Monitor callbacks
-    from monitor import run_monitor, handle_mon_usa_cb, handle_mon_ignora_cb
+    from monitor import show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb, handle_mon_ignora_cb
+    app.add_handler(CallbackQueryHandler(handle_mon_fonte_cb,  pattern=r"^mon_fonte:"))
     app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,    pattern=r"^mon_usa:"))
     app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb, pattern=r"^mon_ignora$"))
 
     # Job giornaliero alle 08:00 UTC
     from datetime import time as dt_time
-    app.job_queue.run_daily(run_monitor, time=dt_time(hour=8, minute=0))
+    app.job_queue.run_daily(show_monitor_menu, time=dt_time(hour=8, minute=0))
 
     app.add_handler(CallbackQueryHandler(handle_chat_select_cb,        pattern=r"^chat_sel:"))
     app.add_handler(CallbackQueryHandler(handle_chat_fine_cb,          pattern=r"^chat_fine$"))
