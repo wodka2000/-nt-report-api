@@ -11,6 +11,7 @@ Integrato nel bot via JobQueue — non va eseguito direttamente.
 """
 
 import json
+import re
 import asyncio
 import logging
 import sqlite3
@@ -26,29 +27,34 @@ logger = logging.getLogger(__name__)
 
 # ── Configurazione fonti ────────────────────────────────────────────────────────
 
-SOURCES = [
-    {
-        "name": "GU — Serie Generale",
-        "url": "https://www.gazzettaufficiale.it/rss/SG",
-        "type": "rss",
-    },
-    {
-        "name": "GU — Unione Europea",
-        "url": "https://www.gazzettaufficiale.it/rss/S2",
-        "type": "rss",
-    },
-    {
-        "name": "GU — Contratti Pubblici",
-        "url": "https://www.gazzettaufficiale.it/rss/S5",
-        "type": "rss",
-    },
-    {
-        "name": "ARERA",
-        "url": "https://www.arera.it/comunicati-stampa/",
-        "type": "html",
-        "link_filter": ["/comunicati-stampa/dettaglio/"],
-    },
-]
+_SOURCES_FILE = Path(__file__).parent / "sources.md"
+
+
+def _load_sources() -> list[dict]:
+    """Legge le fonti attive da sources.md (righe senza 'aggiungere dopo')."""
+    sources = []
+    text = _SOURCES_FILE.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        # Riga di tabella con almeno 4 colonne: | Nome | URL | Tipo | Settori | Note |
+        if not line.startswith("|") or line.startswith("| Nome") or set(line.strip("|").replace("-", "").replace("|", "").replace(" ", "")) == set():
+            continue
+        cols = [c.strip() for c in line.strip("|").split("|")]
+        if len(cols) < 4:
+            continue
+        name, url, tipo, _, note = (cols + [""] * 5)[:5]
+        if not url.startswith("http"):
+            continue
+        if "aggiungere dopo" in note:
+            continue
+        source: dict = {"name": name, "url": url, "type": tipo}
+        m = re.search(r"link_filter:(\S+)", note)
+        if m:
+            source["link_filter"] = [m.group(1)]
+        sources.append(source)
+    return sources
+
+
+SOURCES = _load_sources()
 
 _SETTORI_DESC = """
 - energia: regolazione energetica, elettricità, gas, rinnovabili, ARERA, mercati energetici, tariffe
