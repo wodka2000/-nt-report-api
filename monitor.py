@@ -143,7 +143,7 @@ async def _fetch_rss(url: str) -> list[dict] | None:
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-        feed = feedparser.parse(resp.text)
+        feed = feedparser.parse(resp.content)
         return [
             {
                 "url":     entry.get("link", ""),
