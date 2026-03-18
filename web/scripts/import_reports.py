@@ -9,6 +9,7 @@ Uso: python -m web.scripts.import_reports
 """
 import sys
 import json
+import logging
 import pickle
 import sqlite3
 import re
@@ -199,11 +200,14 @@ def _parse_pickle() -> list[dict]:
     return documents
 
 
+logger = logging.getLogger(__name__)
+
+
 def run() -> None:
-    print(f"DB: {DB_PATH}")
-    print(f"REPORTS_DIR: {REPORTS_DIR} (exists: {REPORTS_DIR.exists()})")
+    logger.info(f"DB: {DB_PATH}")
+    logger.info(f"REPORTS_DIR: {REPORTS_DIR} (exists: {REPORTS_DIR.exists()})")
     md_files = list(REPORTS_DIR.glob("*.md")) if REPORTS_DIR.exists() else []
-    print(f"  File .md trovati: {[f.name for f in md_files]}")
+    logger.info(f"File .md trovati: {[f.name for f in md_files]}")
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     con = sqlite3.connect(DB_PATH)
@@ -227,7 +231,7 @@ def run() -> None:
         """, doc)
         doc_count += 1
     con.commit()
-    print(f"  Documenti importati: {doc_count}")
+    logger.info(f"Documenti importati: {doc_count}")
 
     # ── Import posts ────────────────────────────────────────────────────────────
     posts = _parse_reports()
@@ -248,10 +252,10 @@ def run() -> None:
         """, post)
         post_count += 1
     con.commit()
-    print(f"  Post importati: {post_count}")
+    logger.info(f"Post importati: {post_count}")
 
     con.close()
-    print("Import completato.")
+    logger.info("Import completato.")
 
 
 if __name__ == "__main__":
