@@ -21,14 +21,10 @@ _logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    try:
-        import asyncio
-        from web.scripts.import_reports import run as import_run
-        _logger.info("import_reports: avvio")
-        await asyncio.get_event_loop().run_in_executor(None, import_run)
-        _logger.info("import_reports: completato")
-    except Exception as e:
-        _logger.error(f"import_reports: errore — {e}", exc_info=True)
+    from web.scripts.import_reports import run as import_run
+    _logger.info("import_reports: avvio")
+    import_run()
+    _logger.info("import_reports: completato")
     yield
 
 
