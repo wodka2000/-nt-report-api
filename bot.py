@@ -2088,6 +2088,20 @@ def main():
 
     app.add_error_handler(error_handler)
 
+    # Registra i comandi nel menu Telegram (appare con /)
+    from telegram import BotCommand
+    async def post_init(application):
+        await application.bot.set_my_commands([
+            BotCommand("start",   "Benvenuto e istruzioni"),
+            BotCommand("report",  "Genera post LinkedIn dai documenti"),
+            BotCommand("monitor", "Scansiona fonti normative ora"),
+            BotCommand("chat",    "Apri sessione domande su un PDF"),
+            BotCommand("fine",    "Chiudi sessione chat"),
+            BotCommand("pulisci", "Svuota la memoria"),
+            BotCommand("help",    "Mostra i comandi disponibili"),
+        ])
+    app.post_init = post_init
+
     logger.info("Bot avviato.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
