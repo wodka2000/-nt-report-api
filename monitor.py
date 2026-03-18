@@ -34,8 +34,11 @@ SOURCES = [
     },
     {
         "name": "ARERA",
-        "url": "https://www.arera.it/comunicati-stampa",
+        "url": "https://www.arera.it/it/comunicati.htm",
         "type": "html",
+        "link_filter": ["comunicati", "delibera", "provvedimento", "decisione",
+                        "determina", "relazione", "rapporto", "consultazione",
+                        "/docs/", "/atti/", "/comunicati/"],
     },
 ]
 
@@ -66,15 +69,18 @@ Genera un post LinkedIn professionale in italiano sul seguente documento normati
 
 Fonte: {fonte}
 Titolo: {titolo}
+Data documento: {data}
 
 Contenuto del documento:
 {contenuto}
 
 Regole:
+- Inizia sempre con la data del documento (es. "Il 18 marzo 2025, ARERA ha...")
 - Tono professionale, mai sensazionalistico
 - Solo fatti e riferimenti normativi presenti nel documento
 - Nessuna speculazione o opinione soggettiva
 - Massimo 1300 caratteri (testo + hashtag)
+- IMPORTANTE: concludi SEMPRE con una frase completa di senso compiuto, mai a metà frase
 - Termina con 3-5 hashtag pertinenti
 """
 
@@ -142,7 +148,7 @@ async def _fetch_rss(url: str) -> list[dict] | None:
         return None
 
 
-async def _fetch_html_links(url: str) -> list[dict] | None:
+async def _fetch_html_links(url: str, link_filter: list[str] | None = None) -> list[dict] | None:
     """Scrapa una pagina HTML cercando link a comunicati/provvedimenti."""
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
@@ -160,6 +166,12 @@ async def _fetch_html_links(url: str) -> list[dict] | None:
                 href = f"{base.scheme}://{base.netloc}{href}"
             elif not href.startswith("http"):
                 continue
+            # Applica filtro per keyword nel link o nel testo
+            if link_filter:
+                href_lower = href.lower()
+                text_lower = text.lower()
+                if not any(kw in href_lower or kw in text_lower for kw in link_filter):
+                    continue
             if href in seen_urls:
                 continue
             seen_urls.add(href)
@@ -172,18 +184,29 @@ async def _fetch_html_links(url: str) -> list[dict] | None:
         return None
 
 
-async def _fetch_content(url: str) -> str:
-    """Scarica e restituisce il testo principale di una pagina."""
+async def _fetch_content(url: str) -> tuple[str, str]:
+    """Scarica il testo principale e la data di pubblicazione di una pagina.
+    Restituisce (contenuto, data_trovata)."""
+    import re
     try:
         async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
             resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(resp.text, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
-        return soup.get_text(separator="\n", strip=True)[:8000]
+        testo = soup.get_text(separator="\n", strip=True)
+        # Cerca data nel testo (formati comuni italiani)
+        data = ""
+        match = re.search(
+            r'\b(\d{1,2}[\s/\-]\w+[\s/\-]\d{4}|\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})\b',
+            testo[:2000]
+        )
+        if match:
+            data = match.group()
+        return testo[:8000], data
     except Exception as e:
         logger.error(f"Errore fetch contenuto {url}: {e}")
-        return ""
+        return "", ""
 
 
 # ── Valutazione e generazione ───────────────────────────────────────────────────
@@ -214,12 +237,13 @@ def _assess_relevance(titolo: str, sommario: str) -> dict:
         return {"score": 0, "settore": "altro", "motivo": "errore parsing"}
 
 
-def _generate_post(fonte: str, titolo: str, contenuto: str) -> str:
+def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "") -> str:
     """Usa Sonnet per generare la bozza del post LinkedIn."""
     from bot import call_claude
     prompt = _POST_PROMPT.format(
         fonte=fonte,
         titolo=titolo,
+        data=data or "non disponibile",
         contenuto=contenuto[:6000],
     )
     msg = call_claude(
@@ -259,7 +283,7 @@ async def run_monitor(context) -> None:
         items = (
             await _fetch_rss(url)
             if source["type"] == "rss"
-            else await _fetch_html_links(url)
+            else await _fetch_html_links(url, link_filter=source.get("link_filter"))
         )
 
         if items is None:
@@ -297,8 +321,8 @@ async def run_monitor(context) -> None:
             logger.info(f"Monitor: documento rilevante [{score}/10] — {item['title'][:60]}")
 
             # Fetch contenuto completo + genera bozza
-            contenuto = await _fetch_content(item_url)
-            bozza     = _generate_post(name, item["title"], contenuto)
+            contenuto, data = await _fetch_content(item_url)
+            bozza = _generate_post(name, item["title"], contenuto, data)
 
             # Salva bozza in bot_data per il callback
             draft_counter += 1
