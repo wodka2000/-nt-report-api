@@ -342,7 +342,14 @@ async def run_monitor(context) -> None:
 
             # Messaggio Telegram con bozza
             topic_label = TOPICS.get(settore, "📌 Altro")
-            anteprima = bozza[:600] + ("…" if len(bozza) > 600 else "")
+            if len(bozza) <= 600:
+                anteprima = bozza
+            else:
+                # Taglia all'ultimo punto entro 600 caratteri
+                taglio = bozza[:600].rfind(".")
+                if taglio < 400:
+                    taglio = 600
+                anteprima = bozza[:taglio + 1] + "…"
             testo = (
                 f"📋 *Nuovo documento — {name}*\n"
                 f"Score: {score:.0f}/10 · {topic_label}\n"
