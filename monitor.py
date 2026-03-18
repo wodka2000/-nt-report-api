@@ -342,15 +342,18 @@ async def run_monitor(context) -> None:
 
             # Messaggio Telegram con bozza
             topic_label = TOPICS.get(settore, "📌 Altro")
-            anteprima = bozza[:800] + ("…" if len(bozza) > 800 else "")
+            anteprima = bozza[:600] + ("…" if len(bozza) > 600 else "")
             testo = (
                 f"📋 *Nuovo documento — {name}*\n"
                 f"Score: {score:.0f}/10 · {topic_label}\n"
-                f"*{item['title'][:120]}*\n"
-                f"_{motivo}_\n\n"
+                f"*{item['title'][:100]}*\n"
+                f"_{motivo[:150]}_\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"{anteprima}"
             )
+            # Telegram limite 4096 caratteri
+            if len(testo) > 4000:
+                testo = testo[:4000] + "…"
 
             keyboard = InlineKeyboardMarkup([[
                 InlineKeyboardButton("✅ Usa questo post", callback_data=f"mon_usa:{draft_id}"),
