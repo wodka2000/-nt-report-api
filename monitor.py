@@ -28,8 +28,18 @@ logger = logging.getLogger(__name__)
 
 SOURCES = [
     {
-        "name": "Gazzetta Ufficiale",
-        "url": "https://www.gazzettaufficiale.it/rss/serie_generale.xml",
+        "name": "GU — Serie Generale",
+        "url": "https://www.gazzettaufficiale.it/rss/SG",
+        "type": "rss",
+    },
+    {
+        "name": "GU — Unione Europea",
+        "url": "https://www.gazzettaufficiale.it/rss/S2",
+        "type": "rss",
+    },
+    {
+        "name": "GU — Contratti Pubblici",
+        "url": "https://www.gazzettaufficiale.it/rss/S5",
         "type": "rss",
     },
     {
