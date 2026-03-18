@@ -17,6 +17,9 @@ _STATIC = Path(__file__).parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    import asyncio
+    from web.scripts.import_reports import run as import_run
+    await asyncio.get_event_loop().run_in_executor(None, import_run)
     yield
 
 
