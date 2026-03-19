@@ -148,15 +148,22 @@ async def _fetch_rss(url: str) -> list[dict] | None:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
         feed = feedparser.parse(resp.content)
-        return [
-            {
+        items = []
+        for entry in feed.entries[:30]:
+            if not entry.get("link"):
+                continue
+            # Estrai contenuto completo se disponibile (content:encoded)
+            content = ""
+            if hasattr(entry, "content") and entry.content:
+                raw = entry.content[0].get("value", "")
+                content = BeautifulSoup(raw, "html.parser").get_text(separator="\n", strip=True)
+            items.append({
                 "url":     entry.get("link", ""),
                 "title":   entry.get("title", ""),
                 "summary": entry.get("summary", ""),
-            }
-            for entry in feed.entries[:30]
-            if entry.get("link")
-        ]
+                "content": content,
+            })
+        return items
     except Exception as e:
         logger.error(f"Errore fetch RSS {url}: {e}")
         return None
@@ -353,8 +360,12 @@ async def _run_scan(context, sources: list[dict]) -> None:
             trovati += 1
             logger.info(f"Monitor: documento rilevante [{score}/10] — {item['title'][:60]}")
 
-            # Fetch contenuto completo + genera bozza
-            contenuto, data = await _fetch_content(item_url)
+            # Usa contenuto RSS se disponibile (evita Cloudflare), altrimenti fetch pagina
+            rss_content = item.get("content", "")
+            if rss_content and len(rss_content) > 200:
+                contenuto, data = rss_content[:8000], ""
+            else:
+                contenuto, data = await _fetch_content(item_url)
             bozza = _generate_post(name, item["title"], contenuto, data)
 
             # Salva bozza in bot_data per il callback
