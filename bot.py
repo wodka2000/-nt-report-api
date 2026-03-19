@@ -1504,13 +1504,18 @@ async def do_generate(msg_or_query, context: ContextTypes.DEFAULT_TYPE):
     import subprocess, asyncio
     loop = asyncio.get_event_loop()
     def _git_push():
-        subprocess.run(["git", "-C", str(BASE_DIR), "add", f"reports/{date_str}.md"], check=True)
-        subprocess.run(["git", "-C", str(BASE_DIR), "commit", "-m", f"report: aggiungi post {date_str}"], check=True)
-        subprocess.run(["git", "-C", str(BASE_DIR), "push"], check=True)
+        r1 = subprocess.run(["git", "-C", str(BASE_DIR), "add", f"reports/{date_str}.md"], capture_output=True, text=True)
+        r2 = subprocess.run(["git", "-C", str(BASE_DIR), "commit", "-m", f"report: aggiungi post {date_str}"], capture_output=True, text=True)
+        r3 = subprocess.run(["git", "-C", str(BASE_DIR), "push"], capture_output=True, text=True)
+        output = "\n".join(filter(None, [r1.stderr, r2.stderr, r3.stdout, r3.stderr]))
+        if r3.returncode != 0:
+            raise RuntimeError(output or "push fallito senza output")
+        return output
     try:
-        await loop.run_in_executor(None, _git_push)
+        out = await loop.run_in_executor(None, _git_push)
         await reply_target.reply_text("🌐 Sito aggiornato.", parse_mode="Markdown")
     except Exception as e:
+        await reply_target.reply_text(f"⚠️ Push fallito:\n<code>{str(e)[:800]}</code>", parse_mode="HTML")
         logger.warning(f"git push report fallito: {e}")
 
     # Chiedi se continuare con un'altra sezione
