@@ -59,6 +59,7 @@ async def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(_SCHEMA)
+        await db.execute("PRAGMA journal_mode=WAL")  # letture concorrenti durante scritture
         await db.commit()
 
 

@@ -9,8 +9,11 @@ router = APIRouter()
 @router.post("/refresh")
 async def api_refresh(background_tasks: BackgroundTasks):
     """Reimporta i report dal filesystem. Chiamato dal bot dopo ogni push."""
+    import asyncio
     from web.scripts.import_reports import run as import_run
-    background_tasks.add_task(import_run)
+    async def _run_in_thread():
+        await asyncio.get_event_loop().run_in_executor(None, import_run)
+    background_tasks.add_task(_run_in_thread)
     return {"status": "import avviato"}
 
 
