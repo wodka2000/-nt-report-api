@@ -130,6 +130,8 @@ async def count_posts(
     db: aiosqlite.Connection,
     topic: str | None = None,
     norma: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> int:
     clauses, params = [], []
     if topic:
@@ -138,6 +140,12 @@ async def count_posts(
     if norma:
         clauses.append("normas LIKE ?")
         params.append(f"%{norma}%")
+    if date_from:
+        clauses.append("post_date >= ?")
+        params.append(date_from)
+    if date_to:
+        clauses.append("post_date <= ?")
+        params.append(date_to)
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     async with db.execute(f"SELECT COUNT(*) FROM posts {where}", params) as cur:
         row = await cur.fetchone()

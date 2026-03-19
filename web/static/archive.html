@@ -11,8 +11,11 @@
     header nav { display: flex; gap: 1.5rem; align-items: center; }
     header nav a { text-decoration: none; color: var(--pico-muted-color); font-size: .9rem; }
     header nav a:hover { color: var(--pico-primary); }
-    .filters { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: .75rem; align-items: end; margin-bottom: 1.5rem; }
+    .filters { display: grid; grid-template-columns: 1.5fr 2fr 1fr 1fr auto; gap: .75rem; align-items: end; margin-bottom: 1.5rem; }
     @media (max-width: 700px) { .filters { grid-template-columns: 1fr 1fr; } }
+    .filters > div { min-width: 0; }
+    .filters > div select,
+    .filters > div input { width: 100%; box-sizing: border-box; }
     .filters label { margin-bottom: 0; font-size: .85rem; }
     .badge {
       display: inline-block; padding: .15rem .5rem; border-radius: 999px;
@@ -124,7 +127,6 @@ function changePage(delta) {
 }
 
 async function load() {
-  document.getElementById('status').textContent = 'Caricamento…';
   document.getElementById('results').innerHTML = '<p id="status">Caricamento…</p>';
 
   const params = new URLSearchParams({ page: state.page, page_size: 20 });
@@ -133,7 +135,25 @@ async function load() {
   if (state.dateFrom) params.set('date_from', state.dateFrom);
   if (state.dateTo)   params.set('date_to', state.dateTo);
 
-  const data = await fetch(`${API}/posts?${params}`).then(r => r.json());
+  let data;
+  try {
+    const resp = await fetch(`${API}/posts?${params}`);
+    if (!resp.ok) {
+      const err = await resp.text();
+      document.getElementById('results').innerHTML =
+        `<p style="color:var(--pico-del-color)">Errore API ${resp.status}: ${escHtml(err)}</p>`;
+      document.getElementById('total-count').textContent = '';
+      document.getElementById('pagination').style.display = 'none';
+      return;
+    }
+    data = await resp.json();
+  } catch (e) {
+    document.getElementById('results').innerHTML =
+      `<p style="color:var(--pico-del-color)">Errore di rete: ${escHtml(String(e))}</p>`;
+    document.getElementById('total-count').textContent = '';
+    document.getElementById('pagination').style.display = 'none';
+    return;
+  }
   state.pages = data.pages;
 
   document.getElementById('total-count').textContent =

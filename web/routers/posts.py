@@ -40,7 +40,7 @@ async def api_list_posts(
     posts = await list_posts(db, topic=topic, norma=norma,
                              date_from=date_from, date_to=date_to,
                              page=page, page_size=page_size)
-    total = await count_posts(db, topic=topic, norma=norma)
+    total = await count_posts(db, topic=topic, norma=norma, date_from=date_from, date_to=date_to)
     return {
         "total":     total,
         "page":      page,
