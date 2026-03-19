@@ -78,13 +78,6 @@ def _parse_reports() -> list[dict]:
 
         text = md_file.read_text(encoding="utf-8")
 
-        # Topic dall'header del file
-        topic = "altro"
-        for line in text.splitlines()[:8]:
-            if "**Temi:**" in line or "Temi:" in line:
-                topic = _parse_topic_from_header(line)
-                break
-
         # Suddivide in sezioni ## Post N — HH:MM
         sections = re.split(r"\n##\s+Post\s+(\d+)\s+[—–-]+\s+(\d{2}:\d{2})", text)
 
@@ -92,13 +85,19 @@ def _parse_reports() -> list[dict]:
         # sections[1::3] = numeri post, sections[2::3] = orari, sections[3::3] = corpi
 
         def _make_post(body: str, num: int, time_str: str,
-                       focus: str = "", angolo: str = "") -> dict | None:
+                       focus: str = "", angolo: str = "", topic: str = "altro") -> dict | None:
             body = body.strip()
             if not body or len(body) < 50:
                 return None
+            # Estrai topic dalla riga **Temi:** prima di rimuoverla
+            post_topic = topic
+            for line in body.splitlines()[:8]:
+                if "**Temi:**" in line or "Temi:" in line:
+                    post_topic = _parse_topic_from_header(line)
+                    break
             # Rimuove righe di metadata dal corpo
             lines = [l for l in body.splitlines()
-                     if not re.match(r"\*\*(Focus|Angolo normativo|Fase \d).*\*\*", l)
+                     if not re.match(r"\*\*(Focus|Temi|Angolo normativo|Fase \d).*\*\*", l)
                      and l.strip() != "---"]
             body = "\n".join(lines).strip()
             if not body:
@@ -111,7 +110,7 @@ def _parse_reports() -> list[dict]:
                 "post_num":    num,
                 "focus":       focus,
                 "angolo":      angolo,
-                "topic":       topic,
+                "topic":       post_topic,
                 "normas":      json.dumps(normas),
                 "body":        body,
                 "source_file": md_file.name,
@@ -240,9 +239,18 @@ def run() -> None:
         (r[0], r[1], r[2]) for r in
         con.execute("SELECT post_date, source_file, post_num FROM posts").fetchall()
     )
+    topic_update_count = 0
     for post in posts:
         key = (post["post_date"], post["source_file"], post["post_num"])
         if key in existing_keys:
+            # Aggiorna topic se era "altro" e ora abbiamo uno specifico
+            if post["topic"] != "altro":
+                con.execute("""
+                    UPDATE posts SET topic=:topic
+                    WHERE post_date=:post_date AND source_file=:source_file
+                      AND post_num=:post_num AND topic='altro'
+                """, post)
+                topic_update_count += con.execute("SELECT changes()").fetchone()[0]
             continue
         con.execute("""
             INSERT INTO posts (doc_id, post_date, post_time, post_num,
@@ -252,7 +260,7 @@ def run() -> None:
         """, post)
         post_count += 1
     con.commit()
-    logger.info(f"Post importati: {post_count}")
+    logger.info(f"Post importati: {post_count}, topic aggiornati: {topic_update_count}")
 
     con.close()
     logger.info("Import completato.")
