@@ -86,16 +86,16 @@ async def list_posts(
 ) -> list[dict]:
     clauses, params = [], []
     if topic:
-        clauses.append("topic = ?")
+        clauses.append("p.topic = ?")
         params.append(topic)
     if norma:
-        clauses.append("normas LIKE ?")
+        clauses.append("p.normas LIKE ?")
         params.append(f"%{norma}%")
     if date_from:
-        clauses.append("post_date >= ?")
+        clauses.append("p.post_date >= ?")
         params.append(date_from)
     if date_to:
-        clauses.append("post_date <= ?")
+        clauses.append("p.post_date <= ?")
         params.append(date_to)
 
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
