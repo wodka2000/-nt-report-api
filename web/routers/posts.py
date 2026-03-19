@@ -1,9 +1,17 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from web.core.db import get_db, list_posts, get_post, count_posts
 from web.core.constants import TOPICS, _NORMA_ALIASES
 import aiosqlite
 
 router = APIRouter()
+
+
+@router.post("/refresh")
+async def api_refresh(background_tasks: BackgroundTasks):
+    """Reimporta i report dal filesystem. Chiamato dal bot dopo ogni push."""
+    from web.scripts.import_reports import run as import_run
+    background_tasks.add_task(import_run)
+    return {"status": "import avviato"}
 
 
 @router.get("/topics")

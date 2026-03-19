@@ -1490,11 +1490,14 @@ async def do_generate(msg_or_query, context: ContextTypes.DEFAULT_TYPE):
     reports_dir.mkdir(exist_ok=True)
     report_path = reports_dir / f"{date_str}.md"
     mode = "a" if report_path.exists() else "w"
+    topic     = sel_items[0].get("topic", "altro") if sel_items else "altro"
+    topic_lbl = TOPICS.get(topic, topic.capitalize())
     with open(report_path, mode, encoding="utf-8") as f:
         if mode == "w":
             f.write(f"# Report LinkedIn — {date_str}\n\n")
         f.write(f"## Post {post_num} — {datetime.now().strftime('%H:%M')}\n\n")
         f.write(f"**Focus:** {focus}  \n")
+        f.write(f"**Temi:** {topic_lbl}  \n")
         if angolo:
             f.write(f"**Angolo normativo:** {angolo}  \n")
         f.write(f"\n{post}\n\n---\n\n")
@@ -1512,7 +1515,10 @@ async def do_generate(msg_or_query, context: ContextTypes.DEFAULT_TYPE):
             raise RuntimeError(output or "push fallito senza output")
         return output
     try:
-        out = await loop.run_in_executor(None, _git_push)
+        await loop.run_in_executor(None, _git_push)
+        # Chiama il refresh endpoint del sito per importare subito i nuovi post
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post("https://nt-report-api.onrender.com/api/refresh")
         await reply_target.reply_text("🌐 Sito aggiornato.", parse_mode="Markdown")
     except Exception as e:
         await reply_target.reply_text(f"⚠️ Push fallito:\n<code>{str(e)[:800]}</code>", parse_mode="HTML")
