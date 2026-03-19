@@ -11,9 +11,12 @@
     header nav { display: flex; gap: 1.5rem; align-items: center; }
     header nav a { text-decoration: none; color: var(--pico-muted-color); font-size: .9rem; }
     header nav a:hover { color: var(--pico-primary); }
-    .filters { display: grid; grid-template-columns: 1.5fr 2fr 1fr 1fr auto; gap: .75rem; align-items: end; margin-bottom: 1.5rem; }
-    @media (max-width: 700px) { .filters { grid-template-columns: 1fr 1fr; } }
-    .filters > div { min-width: 0; }
+    .filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; margin-bottom: 1.5rem; }
+    .filters > div { display: flex; flex-direction: column; gap: .25rem; }
+    .f-topic  { flex: 1 1 160px; min-width: 160px; }
+    .f-norma  { flex: 2 1 220px; min-width: 220px; }
+    .f-date   { flex: 1 1 140px; min-width: 140px; }
+    .f-btn    { flex: 0 0 auto; }
     .filters > div select,
     .filters > div input { width: 100%; box-sizing: border-box; }
     .filters label { margin-bottom: 0; font-size: .85rem; }
@@ -51,23 +54,23 @@
   <h2>Archivio post LinkedIn</h2>
 
   <div class="filters">
-    <div>
+    <div class="f-topic">
       <label for="f-topic">Categoria</label>
       <select id="f-topic"><option value="">Tutte</option></select>
     </div>
-    <div>
+    <div class="f-norma">
       <label for="f-norma">Norma</label>
       <select id="f-norma"><option value="">Tutte</option></select>
     </div>
-    <div>
+    <div class="f-date">
       <label for="f-from">Dal</label>
       <input type="date" id="f-from">
     </div>
-    <div>
+    <div class="f-date">
       <label for="f-to">Al</label>
       <input type="date" id="f-to">
     </div>
-    <div>
+    <div class="f-btn">
       <button id="btn-search" onclick="search()">Cerca</button>
     </div>
   </div>
