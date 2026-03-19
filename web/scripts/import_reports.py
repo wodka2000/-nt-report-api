@@ -78,6 +78,13 @@ def _parse_reports() -> list[dict]:
 
         text = md_file.read_text(encoding="utf-8")
 
+        # Topic dall'header del file (fallback per post senza **Temi:** nel corpo)
+        file_topic = "altro"
+        for line in text.splitlines()[:8]:
+            if "**Temi:**" in line or "Temi:" in line:
+                file_topic = _parse_topic_from_header(line)
+                break
+
         # Suddivide in sezioni ## Post N — HH:MM
         sections = re.split(r"\n##\s+Post\s+(\d+)\s+[—–-]+\s+(\d{2}:\d{2})", text)
 
@@ -89,7 +96,7 @@ def _parse_reports() -> list[dict]:
             body = body.strip()
             if not body or len(body) < 50:
                 return None
-            # Estrai topic dalla riga **Temi:** prima di rimuoverla
+            # Estrai topic dalla riga **Temi:** nel corpo; fallback al topic del file
             post_topic = topic
             for line in body.splitlines()[:8]:
                 if "**Temi:**" in line or "Temi:" in line:
@@ -121,7 +128,7 @@ def _parse_reports() -> list[dict]:
         # Rimuove header report e cerca blocchi di testo separati da ---
         preamble = re.sub(r"^#.*\n|^\*\*.*\*\*.*\n", "", preamble, flags=re.MULTILINE)
         for i, block in enumerate(preamble.split("---")):
-            p = _make_post(block, i + 1, "00:00")
+            p = _make_post(block, i + 1, "00:00", topic=file_topic)
             if p:
                 posts.append(p)
 
@@ -137,7 +144,7 @@ def _parse_reports() -> list[dict]:
                 m = re.search(r"\*\*Angolo normativo:\*\*\s*(.+)", line)
                 if m:
                     angolo = m.group(1).strip()
-            p = _make_post(body, int(num_str), time_str, focus, angolo)
+            p = _make_post(body, int(num_str), time_str, focus, angolo, topic=file_topic)
             if p:
                 posts.append(p)
 
