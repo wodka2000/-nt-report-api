@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query, BackgroundTasks
-from web.core.db import get_db, list_posts, get_post, count_posts
+from web.core.db import get_db, list_posts, get_post, count_posts, list_authors
 from web.core.constants import TOPICS, _NORMA_ALIASES
 import aiosqlite
 
@@ -27,6 +27,12 @@ async def get_normas():
     return [{"canonical": c, "aliases": a} for c, a in _NORMA_ALIASES]
 
 
+@router.get("/authors")
+async def api_list_authors(db: aiosqlite.Connection = Depends(get_db)):
+    """Lista degli autori con almeno un post attivo."""
+    return await list_authors(db)
+
+
 @router.get("/posts")
 async def api_list_posts(
     topic:     str | None = Query(None),
@@ -34,15 +40,16 @@ async def api_list_posts(
     date_from: str | None = Query(None),
     date_to:   str | None = Query(None),
     status:    str        = Query("active", pattern="^(active|archived)$"),
+    author:    str | None = Query(None),
     page:      int        = Query(1, ge=1),
     page_size: int        = Query(20, ge=1, le=100),
     db: aiosqlite.Connection = Depends(get_db),
 ):
     posts = await list_posts(db, topic=topic, norma=norma,
                              date_from=date_from, date_to=date_to,
-                             status=status, page=page, page_size=page_size)
+                             status=status, author=author, page=page, page_size=page_size)
     total = await count_posts(db, topic=topic, norma=norma, date_from=date_from, date_to=date_to,
-                              status=status)
+                              status=status, author=author)
     return {
         "total":     total,
         "page":      page,

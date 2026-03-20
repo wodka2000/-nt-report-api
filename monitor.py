@@ -315,14 +315,17 @@ def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "") -> s
 
 # ── Job principale ──────────────────────────────────────────────────────────────
 
-async def show_monitor_menu(context) -> None:
+async def show_monitor_menu(context, chat_id: int = None, username: str = "owner") -> None:
     """Manda il messaggio con la tastiera inline per scegliere la fonte da scansionare.
     Usato sia dal job giornaliero che dal comando /monitor.
     """
-    chat_id = context.bot_data.get("owner_chat_id")
+    if chat_id is None:
+        chat_id = context.bot_data.get("owner_chat_id")
     if not chat_id:
-        logger.warning("Monitor: owner_chat_id non trovato — manda /start al bot per registrarti")
+        logger.warning("Monitor: chat_id non trovato — manda /start al bot per registrarti")
         return
+    # Salva username associato a questo chat per i callback
+    context.bot_data[f"monitor_username_{chat_id}"] = username
 
     sources = _load_sources()
     seen_groups = set()
@@ -344,13 +347,14 @@ async def show_monitor_menu(context) -> None:
     )
 
 
-async def _run_scan(context, sources: list[dict]) -> None:
+async def _run_scan(context, sources: list[dict], chat_id: int = None, username: str = "owner") -> None:
     """Esegue la scansione sulle fonti indicate e notifica i risultati."""
     from bot import TOPICS
 
-    chat_id = context.bot_data.get("owner_chat_id")
+    if chat_id is None:
+        chat_id = context.bot_data.get("owner_chat_id")
     if not chat_id:
-        logger.warning("Monitor: owner_chat_id non trovato — manda /start al bot per registrarti")
+        logger.warning("Monitor: chat_id non trovato — manda /start al bot per registrarti")
         return
 
     _init_db()
@@ -430,6 +434,7 @@ async def _run_scan(context, sources: list[dict]) -> None:
                 "url":         item_url,
                 "settore":     settore,
                 "source_name": name,
+                "username":    username,
             }
             context.bot_data["monitor_draft_counter"] = draft_counter
 
@@ -535,8 +540,10 @@ async def handle_mon_fonte_cb(update, context) -> None:
         await query.message.reply_text("⚠️ Fonte non trovata.")
         return
 
+    chat_id  = query.message.chat.id
+    username = context.bot_data.get(f"monitor_username_{chat_id}", "owner")
     await query.message.reply_text(f"🔍 Scansione: <b>{label}</b>…", parse_mode="HTML")
-    await _run_scan(context, selected)
+    await _run_scan(context, selected, chat_id=chat_id, username=username)
 
 
 async def _save_post_to_report(context, draft: dict, reply_target) -> None:
@@ -548,6 +555,7 @@ async def _save_post_to_report(context, draft: dict, reply_target) -> None:
     settore     = draft.get("settore", "altro")
     topic_lbl   = TOPICS.get(settore, "📌 Altro")
     source_name = draft.get("source_name", "")
+    username    = draft.get("username", "owner")
     date_str    = datetime.now().strftime("%Y-%m-%d")
     time_str    = datetime.now().strftime("%H:%M")
 
@@ -570,6 +578,7 @@ async def _save_post_to_report(context, draft: dict, reply_target) -> None:
         f.write(f"**Focus:** {draft['titolo'][:120]}  \n")
         f.write(f"**Temi:** {topic_lbl}  \n")
         f.write(f"**Angolo normativo:** {source_name}  \n")
+        f.write(f"**Autore:** @{username}  \n")
         f.write(f"\n{draft['bozza']}\n\n---\n\n")
 
     await reply_target.reply_text(f"💾 Salvato in `reports/{date_str}.md`", parse_mode="Markdown")

@@ -93,19 +93,23 @@ def _parse_reports() -> list[dict]:
         # sections[1::3] = numeri post, sections[2::3] = orari, sections[3::3] = corpi
 
         def _make_post(body: str, num: int, time_str: str,
-                       focus: str = "", angolo: str = "", topic: str = "altro") -> dict | None:
+                       focus: str = "", angolo: str = "", topic: str = "altro",
+                       author: str = "owner") -> dict | None:
             body = body.strip()
             if not body or len(body) < 50:
                 return None
             # Estrai topic dalla riga **Temi:** nel corpo; fallback al topic del file
             post_topic = topic
-            for line in body.splitlines()[:8]:
+            post_author = author
+            for line in body.splitlines()[:10]:
                 if "**Temi:**" in line or "Temi:" in line:
                     post_topic = _parse_topic_from_header(line)
-                    break
+                m = re.search(r"\*\*Autore:\*\*\s*@?(\S+)", line)
+                if m:
+                    post_author = m.group(1).strip()
             # Rimuove righe di metadata dal corpo
             lines = [l for l in body.splitlines()
-                     if not re.match(r"\*\*(Focus|Temi|Angolo normativo|Fase \d).*\*\*", l)
+                     if not re.match(r"\*\*(Focus|Temi|Angolo normativo|Autore|Fase \d).*\*\*", l)
                      and l.strip() != "---"]
             body = "\n".join(lines).strip()
             if not body:
@@ -122,6 +126,7 @@ def _parse_reports() -> list[dict]:
                 "normas":      json.dumps(normas),
                 "body":        body,
                 "source_file": md_file.name,
+                "author":      post_author,
             }
 
         # Post precedenti al primo ## header (formato vecchio)
@@ -262,9 +267,9 @@ def run() -> None:
             continue
         con.execute("""
             INSERT INTO posts (doc_id, post_date, post_time, post_num,
-                               focus, angolo, topic, normas, body, source_file)
+                               focus, angolo, topic, normas, body, source_file, author)
             VALUES (:doc_id, :post_date, :post_time, :post_num,
-                    :focus, :angolo, :topic, :normas, :body, :source_file)
+                    :focus, :angolo, :topic, :normas, :body, :source_file, :author)
         """, post)
         post_count += 1
     con.commit()

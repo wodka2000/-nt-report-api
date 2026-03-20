@@ -21,9 +21,16 @@ from telegram.ext import (
 )
 
 # ── Configurazione ─────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN    = os.environ.get("TELEGRAM_TOKEN", "")
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+TELEGRAM_TOKEN       = os.environ.get("TELEGRAM_TOKEN", "")
+ANTHROPIC_API_KEY    = os.environ.get("ANTHROPIC_API_KEY", "")
+OWNER_TELEGRAM_ID    = int(os.environ.get("OWNER_TELEGRAM_ID", "0"))
 PAGE_SIZE = 7
+
+
+def is_owner(update_or_id) -> bool:
+    """Controlla se l'utente è il proprietario del bot."""
+    uid = update_or_id if isinstance(update_or_id, int) else update_or_id.effective_user.id
+    return uid == OWNER_TELEGRAM_ID
 
 TOPICS = {
     "energia":     "⚡ Energia",
@@ -942,27 +949,142 @@ def topic_keyboard(msg_id: int) -> InlineKeyboardMarkup:
 # ── Handlers ───────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Salva il chat_id del proprietario per le notifiche del monitor
-    context.bot_data["owner_chat_id"] = update.effective_chat.id
+    from users import is_approved, add_pending, get_status
+
+    user    = update.effective_user
+    user_id = user.id
+    username  = user.username or ""
+    full_name = user.full_name or ""
+
+    # Il proprietario si registra sempre
+    if is_owner(update):
+        context.bot_data["owner_chat_id"] = update.effective_chat.id
+        await update.message.reply_text(
+            "👋 *Benvenuto!*\n\n"
+            "Questo è il tuo canale per i report LinkedIn.\n\n"
+            "*Come funziona:*\n"
+            "1. Scorri le tue chat Telegram\n"
+            "2. Inoltra qui messaggi, link o PDF\n"
+            "3. Classifica per tema con i bottoni\n"
+            "4. Scrivi /report quando sei pronto\n\n"
+            "*Comandi:*\n"
+            "/report — mostra gli elementi inoltrati e genera il post\n"
+            "/monitor — scansiona le fonti normative\n"
+            "/chat — apri una sessione di domande su un PDF\n"
+            "/fine — chiudi la sessione di chat\n"
+            "/pulisci — svuota la memoria\n"
+            "/utenti — gestisci gli utenti approvati",
+            parse_mode="Markdown",
+        )
+        return
+
+    status = get_status(user_id)
+
+    if status == "approved":
+        await update.message.reply_text(
+            "👋 Bentornato!\n\n"
+            "Usa /monitor per scansionare le fonti normative.",
+        )
+        return
+
+    if status == "pending":
+        await update.message.reply_text(
+            "⏳ La tua richiesta di accesso è in attesa di approvazione."
+        )
+        return
+
+    if status == "rejected":
+        await update.message.reply_text(
+            "❌ La tua richiesta di accesso non è stata approvata."
+        )
+        return
+
+    # Nuovo utente — invia richiesta al proprietario
+    is_new = add_pending(user_id, username, full_name)
+    if is_new:
+        owner_chat_id = context.bot_data.get("owner_chat_id")
+        if owner_chat_id:
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Approva", callback_data=f"user_approve:{user_id}"),
+                InlineKeyboardButton("❌ Rifiuta", callback_data=f"user_reject:{user_id}"),
+            ]])
+            await context.bot.send_message(
+                chat_id=owner_chat_id,
+                text=(
+                    f"👤 *Nuova richiesta di accesso*\n"
+                    f"Nome: {full_name}\n"
+                    f"Username: @{username}\n"
+                    f"ID: `{user_id}`"
+                ),
+                parse_mode="Markdown",
+                reply_markup=keyboard,
+            )
     await update.message.reply_text(
-        "👋 *Benvenuto!*\n\n"
-        "Questo è il tuo canale per i report LinkedIn.\n\n"
-        "*Come funziona:*\n"
-        "1. Scorri le tue chat Telegram\n"
-        "2. Inoltra qui messaggi, link o PDF\n"
-        "3. Classifica per tema con i bottoni\n"
-        "4. Scrivi /report quando sei pronto\n\n"
-        "*Comandi:*\n"
-        "/report — mostra gli elementi inoltrati e genera il post\n"
-        "/chat — apri una sessione di domande su un PDF\n"
-        "/fine — chiudi la sessione di chat e salva il log\n"
-        "/pulisci — svuota la memoria della chat\n"
-        "/help — questo messaggio",
-        parse_mode="Markdown",
+        "👋 Ciao! Hai richiesto accesso a questo bot.\n"
+        "Riceverai una notifica quando la richiesta sarà approvata."
     )
 
 
+async def handle_user_approve_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Proprietario approva una richiesta di accesso."""
+    query = update.callback_query
+    await query.answer()
+    if not is_owner(update):
+        return
+    from users import approve_user, get_username
+    user_id = int(query.data.split(":")[1])
+    approve_user(user_id)
+    await query.edit_message_reply_markup(reply_markup=None)
+    await query.message.reply_text(f"✅ Utente {user_id} approvato.")
+    try:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ La tua richiesta è stata approvata! Usa /monitor per iniziare.",
+        )
+    except Exception:
+        pass
+
+
+async def handle_user_reject_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Proprietario rifiuta una richiesta di accesso."""
+    query = update.callback_query
+    await query.answer()
+    if not is_owner(update):
+        return
+    from users import reject_user
+    user_id = int(query.data.split(":")[1])
+    reject_user(user_id)
+    await query.edit_message_reply_markup(reply_markup=None)
+    await query.message.reply_text(f"❌ Utente {user_id} rifiutato.")
+    try:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="❌ La tua richiesta di accesso non è stata approvata.",
+        )
+    except Exception:
+        pass
+
+
+async def cmd_utenti(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lista utenti (solo proprietario)."""
+    if not is_owner(update):
+        return
+    from users import list_users
+    utenti = list_users()
+    if not utenti:
+        await update.message.reply_text("Nessun utente registrato.")
+        return
+    righe = []
+    for u in utenti:
+        emoji = {"approved": "✅", "pending": "⏳", "rejected": "❌"}.get(u["status"], "❓")
+        righe.append(f"{emoji} @{u['username']} ({u['full_name']}) — `{u['id']}`")
+    await update.message.reply_text("\n".join(righe), parse_mode="Markdown")
+
+
 async def cmd_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update):
+        await update.message.reply_text("Questo comando è riservato all'amministratore.")
+        return
     chat_id = update.effective_chat.id
     items = collect_items(context, chat_id)
     if not items:
@@ -983,6 +1105,9 @@ async def cmd_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_pulisci(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update):
+        await update.message.reply_text("Questo comando è riservato all'amministratore.")
+        return
     chat_id    = update.effective_chat.id
     cache:      dict = context.bot_data.get("msg_cache", {})
     topics_map: dict = context.bot_data.get("msg_topics", {})
@@ -1031,6 +1156,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not msg:
         return
+
+    # Solo il proprietario può inviare messaggi/PDF/link al bot
+    if not is_owner(update):
+        return
+
     text = (msg.text or "").strip()
 
     # Modalità chat: intercetta tutto il testo non-forward
@@ -2046,9 +2176,19 @@ async def _end_chat_session(reply_msg, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Mostra il menu inline per scegliere quale fonte monitorare."""
-    context.bot_data["owner_chat_id"] = update.effective_chat.id
+    from users import is_approved
+    user_id = update.effective_user.id
+    if not (is_owner(update) or is_approved(user_id)):
+        await update.message.reply_text(
+            "Non sei autorizzato. Usa /start per richiedere l'accesso."
+        )
+        return
+    if is_owner(update):
+        context.bot_data["owner_chat_id"] = update.effective_chat.id
+    chat_id  = update.effective_chat.id
+    username = update.effective_user.username or f"user_{user_id}"
     from monitor import show_monitor_menu
-    await show_monitor_menu(context)
+    await show_monitor_menu(context, chat_id=chat_id, username=username)
 
 
 async def cmd_aggiorna(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2091,14 +2231,17 @@ def main():
         .build()
     )
 
-    app.add_handler(CommandHandler("start",   cmd_start))
-    app.add_handler(CommandHandler("help",    cmd_start))
-    app.add_handler(CommandHandler("report",  cmd_report))
-    app.add_handler(CommandHandler("pulisci", cmd_pulisci))
-    app.add_handler(CommandHandler("chat",    cmd_chat))
-    app.add_handler(CommandHandler("fine",    cmd_fine))
+    app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("help",     cmd_start))
+    app.add_handler(CommandHandler("report",   cmd_report))
+    app.add_handler(CommandHandler("pulisci",  cmd_pulisci))
+    app.add_handler(CommandHandler("chat",     cmd_chat))
+    app.add_handler(CommandHandler("fine",     cmd_fine))
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
     app.add_handler(CommandHandler("aggiorna", cmd_aggiorna))
+    app.add_handler(CommandHandler("utenti",   cmd_utenti))
+    app.add_handler(CallbackQueryHandler(handle_user_approve_cb, pattern=r"^user_approve:"))
+    app.add_handler(CallbackQueryHandler(handle_user_reject_cb,  pattern=r"^user_reject:"))
 
     # Monitor callbacks
     from monitor import show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb, handle_mon_ignora_cb, handle_mon_rating_cb
@@ -2110,7 +2253,14 @@ def main():
     # Job giornaliero alle 07:00 UTC = 08:00 ora italiana (CET, UTC+1)
     # NB: in estate (CEST, UTC+2) corrisponderà alle 09:00 — aggiornare a hour=6 da fine marzo
     from datetime import time as dt_time
-    app.job_queue.run_daily(show_monitor_menu, time=dt_time(hour=7, minute=0))
+
+    async def _daily_monitor_job(context):
+        chat_id = context.bot_data.get("owner_chat_id")
+        if chat_id:
+            from monitor import show_monitor_menu
+            await show_monitor_menu(context, chat_id=chat_id, username="owner")
+
+    app.job_queue.run_daily(_daily_monitor_job, time=dt_time(hour=7, minute=0))
 
     app.add_handler(CallbackQueryHandler(handle_chat_select_cb,        pattern=r"^chat_sel:"))
     app.add_handler(CallbackQueryHandler(handle_chat_fine_cb,          pattern=r"^chat_fine$"))

@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS posts (
     normas      TEXT,        -- JSON array di norme canoniche
     body        TEXT,
     source_file TEXT,
-    status      TEXT DEFAULT 'active'  -- active | archived | deleted
+    status      TEXT DEFAULT 'active',  -- active | archived | deleted
+    author      TEXT DEFAULT 'owner'    -- username Telegram
 );
 
 CREATE TABLE IF NOT EXISTS payments (
@@ -61,10 +62,11 @@ async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(_SCHEMA)
         await db.execute("PRAGMA journal_mode=WAL")  # letture concorrenti durante scritture
-        # Migrazione: aggiunge colonna status se non esiste (DB già esistenti)
-        await db.execute(
-            "ALTER TABLE posts ADD COLUMN status TEXT DEFAULT 'active'"
-        ) if not await _column_exists(db, "posts", "status") else None
+        # Migrazioni: aggiunge colonne se non esistono (DB già esistenti)
+        if not await _column_exists(db, "posts", "status"):
+            await db.execute("ALTER TABLE posts ADD COLUMN status TEXT DEFAULT 'active'")
+        if not await _column_exists(db, "posts", "author"):
+            await db.execute("ALTER TABLE posts ADD COLUMN author TEXT DEFAULT 'owner'")
         await db.commit()
 
 
@@ -93,6 +95,7 @@ async def list_posts(
     date_from: str | None = None,
     date_to: str | None = None,
     status: str = "active",
+    author: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> list[dict]:
@@ -109,6 +112,9 @@ async def list_posts(
     if date_to:
         clauses.append("p.post_date <= ?")
         params.append(date_to)
+    if author:
+        clauses.append("p.author = ?")
+        params.append(author)
 
     where = "WHERE " + " AND ".join(clauses)
     offset = (page - 1) * page_size
@@ -145,6 +151,7 @@ async def count_posts(
     date_from: str | None = None,
     date_to: str | None = None,
     status: str = "active",
+    author: str | None = None,
 ) -> int:
     clauses, params = ["status = ?"], [status]
     if topic:
@@ -159,6 +166,9 @@ async def count_posts(
     if date_to:
         clauses.append("post_date <= ?")
         params.append(date_to)
+    if author:
+        clauses.append("author = ?")
+        params.append(author)
     where = "WHERE " + " AND ".join(clauses)
     async with db.execute(f"SELECT COUNT(*) FROM posts {where}", params) as cur:
         row = await cur.fetchone()
@@ -197,6 +207,15 @@ async def get_document(db: aiosqlite.Connection, doc_id: str) -> dict | None:
             except Exception:
                 pass
     return d
+
+
+async def list_authors(db: aiosqlite.Connection) -> list[str]:
+    """Lista degli autori distinti con almeno un post attivo."""
+    async with db.execute(
+        "SELECT DISTINCT author FROM posts WHERE status = 'active' AND author IS NOT NULL ORDER BY author"
+    ) as cur:
+        rows = await cur.fetchall()
+    return [r[0] for r in rows]
 
 
 async def insert_post(db: aiosqlite.Connection, post: dict) -> int:
