@@ -9,9 +9,9 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 
 | Nome | URL | Tipo | Settori | Note |
 |------|-----|------|---------|------|
-| GU — Serie Generale | https://www.gazzettaufficiale.it/rss/SG | rss | tutti | |
-| GU — Unione Europea | https://www.gazzettaufficiale.it/rss/S2 | rss | tutti | |
-| GU — Contratti Pubblici | https://www.gazzettaufficiale.it/rss/S5 | rss | tutti | |
+| GU — Serie Generale | https://www.gazzettaufficiale.it/rss/SG | rss | tutti | group:GU |
+| GU — Unione Europea | https://www.gazzettaufficiale.it/rss/S2 | rss | tutti | group:GU |
+| GU — Contratti Pubblici | https://www.gazzettaufficiale.it/rss/S5 | rss | tutti | group:GU |
 | ARERA | https://www.arera.it/comunicati-stampa/ | html | energia | link_filter:/comunicati-stampa/dettaglio/ |
 | EUR-Lex | https://eur-lex.europa.eu/rss/search.html | rss | tutti | aggiungere dopo |
 | ADM — Novità Giochi | https://www.adm.gov.it/portale/novita-giochi | html | gioco | link_filter:/portale/novita-giochi group:ADM |
@@ -27,8 +27,8 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | ADM — Quote Fissa Comunicazioni | https://www.adm.gov.it/portale/comunicazioni-quota-fissa | html | gioco | group:ADM |
 | ADM — Quote Fissa Normativa | https://www.adm.gov.it/portale/monopoli/giochi/giochi_sport/scommesse_fissa/quota-fissa_normativa | html | gioco | group:ADM |
 | AGCOM | https://www.agcom.it/provvedimenti | html | tecnologia | link_filter:/provvedimenti/ |
-| AGCM | https://www.agcm.it/media/comunicati-stampa | html | altro | link_filter:/media/comunicati-stampa/ |
-| AGCM — Bollettino | https://www.agcm.it/pubblicazioni/bollettino-settimanale/ | html | altro | link_filter:/pubblicazioni/bollettino-settimanale/ |
+| AGCM | https://www.agcm.it/media/comunicati-stampa | html | altro | link_filter:/media/comunicati-stampa/ group:AGCM |
+| AGCM — Bollettino | https://www.agcm.it/pubblicazioni/bollettino-settimanale/ | html | altro | link_filter:/pubblicazioni/bollettino-settimanale/ group:AGCM |
 
 ---
 
@@ -45,11 +45,11 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 
 | Nome | URL | Tipo | Settori | Note |
 |------|-----|------|---------|------|
-| PV Magazine Italia | https://www.pv-magazine.it/feed/ | rss | energia | |
-| Quotidiano Energia | https://www.quotidianoenergia.it/xml/feed.xml | rss | energia | |
-| Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | |
-| Jamma.it | https://www.jamma.it/feed/ | rss | gioco | |
-| GiocoNews | https://www.gioconews.it/feed/ | rss | gioco | |
+| PV Magazine Italia | https://www.pv-magazine.it/feed/ | rss | energia | group:Testate Energia |
+| Quotidiano Energia | https://www.quotidianoenergia.it/xml/feed.xml | rss | energia | group:Testate Energia |
+| Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | group:Testate Energia |
+| Jamma.it | https://www.jamma.it/feed/ | rss | gioco | group:Testate Gioco |
+| GiocoNews | https://www.gioconews.it/feed/ | rss | gioco | group:Testate Gioco |
 
 ---
 
