@@ -414,7 +414,12 @@ async def _run_scan(context, sources: list[dict]) -> None:
             else:
                 contenuto, data = await _fetch_content(item_url)
             bozza = _generate_post(name, item["title"], contenuto, data)
-            bozza = f"📌 {name}\n\n{bozza}\n\n🔗 {item_url}"
+            bozza = (
+                f"📌 {name}\n\n{bozza}\n\n"
+                f"🔗 {item_url}\n\n"
+                f"---\n"
+                f"🤖 Post co-generato con Claude | Approfondisci su nt-report.onrender.com"
+            )
 
             # Salva bozza in bot_data per il callback
             draft_counter += 1
