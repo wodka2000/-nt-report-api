@@ -73,7 +73,7 @@ Valuta la rilevanza del seguente documento per uno studio legale italiano attivo
 Documento:
 Titolo: {titolo}
 Sommario: {sommario}
-
+{esempi}
 Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo:
 {{"score": <intero 0-10>, "settore": "<energia|gioco|tecnologia|concessioni|altro>", "motivo": "<max 20 parole in italiano>"}}
 """
@@ -116,11 +116,37 @@ def _init_db() -> None:
             title    TEXT,
             source   TEXT,
             score    REAL,
+            rating   INTEGER DEFAULT NULL,
             seen_at  TEXT DEFAULT (datetime('now'))
         )
     """)
+    # Migrazione: aggiunge colonna rating se il DB è già esistente
+    try:
+        con.execute("ALTER TABLE seen_docs ADD COLUMN rating INTEGER DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
     con.commit()
     con.close()
+
+
+def _save_rating(url: str, rating: int) -> None:
+    con = sqlite3.connect(_db_path())
+    con.execute("UPDATE seen_docs SET rating=? WHERE url=?", (rating, url))
+    con.commit()
+    con.close()
+
+
+def _get_rated_examples(limit: int = 5) -> tuple[list[str], list[str]]:
+    """Restituisce titoli di documenti con rating alto (4-5) e basso (1-2)."""
+    con = sqlite3.connect(_db_path())
+    high = [r[0] for r in con.execute(
+        "SELECT title FROM seen_docs WHERE rating >= 4 ORDER BY seen_at DESC LIMIT ?", (limit,)
+    ).fetchall()]
+    low = [r[0] for r in con.execute(
+        "SELECT title FROM seen_docs WHERE rating <= 2 AND rating IS NOT NULL ORDER BY seen_at DESC LIMIT ?", (limit,)
+    ).fetchall()]
+    con.close()
+    return high, low
 
 
 def _is_seen(url: str) -> bool:
@@ -236,10 +262,19 @@ def _assess_relevance(titolo: str, sommario: str) -> dict:
     """Usa Haiku per valutare la rilevanza (score 0-10)."""
     import re
     from bot import call_claude
+    high, low = _get_rated_examples()
+    esempi = ""
+    if high or low:
+        esempi = "\nPreferenze dell'utente (basate sui rating):"
+        if high:
+            esempi += f"\n- Molto rilevanti (4-5 ⭐): {'; '.join(high[:3])}"
+        if low:
+            esempi += f"\n- Poco rilevanti (1-2 ⭐): {'; '.join(low[:3])}"
     prompt = _RELEVANCE_PROMPT.format(
         settori=_SETTORI_DESC,
         titolo=titolo,
         sommario=(sommario or "(nessun sommario)")[:600],
+        esempi=esempi,
     )
     try:
         msg = call_claude(
@@ -397,10 +432,19 @@ async def _run_scan(context, sources: list[dict]) -> None:
             if len(testo) > 4000:
                 testo = testo[:4000] + "…"
 
-            keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("✅ Usa questo post", callback_data=f"mon_usa:{draft_id}"),
-                InlineKeyboardButton("🗑 Ignora",          callback_data="mon_ignora"),
-            ]])
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⭐",     callback_data=f"mon_rating:{draft_id}:1"),
+                    InlineKeyboardButton("⭐⭐",   callback_data=f"mon_rating:{draft_id}:2"),
+                    InlineKeyboardButton("⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:3"),
+                    InlineKeyboardButton("⭐⭐⭐⭐",   callback_data=f"mon_rating:{draft_id}:4"),
+                    InlineKeyboardButton("⭐⭐⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:5"),
+                ],
+                [
+                    InlineKeyboardButton("✅ Usa questo post", callback_data=f"mon_usa:{draft_id}"),
+                    InlineKeyboardButton("🗑 Ignora",          callback_data=f"mon_ignora:{draft_id}"),
+                ],
+            ])
 
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -468,8 +512,24 @@ async def handle_mon_fonte_cb(update, context) -> None:
     await _run_scan(context, selected)
 
 
+async def handle_mon_rating_cb(update, context) -> None:
+    """Utente ha assegnato un rating ⭐ — salva e rimuove i bottoni."""
+    query = update.callback_query
+    parts = query.data.split(":")  # mon_rating:{draft_id}:{stars}
+    draft_id = parts[1]
+    stars = int(parts[2])
+
+    drafts = context.bot_data.get("monitor_drafts", {})
+    draft  = drafts.get(draft_id)
+    if draft:
+        _save_rating(draft["url"], stars)
+
+    await query.answer(f"{'⭐' * stars} salvato")
+    await query.edit_message_reply_markup(reply_markup=None)
+
+
 async def handle_mon_usa_cb(update, context) -> None:
-    """Utente ha cliccato 'Usa questo post' — mostra il testo completo."""
+    """Utente ha cliccato 'Usa questo post' — salva rating 5 e mostra il testo completo."""
     query = update.callback_query
     await query.answer()
 
@@ -482,6 +542,7 @@ async def handle_mon_usa_cb(update, context) -> None:
         await query.message.reply_text("⚠️ Bozza non più disponibile.")
         return
 
+    _save_rating(draft["url"], 5)
     await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_text(
         f"📝 *Post completo — copia e incolla su LinkedIn:*\n\n{draft['bozza']}\n\n"
@@ -492,7 +553,13 @@ async def handle_mon_usa_cb(update, context) -> None:
 
 
 async def handle_mon_ignora_cb(update, context) -> None:
-    """Utente ha cliccato 'Ignora' — rimuove i bottoni."""
+    """Utente ha cliccato 'Ignora' — salva rating 1 e rimuove i bottoni."""
     query = update.callback_query
+    parts = query.data.split(":", 1)
+    if len(parts) > 1:
+        drafts = context.bot_data.get("monitor_drafts", {})
+        draft  = drafts.get(parts[1])
+        if draft:
+            _save_rating(draft["url"], 1)
     await query.answer("Documento ignorato.")
     await query.edit_message_reply_markup(reply_markup=None)

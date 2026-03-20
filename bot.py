@@ -2101,10 +2101,11 @@ def main():
     app.add_handler(CommandHandler("aggiorna", cmd_aggiorna))
 
     # Monitor callbacks
-    from monitor import show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb, handle_mon_ignora_cb
+    from monitor import show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb, handle_mon_ignora_cb, handle_mon_rating_cb
     app.add_handler(CallbackQueryHandler(handle_mon_fonte_cb,  pattern=r"^mon_fonte:"))
     app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,    pattern=r"^mon_usa:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb, pattern=r"^mon_ignora$"))
+    app.add_handler(CallbackQueryHandler(handle_mon_rating_cb, pattern=r"^mon_rating:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb, pattern=r"^mon_ignora"))
 
     # Job giornaliero alle 07:00 UTC = 08:00 ora italiana (CET, UTC+1)
     # NB: in estate (CEST, UTC+2) corrisponderà alle 09:00 — aggiornare a hour=6 da fine marzo
