@@ -34,6 +34,10 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | Nome | URL | Tipo | Settori | Note |
 |------|-----|------|---------|------|
 | PV Magazine Italia | https://www.pv-magazine.it/feed/ | rss | energia | |
+| Quotidiano Energia | https://www.quotidianoenergia.it/xml/feed.xml | rss | energia | |
+| Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | |
+| Jamma.it | https://www.jamma.it/feed/ | rss | gioco | |
+| GiocoNews | https://www.gioconews.it/ | html | gioco | |
 
 ---
 
