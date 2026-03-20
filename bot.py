@@ -2186,7 +2186,8 @@ async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_owner(update):
         context.bot_data["owner_chat_id"] = update.effective_chat.id
     chat_id  = update.effective_chat.id
-    username = update.effective_user.username or f"user_{user_id}"
+    user     = update.effective_user
+    username = user.username or user.first_name or f"user_{user_id}"
     from monitor import show_monitor_menu
     await show_monitor_menu(context, chat_id=chat_id, username=username)
 
