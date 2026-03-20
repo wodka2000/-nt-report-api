@@ -360,9 +360,10 @@ async def _run_scan(context, sources: list[dict]) -> None:
             trovati += 1
             logger.info(f"Monitor: documento rilevante [{score}/10] — {item['title'][:60]}")
 
-            # Usa contenuto RSS se disponibile (evita Cloudflare), altrimenti fetch pagina
-            rss_content = item.get("content", "")
-            if rss_content and len(rss_content) > 200:
+            # Per RSS: usa content:encoded o summary (evita fetch pagina → Cloudflare)
+            # Per HTML: fetch contenuto completo della pagina
+            if source["type"] == "rss":
+                rss_content = item.get("content", "") or item.get("summary", "")
                 contenuto, data = rss_content[:8000], ""
             else:
                 contenuto, data = await _fetch_content(item_url)
