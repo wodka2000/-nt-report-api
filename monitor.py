@@ -407,7 +407,13 @@ async def _run_scan(context, sources: list[dict]) -> None:
             # Salva bozza in bot_data per il callback
             draft_counter += 1
             draft_id = str(draft_counter)
-            drafts[draft_id] = {"titolo": item["title"], "bozza": bozza, "url": item_url}
+            drafts[draft_id] = {
+                "titolo":      item["title"],
+                "bozza":       bozza,
+                "url":         item_url,
+                "settore":     settore,
+                "source_name": name,
+            }
             context.bot_data["monitor_draft_counter"] = draft_counter
 
             # Messaggio Telegram con bozza
@@ -512,6 +518,64 @@ async def handle_mon_fonte_cb(update, context) -> None:
     await _run_scan(context, selected)
 
 
+async def _save_post_to_report(context, draft: dict, reply_target) -> None:
+    """Salva la bozza monitor nel file report del giorno e pusha su GitHub."""
+    import subprocess
+    from datetime import datetime
+    from bot import BASE_DIR, TOPICS
+
+    settore     = draft.get("settore", "altro")
+    topic_lbl   = TOPICS.get(settore, "📌 Altro")
+    source_name = draft.get("source_name", "")
+    date_str    = datetime.now().strftime("%Y-%m-%d")
+    time_str    = datetime.now().strftime("%H:%M")
+
+    reports_dir = BASE_DIR / "reports"
+    reports_dir.mkdir(exist_ok=True)
+    report_path = reports_dir / f"{date_str}.md"
+
+    # Calcola il numero del prossimo post
+    post_num = 1
+    if report_path.exists():
+        text = report_path.read_text(encoding="utf-8")
+        import re
+        post_num = len(re.findall(r"^## Post \d+", text, re.MULTILINE)) + 1
+
+    mode = "a" if report_path.exists() else "w"
+    with open(report_path, mode, encoding="utf-8") as f:
+        if mode == "w":
+            f.write(f"# Report LinkedIn — {date_str}\n**Temi:** {topic_lbl}\n\n")
+        f.write(f"## Post {post_num} — {time_str}\n\n")
+        f.write(f"**Focus:** {draft['titolo'][:120]}  \n")
+        f.write(f"**Temi:** {topic_lbl}  \n")
+        f.write(f"**Angolo normativo:** {source_name}  \n")
+        f.write(f"\n{draft['bozza']}\n\n---\n\n")
+
+    await reply_target.reply_text(f"💾 Salvato in `reports/{date_str}.md`", parse_mode="Markdown")
+
+    # Git push + refresh sito
+    loop = asyncio.get_event_loop()
+    def _git_push():
+        r1 = subprocess.run(["git", "-C", str(BASE_DIR), "add", f"reports/{date_str}.md"],
+                            capture_output=True, text=True)
+        r2 = subprocess.run(["git", "-C", str(BASE_DIR), "commit", "-m",
+                              f"report: monitor post {date_str} ({source_name})"],
+                            capture_output=True, text=True)
+        r3 = subprocess.run(["git", "-C", str(BASE_DIR), "push"],
+                            capture_output=True, text=True)
+        if r3.returncode != 0:
+            output = "\n".join(filter(None, [r1.stderr, r2.stderr, r3.stdout, r3.stderr]))
+            raise RuntimeError(output or "push fallito")
+    try:
+        await loop.run_in_executor(None, _git_push)
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post("https://nt-report-api.onrender.com/api/refresh")
+        await reply_target.reply_text("🌐 Sito aggiornato.")
+    except Exception as e:
+        await reply_target.reply_text(f"⚠️ Push fallito: {str(e)[:400]}")
+        logger.warning(f"Monitor git push fallito: {e}")
+
+
 async def handle_mon_rating_cb(update, context) -> None:
     """Utente ha assegnato un rating ⭐ — salva e rimuove i bottoni."""
     query = update.callback_query
@@ -550,6 +614,9 @@ async def handle_mon_usa_cb(update, context) -> None:
         parse_mode="Markdown",
         disable_web_page_preview=True,
     )
+
+    # Salva nel report del giorno e pusha sul sito
+    await _save_post_to_report(context, draft, query.message)
 
 
 async def handle_mon_ignora_cb(update, context) -> None:
