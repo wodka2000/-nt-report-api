@@ -29,6 +29,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | AGCOM | https://www.agcom.it/provvedimenti | html | tecnologia | link_filter:/provvedimenti/ |
 | AGCM | https://www.agcm.it/media/comunicati-stampa | html | altro | link_filter:/media/comunicati-stampa/ group:AGCM |
 | AGCM — Bollettino | https://www.agcm.it/pubblicazioni/bollettino-settimanale/ | html | altro | link_filter:/pubblicazioni/bollettino-settimanale/ group:AGCM |
+| Corte Costituzionale | https://www.cortecostituzionale.it/comunicati-stampa | html | concessioni | link_filter:/comunicati-stampa/ aggiungere dopo |
 
 ---
 
@@ -45,11 +46,11 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 
 | Nome | URL | Tipo | Settori | Note |
 |------|-----|------|---------|------|
-| PV Magazine Italia | https://www.pv-magazine.it/feed/ | rss | energia | group:Testate Energia |
-| Quotidiano Energia | https://www.quotidianoenergia.it/xml/feed.xml | rss | energia | group:Testate Energia |
-| Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | group:Testate Energia |
-| Jamma.it | https://www.jamma.it/feed/ | rss | gioco | group:Testate Gioco |
-| GiocoNews | https://www.gioconews.it/feed/ | rss | gioco | group:Testate Gioco |
+| PV Magazine Italia | https://www.pv-magazine.it/feed/ | rss | energia | |
+| Quotidiano Energia | https://www.quotidianoenergia.it/xml/feed.xml | rss | energia | |
+| Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | |
+| Jamma.it | https://www.jamma.it/feed/ | rss | gioco | |
+| GiocoNews | https://www.gioconews.it/feed/ | rss | gioco | |
 
 ---
 
