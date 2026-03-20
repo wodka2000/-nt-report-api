@@ -50,6 +50,9 @@ def _load_sources() -> list[dict]:
         m = re.search(r"link_filter:(\S+)", note)
         if m:
             source["link_filter"] = [m.group(1)]
+        g = re.search(r"group:(\S+)", note)
+        if g:
+            source["group"] = g.group(1)
         sources.append(source)
     return sources
 
@@ -322,8 +325,16 @@ async def show_monitor_menu(context) -> None:
         return
 
     sources = _load_sources()
-    buttons = [[InlineKeyboardButton(s["name"], callback_data=f"mon_fonte:{i}")]
-               for i, s in enumerate(sources)]
+    seen_groups = set()
+    buttons = []
+    for i, s in enumerate(sources):
+        group = s.get("group")
+        if group:
+            if group not in seen_groups:
+                seen_groups.add(group)
+                buttons.append([InlineKeyboardButton(group, callback_data=f"mon_fonte:group:{group}")])
+        else:
+            buttons.append([InlineKeyboardButton(s["name"], callback_data=f"mon_fonte:{i}")])
     buttons.append([InlineKeyboardButton("📋 Tutte le fonti", callback_data="mon_fonte:all")])
 
     await context.bot.send_message(
@@ -403,6 +414,7 @@ async def _run_scan(context, sources: list[dict]) -> None:
             else:
                 contenuto, data = await _fetch_content(item_url)
             bozza = _generate_post(name, item["title"], contenuto, data)
+            bozza = f"📌 {name}\n\n{bozza}\n\n🔗 {item_url}"
 
             # Salva bozza in bot_data per il callback
             draft_counter += 1
@@ -499,12 +511,16 @@ async def handle_mon_fonte_cb(update, context) -> None:
     await query.answer()
     await query.edit_message_reply_markup(reply_markup=None)
 
-    token = query.data.split(":", 1)[1]  # "all" oppure indice numerico
+    token = query.data.split(":", 1)[1]  # "all", "group:ADM", oppure indice numerico
     sources = _load_sources()
 
     if token == "all":
         selected = sources
         label = "tutte le fonti"
+    elif token.startswith("group:"):
+        group_name = token.split(":", 1)[1]
+        selected = [s for s in sources if s.get("group") == group_name]
+        label = group_name
     else:
         idx = int(token)
         selected = [sources[idx]] if idx < len(sources) else []
