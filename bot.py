@@ -2106,9 +2106,10 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,    pattern=r"^mon_usa:"))
     app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb, pattern=r"^mon_ignora$"))
 
-    # Job giornaliero alle 08:00 UTC
+    # Job giornaliero alle 07:00 UTC = 08:00 ora italiana (CET, UTC+1)
+    # NB: in estate (CEST, UTC+2) corrisponderà alle 09:00 — aggiornare a hour=6 da fine marzo
     from datetime import time as dt_time
-    app.job_queue.run_daily(show_monitor_menu, time=dt_time(hour=8, minute=0))
+    app.job_queue.run_daily(show_monitor_menu, time=dt_time(hour=7, minute=0))
 
     app.add_handler(CallbackQueryHandler(handle_chat_select_cb,        pattern=r"^chat_sel:"))
     app.add_handler(CallbackQueryHandler(handle_chat_fine_cb,          pattern=r"^chat_fine$"))
