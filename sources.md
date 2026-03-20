@@ -27,7 +27,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | ADM — Quote Fissa Comunicazioni | https://www.adm.gov.it/portale/comunicazioni-quota-fissa | html | gioco | |
 | ADM — Quote Fissa Normativa | https://www.adm.gov.it/portale/monopoli/giochi/giochi_sport/scommesse_fissa/quota-fissa_normativa | html | gioco | |
 | AGCOM | https://www.agcom.it/provvedimenti | html | tecnologia | link_filter:/provvedimenti/ |
-| AGCM | https://www.agcm.it/media/comunicati-stampa | html | concorrenza | aggiungere dopo |
+| AGCM | https://www.agcm.it/media/comunicati-stampa | html | altro | link_filter:/media/comunicati-stampa/ |
 
 ---
 
