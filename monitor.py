@@ -360,8 +360,9 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
     _init_db()
 
     # Contatore bozze salvate in bot_data per i callback
+    # Le bozze sono scoped per chat_id per evitare cross-contamination tra utenti
     drafts: dict = context.bot_data.setdefault("monitor_drafts", {})
-    draft_counter: int = context.bot_data.get("monitor_draft_counter", 0)
+    draft_counter: int = context.bot_data.get(f"monitor_draft_counter_{chat_id}", 0)
 
     errori: list[str] = []
     trovati: int = 0
@@ -426,8 +427,9 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             )
 
             # Salva bozza in bot_data per il callback
+            # draft_id = "{chat_id}_{counter}" per evitare sovrapposizioni tra utenti
             draft_counter += 1
-            draft_id = str(draft_counter)
+            draft_id = f"{chat_id}_{draft_counter}"
             drafts[draft_id] = {
                 "titolo":      item["title"],
                 "bozza":       bozza,
@@ -436,7 +438,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 "source_name": name,
                 "username":    username,
             }
-            context.bot_data["monitor_draft_counter"] = draft_counter
+            context.bot_data[f"monitor_draft_counter_{chat_id}"] = draft_counter
 
             # Messaggio Telegram con bozza
             topic_label = TOPICS.get(settore, "📌 Altro")
