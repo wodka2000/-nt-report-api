@@ -37,7 +37,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | Quotidiano Energia | https://www.quotidianoenergia.it/xml/feed.xml | rss | energia | |
 | Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | |
 | Jamma.it | https://www.jamma.it/feed/ | rss | gioco | |
-| GiocoNews | https://www.gioconews.it/ | html | gioco | |
+| GiocoNews | https://www.gioconews.it/feed/ | rss | gioco | |
 
 ---
 
