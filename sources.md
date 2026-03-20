@@ -29,7 +29,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | AGCOM | https://www.agcom.it/provvedimenti | html | tecnologia | link_filter:/provvedimenti/ |
 | AGCM | https://www.agcm.it/media/comunicati-stampa | html | altro | link_filter:/media/comunicati-stampa/ group:AGCM |
 | AGCM — Bollettino | https://www.agcm.it/pubblicazioni/bollettino-settimanale/ | html | altro | link_filter:/pubblicazioni/bollettino-settimanale/ group:AGCM |
-| Corte Costituzionale | https://www.cortecostituzionale.it/comunicati-stampa | html | concessioni | link_filter:/comunicati-stampa/ aggiungere dopo |
+| Corte Costituzionale | https://www.cortecostituzionale.it/comunicati-stampa | html | concessioni | link_filter:/comunicati-stampa/ |
 
 ---
 
