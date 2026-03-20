@@ -546,7 +546,7 @@ async def handle_mon_fonte_cb(update, context) -> None:
     await _run_scan(context, selected, chat_id=chat_id, username=username)
 
 
-async def _save_post_to_report(context, draft: dict, reply_target) -> None:
+async def _save_post_to_report(context, draft: dict, reply_target, notify_errors: bool = False) -> None:
     """Salva la bozza monitor nel file report del giorno e pusha su GitHub."""
     import subprocess
     from datetime import datetime
@@ -605,8 +605,9 @@ async def _save_post_to_report(context, draft: dict, reply_target) -> None:
             await client.post("https://nt-report-api.onrender.com/api/refresh")
         await reply_target.reply_text("🌐 Sito aggiornato.")
     except Exception as e:
-        await reply_target.reply_text(f"⚠️ Push fallito: {str(e)[:400]}")
         logger.warning(f"Monitor git push fallito: {e}")
+        if notify_errors:
+            await reply_target.reply_text(f"⚠️ Push fallito: {str(e)[:400]}")
 
 
 async def handle_mon_rating_cb(update, context) -> None:
@@ -649,7 +650,9 @@ async def handle_mon_usa_cb(update, context) -> None:
     )
 
     # Salva nel report del giorno e pusha sul sito
-    await _save_post_to_report(context, draft, query.message)
+    from bot import is_owner
+    await _save_post_to_report(context, draft, query.message,
+                               notify_errors=is_owner(update))
 
 
 async def handle_mon_ignora_cb(update, context) -> None:
