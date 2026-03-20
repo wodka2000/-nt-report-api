@@ -14,8 +14,8 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | GU — Contratti Pubblici | https://www.gazzettaufficiale.it/rss/S5 | rss | tutti | |
 | ARERA | https://www.arera.it/comunicati-stampa/ | html | energia | link_filter:/comunicati-stampa/dettaglio/ |
 | EUR-Lex | https://eur-lex.europa.eu/rss/search.html | rss | tutti | aggiungere dopo |
-| ADM | https://www.adm.gov.it/portale/web/guest/home | html | gioco | aggiungere dopo |
-| AGCOM | https://www.agcom.it/provvedimenti | html | tecnologia | aggiungere dopo |
+| ADM | https://www.adm.gov.it/portale/novita-giochi | html | gioco | link_filter:/portale/novita-giochi |
+| AGCOM | https://www.agcom.it/provvedimenti | html | tecnologia | link_filter:/provvedimenti/ |
 | AGCM | https://www.agcm.it/media/comunicati-stampa | html | concorrenza | aggiungere dopo |
 
 ---
