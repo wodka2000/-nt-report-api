@@ -115,55 +115,79 @@ def _init_db() -> None:
     con = sqlite3.connect(path)
     con.execute("""
         CREATE TABLE IF NOT EXISTS seen_docs (
-            url      TEXT PRIMARY KEY,
+            url      TEXT,
+            chat_id  TEXT NOT NULL DEFAULT 'owner',
             title    TEXT,
             source   TEXT,
             score    REAL,
             rating   INTEGER DEFAULT NULL,
-            seen_at  TEXT DEFAULT (datetime('now'))
+            seen_at  TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (url, chat_id)
         )
     """)
-    # Migrazione: aggiunge colonna rating se il DB è già esistente
+    # Migrazioni per DB esistenti
     try:
         con.execute("ALTER TABLE seen_docs ADD COLUMN rating INTEGER DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        con.execute("ALTER TABLE seen_docs ADD COLUMN chat_id TEXT NOT NULL DEFAULT 'owner'")
+        # Rimuove il vecchio vincolo PRIMARY KEY su url e ricrea la tabella con la chiave composita
+        con.executescript("""
+            CREATE TABLE IF NOT EXISTS seen_docs_new (
+                url      TEXT,
+                chat_id  TEXT NOT NULL DEFAULT 'owner',
+                title    TEXT,
+                source   TEXT,
+                score    REAL,
+                rating   INTEGER DEFAULT NULL,
+                seen_at  TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (url, chat_id)
+            );
+            INSERT OR IGNORE INTO seen_docs_new SELECT url, 'owner', title, source, score, rating, seen_at FROM seen_docs;
+            DROP TABLE seen_docs;
+            ALTER TABLE seen_docs_new RENAME TO seen_docs;
+        """)
     except sqlite3.OperationalError:
         pass
     con.commit()
     con.close()
 
 
-def _save_rating(url: str, rating: int) -> None:
+def _save_rating(url: str, rating: int, chat_id: str = "owner") -> None:
     con = sqlite3.connect(_db_path())
-    con.execute("UPDATE seen_docs SET rating=? WHERE url=?", (rating, url))
+    con.execute("UPDATE seen_docs SET rating=? WHERE url=? AND chat_id=?", (rating, url, chat_id))
     con.commit()
     con.close()
 
 
-def _get_rated_examples(limit: int = 5) -> tuple[list[str], list[str]]:
-    """Restituisce titoli di documenti con rating alto (4-5) e basso (1-2)."""
+def _get_rated_examples(chat_id: str = "owner", limit: int = 5) -> tuple[list[str], list[str]]:
+    """Restituisce titoli di documenti con rating alto (4-5) e basso (1-2) per questo utente."""
     con = sqlite3.connect(_db_path())
     high = [r[0] for r in con.execute(
-        "SELECT title FROM seen_docs WHERE rating >= 4 ORDER BY seen_at DESC LIMIT ?", (limit,)
+        "SELECT title FROM seen_docs WHERE chat_id=? AND rating >= 4 ORDER BY seen_at DESC LIMIT ?",
+        (chat_id, limit)
     ).fetchall()]
     low = [r[0] for r in con.execute(
-        "SELECT title FROM seen_docs WHERE rating <= 2 AND rating IS NOT NULL ORDER BY seen_at DESC LIMIT ?", (limit,)
+        "SELECT title FROM seen_docs WHERE chat_id=? AND rating <= 2 AND rating IS NOT NULL ORDER BY seen_at DESC LIMIT ?",
+        (chat_id, limit)
     ).fetchall()]
     con.close()
     return high, low
 
 
-def _is_seen(url: str) -> bool:
+def _is_seen(url: str, chat_id: str = "owner") -> bool:
     con = sqlite3.connect(_db_path())
-    row = con.execute("SELECT 1 FROM seen_docs WHERE url=?", (url,)).fetchone()
+    row = con.execute("SELECT 1 FROM seen_docs WHERE url=? AND chat_id=?", (url, chat_id)).fetchone()
     con.close()
     return row is not None
 
 
-def _mark_seen(url: str, title: str, source: str, score: float) -> None:
+def _mark_seen(url: str, title: str, source: str, score: float, chat_id: str = "owner") -> None:
     con = sqlite3.connect(_db_path())
     con.execute(
-        "INSERT OR IGNORE INTO seen_docs (url, title, source, score) VALUES (?,?,?,?)",
-        (url, title, source, score),
+        "INSERT OR IGNORE INTO seen_docs (url, chat_id, title, source, score) VALUES (?,?,?,?,?)",
+        (url, chat_id, title, source, score),
     )
     con.commit()
     con.close()
@@ -261,11 +285,11 @@ async def _fetch_content(url: str) -> tuple[str, str]:
 
 # ── Valutazione e generazione ───────────────────────────────────────────────────
 
-def _assess_relevance(titolo: str, sommario: str) -> dict:
+def _assess_relevance(titolo: str, sommario: str, chat_id: str = "owner") -> dict:
     """Usa Haiku per valutare la rilevanza (score 0-10)."""
     import re
     from bot import call_claude
-    high, low = _get_rated_examples()
+    high, low = _get_rated_examples(chat_id)
     esempi = ""
     if high or low:
         esempi = "\nPreferenze dell'utente (basate sui rating):"
@@ -391,18 +415,18 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             item_url = item["url"]
             if not item_url:
                 continue
-            if _is_seen(item_url):
+            if _is_seen(item_url, str(chat_id)):
                 continue
 
             nuovi += 1
 
             # Valutazione rapida con Haiku
-            relevance = _assess_relevance(item["title"], item["summary"])
+            relevance = _assess_relevance(item["title"], item["summary"], str(chat_id))
             score   = float(relevance.get("score", 0))
             settore = relevance.get("settore", "altro")
             motivo  = relevance.get("motivo", "")
 
-            _mark_seen(item_url, item["title"], name, score)
+            _mark_seen(item_url, item["title"], name, score, str(chat_id))
             riepilogo_fonte.append((score, settore, item["title"][:80], motivo))
 
             if score < 5:
@@ -622,7 +646,8 @@ async def handle_mon_rating_cb(update, context) -> None:
     drafts = context.bot_data.get("monitor_drafts", {})
     draft  = drafts.get(draft_id)
     if draft:
-        _save_rating(draft["url"], stars)
+        chat_id = str(query.message.chat.id)
+        _save_rating(draft["url"], stars, chat_id)
 
     await query.answer(f"{'⭐' * stars} salvato")
     await query.edit_message_reply_markup(reply_markup=None)
@@ -642,7 +667,7 @@ async def handle_mon_usa_cb(update, context) -> None:
         await query.message.reply_text("⚠️ Bozza non più disponibile.")
         return
 
-    _save_rating(draft["url"], 5)
+    _save_rating(draft["url"], 5, str(query.message.chat.id))
     await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_text(
         f"📝 *Post completo — copia e incolla su LinkedIn:*\n\n{draft['bozza']}\n\n"
@@ -665,6 +690,6 @@ async def handle_mon_ignora_cb(update, context) -> None:
         drafts = context.bot_data.get("monitor_drafts", {})
         draft  = drafts.get(parts[1])
         if draft:
-            _save_rating(draft["url"], 1)
+            _save_rating(draft["url"], 1, str(query.message.chat.id))
     await query.answer("Documento ignorato.")
     await query.edit_message_reply_markup(reply_markup=None)
