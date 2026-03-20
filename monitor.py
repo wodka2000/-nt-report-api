@@ -586,6 +586,9 @@ async def _save_post_to_report(context, draft: dict, reply_target) -> None:
     # Git push + refresh sito
     loop = asyncio.get_event_loop()
     def _git_push():
+        # Pull prima di pushare per evitare conflitti
+        subprocess.run(["git", "-C", str(BASE_DIR), "pull", "--rebase"],
+                       capture_output=True, text=True)
         r1 = subprocess.run(["git", "-C", str(BASE_DIR), "add", f"reports/{date_str}.md"],
                             capture_output=True, text=True)
         r2 = subprocess.run(["git", "-C", str(BASE_DIR), "commit", "-m",

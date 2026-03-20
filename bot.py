@@ -1637,6 +1637,7 @@ async def do_generate(msg_or_query, context: ContextTypes.DEFAULT_TYPE):
     import subprocess, asyncio
     loop = asyncio.get_event_loop()
     def _git_push():
+        subprocess.run(["git", "-C", str(BASE_DIR), "pull", "--rebase"], capture_output=True, text=True)
         r1 = subprocess.run(["git", "-C", str(BASE_DIR), "add", f"reports/{date_str}.md"], capture_output=True, text=True)
         r2 = subprocess.run(["git", "-C", str(BASE_DIR), "commit", "-m", f"report: aggiungi post {date_str}"], capture_output=True, text=True)
         r3 = subprocess.run(["git", "-C", str(BASE_DIR), "push"], capture_output=True, text=True)
