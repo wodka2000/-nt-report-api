@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS posts (
     topic       TEXT,
     normas      TEXT,        -- JSON array di norme canoniche
     body        TEXT,
-    source_file TEXT
+    source_file TEXT,
+    status      TEXT DEFAULT 'active'  -- active | archived | deleted
 );
 
 CREATE TABLE IF NOT EXISTS payments (
@@ -60,7 +61,17 @@ async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(_SCHEMA)
         await db.execute("PRAGMA journal_mode=WAL")  # letture concorrenti durante scritture
+        # Migrazione: aggiunge colonna status se non esiste (DB già esistenti)
+        await db.execute(
+            "ALTER TABLE posts ADD COLUMN status TEXT DEFAULT 'active'"
+        ) if not await _column_exists(db, "posts", "status") else None
         await db.commit()
+
+
+async def _column_exists(db: aiosqlite.Connection, table: str, column: str) -> bool:
+    async with db.execute(f"PRAGMA table_info({table})") as cur:
+        rows = await cur.fetchall()
+    return any(row[1] == column for row in rows)
 
 
 async def get_db() -> aiosqlite.Connection:
@@ -81,10 +92,11 @@ async def list_posts(
     norma: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    status: str = "active",
     page: int = 1,
     page_size: int = 20,
 ) -> list[dict]:
-    clauses, params = [], []
+    clauses, params = ["p.status = ?"], [status]
     if topic:
         clauses.append("p.topic = ?")
         params.append(topic)
@@ -98,7 +110,7 @@ async def list_posts(
         clauses.append("p.post_date <= ?")
         params.append(date_to)
 
-    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    where = "WHERE " + " AND ".join(clauses)
     offset = (page - 1) * page_size
     params += [page_size, offset]
 
@@ -132,8 +144,9 @@ async def count_posts(
     norma: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    status: str = "active",
 ) -> int:
-    clauses, params = [], []
+    clauses, params = ["status = ?"], [status]
     if topic:
         clauses.append("topic = ?")
         params.append(topic)
@@ -146,7 +159,7 @@ async def count_posts(
     if date_to:
         clauses.append("post_date <= ?")
         params.append(date_to)
-    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    where = "WHERE " + " AND ".join(clauses)
     async with db.execute(f"SELECT COUNT(*) FROM posts {where}", params) as cur:
         row = await cur.fetchone()
     return row[0] if row else 0

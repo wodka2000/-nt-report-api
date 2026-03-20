@@ -44,7 +44,8 @@ def _extract_normas_from_text(text: str) -> list[str]:
     lower = text.lower()
     found = set()
     for canonical, pattern in _ALL_NORMA_FORMS:
-        if pattern in lower:
+        # Usa word boundary per evitare falsi positivi (es. "mica" in "economica")
+        if re.search(r'(?<![a-z])' + re.escape(pattern) + r'(?![a-z])', lower):
             found.add(canonical)
     return sorted(found)
 

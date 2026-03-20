@@ -33,14 +33,16 @@ async def api_list_posts(
     norma:     str | None = Query(None),
     date_from: str | None = Query(None),
     date_to:   str | None = Query(None),
+    status:    str        = Query("active", pattern="^(active|archived)$"),
     page:      int        = Query(1, ge=1),
     page_size: int        = Query(20, ge=1, le=100),
     db: aiosqlite.Connection = Depends(get_db),
 ):
     posts = await list_posts(db, topic=topic, norma=norma,
                              date_from=date_from, date_to=date_to,
-                             page=page, page_size=page_size)
-    total = await count_posts(db, topic=topic, norma=norma, date_from=date_from, date_to=date_to)
+                             status=status, page=page, page_size=page_size)
+    total = await count_posts(db, topic=topic, norma=norma, date_from=date_from, date_to=date_to,
+                              status=status)
     return {
         "total":     total,
         "page":      page,
