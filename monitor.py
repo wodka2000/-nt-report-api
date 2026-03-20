@@ -418,7 +418,7 @@ async def _run_scan(context, sources: list[dict]) -> None:
                 f"📌 {name}\n\n{bozza}\n\n"
                 f"🔗 {item_url}\n\n"
                 f"---\n"
-                f"🤖 Post co-generato con Claude | Approfondisci su nt-report.onrender.com"
+                f"🤖 Post co-generato con Claude | Approfondisci su normatech-nexus.onrender.com"
             )
 
             # Salva bozza in bot_data per il callback
