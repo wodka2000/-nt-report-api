@@ -14,7 +14,18 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | GU — Contratti Pubblici | https://www.gazzettaufficiale.it/rss/S5 | rss | tutti | |
 | ARERA | https://www.arera.it/comunicati-stampa/ | html | energia | link_filter:/comunicati-stampa/dettaglio/ |
 | EUR-Lex | https://eur-lex.europa.eu/rss/search.html | rss | tutti | aggiungere dopo |
-| ADM | https://www.adm.gov.it/portale/novita-giochi | html | gioco | link_filter:/portale/novita-giochi |
+| ADM — Novità Giochi | https://www.adm.gov.it/portale/novita-giochi | html | gioco | link_filter:/portale/novita-giochi |
+| ADM — Gioco Distanza Normativa | https://www.adm.gov.it/portale/monopoli/giochi/gioco_distanza/gioco_dist_normativa | html | gioco | |
+| ADM — Gioco Distanza Comunicati | https://www.adm.gov.it/portale/monopoli/giochi/gioco_distanza/gioco_dist_comunicati | html | gioco | |
+| ADM — Avvisi | https://www.adm.gov.it/portale/avvisi2 | html | gioco | |
+| ADM — Informative | https://www.adm.gov.it/portale/informative2 | html | gioco | |
+| ADM — Decreti Direttoriali | https://www.adm.gov.it/portale/decreti-direttoriali-e-interdirettoriali1 | html | gioco | |
+| ADM — Apparecchi Senza Denaro | https://www.adm.gov.it/portale/monopoli/giochi/apparecchi_intr/app_senza_denaro/app_comunicazioni | html | gioco | |
+| ADM — VLT Comunicazioni | https://www.adm.gov.it/portale/monopoli/giochi/apparecchi_intr/vlt/vlt_comunicazioni | html | gioco | |
+| ADM — Newslot Comunicazioni | https://www.adm.gov.it/portale/monopoli/giochi/apparecchi_intr/newslot/newslot_comunicazioni | html | gioco | |
+| ADM — Ippica Comunicazioni | https://www.adm.gov.it/portale/monopoli/giochi/giochi_ippica/ippica_nazionale/ipnaz_comunicazioni | html | gioco | |
+| ADM — Quote Fissa Comunicazioni | https://www.adm.gov.it/portale/comunicazioni-quota-fissa | html | gioco | |
+| ADM — Quote Fissa Normativa | https://www.adm.gov.it/portale/monopoli/giochi/giochi_sport/scommesse_fissa/quota-fissa_normativa | html | gioco | |
 | AGCOM | https://www.agcom.it/provvedimenti | html | tecnologia | link_filter:/provvedimenti/ |
 | AGCM | https://www.agcm.it/media/comunicati-stampa | html | concorrenza | aggiungere dopo |
 
