@@ -200,7 +200,7 @@ def _mark_seen(url: str, title: str, source: str, score: float, chat_id: str = "
 async def _fetch_rss(url: str) -> list[dict] | None:
     """Scarica un feed RSS. Restituisce None se la fonte non è raggiungibile."""
     try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
             resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
         feed = feedparser.parse(resp.content)
         items = []
@@ -545,7 +545,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 parse_mode="Markdown",
                 disable_web_page_preview=True,
             )
-        elif not errori:
+        else:
             from bot import _t
             await context.bot.send_message(
                 chat_id=chat_id,
