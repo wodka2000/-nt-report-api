@@ -53,6 +53,8 @@ def _load_sources() -> list[dict]:
         g = re.search(r"group:(\S+)", note)
         if g:
             source["group"] = g.group(1)
+        if "fetch_summary" in note:
+            source["fetch_summary"] = True
         sources.append(source)
     return sources
 
@@ -419,6 +421,11 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 continue
 
             nuovi += 1
+
+            # Se la fonte richiede fetch_summary, scarica la pagina per avere un sommario
+            if source.get("fetch_summary") and not item.get("summary"):
+                page_text, _ = await _fetch_content(item_url)
+                item["summary"] = page_text[:1500]
 
             # Valutazione rapida con Haiku
             relevance = _assess_relevance(item["title"], item["summary"], str(chat_id))
