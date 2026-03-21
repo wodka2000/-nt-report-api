@@ -18,12 +18,17 @@ def _init():
             status       TEXT DEFAULT 'pending',
             requested_at TEXT DEFAULT (datetime('now')),
             approved_at  TEXT,
-            opted_out    INTEGER DEFAULT 0
+            opted_out    INTEGER DEFAULT 0,
+            lang         TEXT DEFAULT 'it'
         )
     """)
     # Migrazione DB esistenti
     try:
         con.execute("ALTER TABLE users ADD COLUMN opted_out INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        con.execute("ALTER TABLE users ADD COLUMN lang TEXT DEFAULT 'it'")
     except sqlite3.OperationalError:
         pass
     con.commit()
@@ -97,6 +102,21 @@ def reject_user(telegram_id: int) -> None:
     )
     con.commit()
     con.close()
+
+
+def set_lang(telegram_id: int, lang: str) -> None:
+    con = sqlite3.connect(_DB)
+    con.execute("UPDATE users SET lang=? WHERE telegram_id=?", (lang, telegram_id))
+    con.commit()
+    con.close()
+
+
+def get_lang(telegram_id: int) -> str:
+    _init()
+    con = sqlite3.connect(_DB)
+    row = con.execute("SELECT lang FROM users WHERE telegram_id=?", (telegram_id,)).fetchone()
+    con.close()
+    return (row[0] or "it") if row else "it"
 
 
 def opt_out(telegram_id: int) -> None:

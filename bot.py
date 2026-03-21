@@ -32,6 +32,93 @@ def is_owner(update_or_id) -> bool:
     uid = update_or_id if isinstance(update_or_id, int) else update_or_id.effective_user.id
     return uid == OWNER_TELEGRAM_ID
 
+
+# ── Internazionalizzazione ──────────────────────────────────────────────────────
+
+_STRINGS: dict[str, dict[str, str]] = {
+    "lang_choice": {
+        "it": "🌐 In che lingua vuoi ricevere i post e i messaggi del bot?",
+        "en": "🌐 Which language would you like to use for posts and bot messages?",
+    },
+    "lang_set_it": {
+        "it": "🇮🇹 Lingua impostata: Italiano.",
+        "en": "🇮🇹 Language set to Italian.",
+    },
+    "lang_set_en": {
+        "it": "🇬🇧 Lingua impostata: Inglese.",
+        "en": "🇬🇧 Language set to English.",
+    },
+    "approved": {
+        "it": "✅ Il tuo accesso è stato approvato!\n\nUsa /monitor per iniziare a scansionare le fonti normative.",
+        "en": "✅ Your access has been approved!\n\nUse /monitor to start scanning regulatory sources.",
+    },
+    "rejected": {
+        "it": "❌ La tua richiesta di accesso non è stata approvata.",
+        "en": "❌ Your access request has not been approved.",
+    },
+    "monitor_menu": {
+        "it": "🔍 Quale fonte vuoi scansionare?",
+        "en": "🔍 Which source would you like to scan?",
+    },
+    "scan_start": {
+        "it": "🔍 Scansione: <b>{label}</b>…",
+        "en": "🔍 Scanning: <b>{label}</b>…",
+    },
+    "no_new_docs": {
+        "it": "ℹ️ *{name}*: nessun documento nuovo oggi.",
+        "en": "ℹ️ *{name}*: no new documents today.",
+    },
+    "sources_unreachable": {
+        "it": "⚠️ Fonti non raggiungibili oggi: {sources}",
+        "en": "⚠️ Sources unreachable today: {sources}",
+    },
+    "use_post": {
+        "it": "✅ Usa questo post",
+        "en": "✅ Use this post",
+    },
+    "ignore": {
+        "it": "🗑 Ignora",
+        "en": "🗑 Ignore",
+    },
+    "post_full": {
+        "it": "📝 *Post completo — copia e incolla su LinkedIn:*",
+        "en": "📝 *Full post — copy and paste to LinkedIn:*",
+    },
+    "source_label": {
+        "it": "🔗 Fonte:",
+        "en": "🔗 Source:",
+    },
+    "saved": {
+        "it": "💾 Salvato in `reports/{date}.md`",
+        "en": "💾 Saved to `reports/{date}.md`",
+    },
+    "site_updated": {
+        "it": "🌐 Sito aggiornato.",
+        "en": "🌐 Site updated.",
+    },
+    "draft_unavailable": {
+        "it": "⚠️ Bozza non più disponibile.",
+        "en": "⚠️ Draft no longer available.",
+    },
+    "pausa": {
+        "it": "🔕 Notifiche giornaliere disattivate. Usa /riprendi per riattivarle.\nPuoi sempre usare /monitor manualmente.",
+        "en": "🔕 Daily notifications disabled. Use /riprendi to re-enable them.\nYou can always use /monitor manually.",
+    },
+    "riprendi": {
+        "it": "🔔 Notifiche giornaliere riattivate.",
+        "en": "🔔 Daily notifications re-enabled.",
+    },
+    "footer": {
+        "it": "🤖 Post co-generato con Claude | Approfondisci su nt-report.com",
+        "en": "🤖 Post co-created with Claude | Learn more at nt-report.com",
+    },
+}
+
+
+def _t(key: str, lang: str) -> str:
+    """Restituisce la stringa nella lingua richiesta (fallback: italiano)."""
+    return _STRINGS.get(key, {}).get(lang) or _STRINGS.get(key, {}).get("it", key)
+
 TOPICS = {
     "energia":     "⚡ Energia",
     "gioco":       "🎰 Gioco",
@@ -1037,9 +1124,14 @@ async def handle_user_approve_cb(update: Update, context: ContextTypes.DEFAULT_T
     await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_text(f"✅ Utente {user_id} approvato.")
     try:
+        lang_keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🇮🇹 Italiano", callback_data=f"lang:{user_id}:it"),
+            InlineKeyboardButton("🇬🇧 English",  callback_data=f"lang:{user_id}:en"),
+        ]])
         await context.bot.send_message(
             chat_id=user_id,
-            text="✅ La tua richiesta è stata approvata! Usa /monitor per iniziare.",
+            text=_t("approved", "it") + "\n\n" + _t("lang_choice", "it"),
+            reply_markup=lang_keyboard,
         )
     except Exception:
         pass
@@ -1059,10 +1151,36 @@ async def handle_user_reject_cb(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         await context.bot.send_message(
             chat_id=user_id,
-            text="❌ La tua richiesta di accesso non è stata approvata.",
+            text=_t("rejected", "it"),
         )
     except Exception:
         pass
+
+
+async def handle_lang_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Utente sceglie la lingua — salva la preferenza."""
+    query = update.callback_query
+    await query.answer()
+    parts = query.data.split(":")  # lang:{user_id}:{lang}
+    lang = parts[2] if len(parts) >= 3 else "it"
+    from users import set_lang, get_lang
+    set_lang(update.effective_user.id, lang)
+    await query.edit_message_reply_markup(reply_markup=None)
+    await query.message.reply_text(_t(f"lang_set_{lang}", lang))
+
+
+async def cmd_lingua(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Permette all'utente di cambiare la lingua."""
+    from users import is_approved, get_lang
+    user_id = update.effective_user.id
+    if not (is_owner(update) or is_approved(user_id)):
+        return
+    lang = get_lang(user_id)
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🇮🇹 Italiano", callback_data=f"lang:{user_id}:it"),
+        InlineKeyboardButton("🇬🇧 English",  callback_data=f"lang:{user_id}:en"),
+    ]])
+    await update.message.reply_text(_t("lang_choice", lang), reply_markup=keyboard)
 
 
 async def cmd_utenti(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2195,25 +2313,22 @@ async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Disattiva le notifiche giornaliere automatiche."""
-    from users import is_approved, opt_out
+    from users import is_approved, opt_out, get_lang
     user_id = update.effective_user.id
     if not (is_owner(update) or is_approved(user_id)):
         return
     opt_out(user_id)
-    await update.message.reply_text(
-        "🔕 Notifiche giornaliere disattivate. Usa /riprendi per riattivarle.\n"
-        "Puoi sempre usare /monitor manualmente."
-    )
+    await update.message.reply_text(_t("pausa", get_lang(user_id)))
 
 
 async def cmd_riprendi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Riattiva le notifiche giornaliere automatiche."""
-    from users import is_approved, opt_in
+    from users import is_approved, opt_in, get_lang
     user_id = update.effective_user.id
     if not (is_owner(update) or is_approved(user_id)):
         return
     opt_in(user_id)
-    await update.message.reply_text("🔔 Notifiche giornaliere riattivate.")
+    await update.message.reply_text(_t("riprendi", get_lang(user_id)))
 
 
 async def cmd_aggiorna(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2265,6 +2380,8 @@ def main():
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
     app.add_handler(CommandHandler("pausa",    cmd_pausa))
     app.add_handler(CommandHandler("riprendi", cmd_riprendi))
+    app.add_handler(CommandHandler("lingua",   cmd_lingua))
+    app.add_handler(CallbackQueryHandler(handle_lang_cb, pattern=r"^lang:"))
     app.add_handler(CommandHandler("aggiorna", cmd_aggiorna))
     app.add_handler(CommandHandler("utenti",   cmd_utenti))
     app.add_handler(CallbackQueryHandler(handle_user_approve_cb, pattern=r"^user_approve:"))
@@ -2329,6 +2446,7 @@ def main():
             BotCommand("monitor",  "Scansiona fonti normative ora"),
             BotCommand("pausa",    "Disattiva notifiche giornaliere automatiche"),
             BotCommand("riprendi", "Riattiva notifiche giornaliere automatiche"),
+            BotCommand("lingua",   "Cambia lingua / Change language"),
             BotCommand("aggiorna", "Aggiorna bot dal server (git pull + restart)"),
             BotCommand("chat",    "Apri sessione domande su un PDF"),
             BotCommand("fine",    "Chiudi sessione chat"),

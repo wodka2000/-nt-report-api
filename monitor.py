@@ -84,23 +84,23 @@ Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo:
 """
 
 _POST_PROMPT = """\
-Genera un post LinkedIn professionale in italiano sul seguente documento normativo.
+Generate a professional LinkedIn post in {lingua} about the following regulatory document.
 
-Fonte: {fonte}
-Titolo: {titolo}
-Data documento: {data}
+Source: {fonte}
+Title: {titolo}
+Document date: {data}
 
-Contenuto del documento:
+Document content:
 {contenuto}
 
-Regole:
-- Inizia sempre con la data del documento (es. "Il 18 marzo 2025, ARERA ha...")
-- Tono professionale, mai sensazionalistico
-- Solo fatti e riferimenti normativi presenti nel documento
-- Nessuna speculazione o opinione soggettiva
-- Massimo 1300 caratteri (testo + hashtag)
-- IMPORTANTE: concludi SEMPRE con una frase completa di senso compiuto, mai a metà frase
-- Termina con 3-5 hashtag pertinenti
+Rules:
+- Start with the document date (e.g. "On 18 March 2025, ARERA...")
+- Professional tone, never sensationalist
+- Only facts and regulatory references from the document
+- No speculation or subjective opinion
+- Maximum 1300 characters (text + hashtags)
+- IMPORTANT: always end with a complete sentence, never mid-sentence
+- End with 3-5 relevant hashtags
 """
 
 
@@ -322,14 +322,16 @@ def _assess_relevance(titolo: str, sommario: str, chat_id: str = "owner") -> dic
         return {"score": 0, "settore": "altro", "motivo": "errore parsing"}
 
 
-def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "") -> str:
+def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "", lang: str = "it") -> str:
     """Usa Sonnet per generare la bozza del post LinkedIn."""
     from bot import call_claude
+    lingua = "Italian" if lang == "it" else "English"
     prompt = _POST_PROMPT.format(
         fonte=fonte,
         titolo=titolo,
-        data=data or "non disponibile",
+        data=data or "not available",
         contenuto=contenuto[:6000],
+        lingua=lingua,
     )
     msg = call_claude(
         model="claude-sonnet-4-6",
@@ -366,9 +368,12 @@ async def show_monitor_menu(context, chat_id: int = None, username: str = "owner
             buttons.append([InlineKeyboardButton(s["name"], callback_data=f"mon_fonte:{i}")])
     buttons.append([InlineKeyboardButton("📋 Tutte le fonti", callback_data="mon_fonte:all")])
 
+    from bot import _t
+    from users import get_lang
+    lang = get_lang(chat_id) if chat_id else "it"
     await context.bot.send_message(
         chat_id=chat_id,
-        text="🔍 Quale fonte vuoi scansionare?",
+        text=_t("monitor_menu", lang),
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
@@ -385,6 +390,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
 
     _init_db()
     loop = asyncio.get_event_loop()
+    from users import get_lang
+    lang = get_lang(chat_id) if chat_id else "it"
 
     # Contatore bozze salvate in bot_data per i callback
     # Le bozze sono scoped per chat_id per evitare cross-contamination tra utenti
@@ -453,13 +460,14 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             else:
                 contenuto, data = await _fetch_content(item_url)
             bozza = await loop.run_in_executor(
-                None, _generate_post, name, item["title"], contenuto, data
+                None, _generate_post, name, item["title"], contenuto, data, lang
             )
+            from bot import _t
             bozza = (
                 f"📌 {name}\n\n{bozza}\n\n"
                 f"🔗 {item_url}\n\n"
                 f"---\n"
-                f"🤖 Post co-generato con Claude | Approfondisci su nt-report.com"
+                f"{_t('footer', lang)}"
             )
 
             # Salva bozza in bot_data per il callback
@@ -473,6 +481,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 "settore":     settore,
                 "source_name": name,
                 "username":    username,
+                "chat_id":     str(chat_id),
             }
             context.bot_data[f"monitor_draft_counter_{chat_id}"] = draft_counter
 
@@ -498,7 +507,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             if len(testo) > 4000:
                 testo = testo[:4000] + "…"
 
-            from bot import OWNER_TELEGRAM_ID
+            from bot import OWNER_TELEGRAM_ID, _t
             rows = []
             if chat_id == OWNER_TELEGRAM_ID:
                 rows.append([
@@ -509,8 +518,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                     InlineKeyboardButton("⭐⭐⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:5"),
                 ])
             rows.append([
-                InlineKeyboardButton("✅ Usa questo post", callback_data=f"mon_usa:{draft_id}"),
-                InlineKeyboardButton("🗑 Ignora",          callback_data=f"mon_ignora:{draft_id}"),
+                InlineKeyboardButton(_t("use_post", lang), callback_data=f"mon_usa:{draft_id}"),
+                InlineKeyboardButton(_t("ignore",   lang), callback_data=f"mon_ignora:{draft_id}"),
             ])
             keyboard = InlineKeyboardMarkup(rows)
 
@@ -537,17 +546,19 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 disable_web_page_preview=True,
             )
         elif not errori:
+            from bot import _t
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"ℹ️ *{name}*: nessun documento nuovo oggi.",
+                text=_t("no_new_docs", lang).format(name=name),
                 parse_mode="Markdown",
             )
 
     # Riepilogo finale
     if errori:
+        from bot import _t
         await context.bot.send_message(
             chat_id=chat_id,
-            text=f"⚠️ Fonti non raggiungibili oggi: {', '.join(errori)}",
+            text=_t("sources_unreachable", lang).format(sources=", ".join(errori)),
         )
 
     logger.info(f"Monitor: completato. Rilevanti: {trovati}, errori fonti: {len(errori)}")
@@ -582,7 +593,10 @@ async def handle_mon_fonte_cb(update, context) -> None:
 
     chat_id  = query.message.chat.id
     username = context.bot_data.get(f"monitor_username_{chat_id}", "owner")
-    await query.message.reply_text(f"🔍 Scansione: <b>{label}</b>…", parse_mode="HTML")
+    from bot import _t
+    from users import get_lang
+    lang = get_lang(chat_id)
+    await query.message.reply_text(_t("scan_start", lang).format(label=label), parse_mode="HTML")
     await _run_scan(context, selected, chat_id=chat_id, username=username)
 
 
@@ -621,7 +635,10 @@ async def _save_post_to_report(context, draft: dict, reply_target, notify_errors
         f.write(f"**Autore:** @{username}  \n")
         f.write(f"\n{draft['bozza']}\n\n---\n\n")
 
-    await reply_target.reply_text(f"💾 Salvato in `reports/{date_str}.md`", parse_mode="Markdown")
+    from bot import _t
+    from users import get_lang
+    lang = get_lang(int(draft.get("chat_id", 0))) if draft.get("chat_id") else "it"
+    await reply_target.reply_text(_t("saved", lang).format(date=date_str), parse_mode="Markdown")
 
     # Git push + refresh sito
     loop = asyncio.get_event_loop()
@@ -643,7 +660,7 @@ async def _save_post_to_report(context, draft: dict, reply_target, notify_errors
         await loop.run_in_executor(None, _git_push)
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post("https://nt-report-api.onrender.com/api/refresh")
-        await reply_target.reply_text("🌐 Sito aggiornato.")
+        await reply_target.reply_text(_t("site_updated", lang))
     except Exception as e:
         logger.warning(f"Monitor git push fallito: {e}")
         if notify_errors:
@@ -678,14 +695,20 @@ async def handle_mon_usa_cb(update, context) -> None:
 
     if not draft:
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text("⚠️ Bozza non più disponibile.")
+        from bot import _t
+        from users import get_lang
+        lang = get_lang(query.message.chat.id)
+        await query.message.reply_text(_t("draft_unavailable", lang))
         return
 
+    from bot import _t
+    from users import get_lang
+    lang = get_lang(query.message.chat.id)
     _save_rating(draft["url"], 5, str(query.message.chat.id))
     await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_text(
-        f"📝 *Post completo — copia e incolla su LinkedIn:*\n\n{draft['bozza']}\n\n"
-        f"🔗 Fonte: {draft['url']}",
+        f"{_t('post_full', lang)}\n\n{draft['bozza']}\n\n"
+        f"{_t('source_label', lang)} {draft['url']}",
         parse_mode="Markdown",
         disable_web_page_preview=True,
     )
