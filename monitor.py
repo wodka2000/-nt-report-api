@@ -493,19 +493,21 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             if len(testo) > 4000:
                 testo = testo[:4000] + "…"
 
-            keyboard = InlineKeyboardMarkup([
-                [
+            from bot import OWNER_TELEGRAM_ID
+            rows = []
+            if chat_id == OWNER_TELEGRAM_ID:
+                rows.append([
                     InlineKeyboardButton("⭐",     callback_data=f"mon_rating:{draft_id}:1"),
                     InlineKeyboardButton("⭐⭐",   callback_data=f"mon_rating:{draft_id}:2"),
                     InlineKeyboardButton("⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:3"),
                     InlineKeyboardButton("⭐⭐⭐⭐",   callback_data=f"mon_rating:{draft_id}:4"),
                     InlineKeyboardButton("⭐⭐⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:5"),
-                ],
-                [
-                    InlineKeyboardButton("✅ Usa questo post", callback_data=f"mon_usa:{draft_id}"),
-                    InlineKeyboardButton("🗑 Ignora",          callback_data=f"mon_ignora:{draft_id}"),
-                ],
+                ])
+            rows.append([
+                InlineKeyboardButton("✅ Usa questo post", callback_data=f"mon_usa:{draft_id}"),
+                InlineKeyboardButton("🗑 Ignora",          callback_data=f"mon_ignora:{draft_id}"),
             ])
+            keyboard = InlineKeyboardMarkup(rows)
 
             await context.bot.send_message(
                 chat_id=chat_id,
