@@ -384,6 +384,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
         return
 
     _init_db()
+    loop = asyncio.get_event_loop()
 
     # Contatore bozze salvate in bot_data per i callback
     # Le bozze sono scoped per chat_id per evitare cross-contamination tra utenti
@@ -427,8 +428,10 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 page_text, _ = await _fetch_content(item_url)
                 item["summary"] = page_text[:1500]
 
-            # Valutazione rapida con Haiku
-            relevance = _assess_relevance(item["title"], item["summary"], str(chat_id))
+            # Valutazione rapida con Haiku (in thread per non bloccare l'event loop)
+            relevance = await loop.run_in_executor(
+                None, _assess_relevance, item["title"], item["summary"], str(chat_id)
+            )
             score   = float(relevance.get("score", 0))
             settore = relevance.get("settore", "altro")
             motivo  = relevance.get("motivo", "")
@@ -449,7 +452,9 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 contenuto, data = rss_content[:8000], ""
             else:
                 contenuto, data = await _fetch_content(item_url)
-            bozza = _generate_post(name, item["title"], contenuto, data)
+            bozza = await loop.run_in_executor(
+                None, _generate_post, name, item["title"], contenuto, data
+            )
             bozza = (
                 f"📌 {name}\n\n{bozza}\n\n"
                 f"🔗 {item_url}\n\n"
