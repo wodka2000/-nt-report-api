@@ -2193,6 +2193,29 @@ async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_monitor_menu(context, chat_id=chat_id, username=username)
 
 
+async def cmd_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Disattiva le notifiche giornaliere automatiche."""
+    from users import is_approved, opt_out
+    user_id = update.effective_user.id
+    if not (is_owner(update) or is_approved(user_id)):
+        return
+    opt_out(user_id)
+    await update.message.reply_text(
+        "🔕 Notifiche giornaliere disattivate. Usa /riprendi per riattivarle.\n"
+        "Puoi sempre usare /monitor manualmente."
+    )
+
+
+async def cmd_riprendi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Riattiva le notifiche giornaliere automatiche."""
+    from users import is_approved, opt_in
+    user_id = update.effective_user.id
+    if not (is_owner(update) or is_approved(user_id)):
+        return
+    opt_in(user_id)
+    await update.message.reply_text("🔔 Notifiche giornaliere riattivate.")
+
+
 async def cmd_aggiorna(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Fa git pull e riavvia il servizio systemd."""
     import subprocess, asyncio
@@ -2240,6 +2263,8 @@ def main():
     app.add_handler(CommandHandler("chat",     cmd_chat))
     app.add_handler(CommandHandler("fine",     cmd_fine))
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
+    app.add_handler(CommandHandler("pausa",    cmd_pausa))
+    app.add_handler(CommandHandler("riprendi", cmd_riprendi))
     app.add_handler(CommandHandler("aggiorna", cmd_aggiorna))
     app.add_handler(CommandHandler("utenti",   cmd_utenti))
     app.add_handler(CallbackQueryHandler(handle_user_approve_cb, pattern=r"^user_approve:"))
@@ -2263,9 +2288,9 @@ def main():
         owner_chat_id = context.bot_data.get("owner_chat_id")
         if owner_chat_id:
             await show_monitor_menu(context, chat_id=owner_chat_id, username="owner")
-        # Utenti approvati
+        # Utenti approvati che non hanno disattivato le notifiche
         for u in list_users():
-            if u["status"] == "approved":
+            if u["status"] == "approved" and not u["opted_out"]:
                 await show_monitor_menu(context, chat_id=u["id"],
                                         username=u["username"] or f"user_{u['id']}")
 
@@ -2302,6 +2327,8 @@ def main():
             BotCommand("start",   "Benvenuto e istruzioni"),
             BotCommand("report",  "Genera post LinkedIn dai documenti"),
             BotCommand("monitor",  "Scansiona fonti normative ora"),
+            BotCommand("pausa",    "Disattiva notifiche giornaliere automatiche"),
+            BotCommand("riprendi", "Riattiva notifiche giornaliere automatiche"),
             BotCommand("aggiorna", "Aggiorna bot dal server (git pull + restart)"),
             BotCommand("chat",    "Apri sessione domande su un PDF"),
             BotCommand("fine",    "Chiudi sessione chat"),

@@ -17,9 +17,15 @@ def _init():
             full_name    TEXT,
             status       TEXT DEFAULT 'pending',
             requested_at TEXT DEFAULT (datetime('now')),
-            approved_at  TEXT
+            approved_at  TEXT,
+            opted_out    INTEGER DEFAULT 0
         )
     """)
+    # Migrazione DB esistenti
+    try:
+        con.execute("ALTER TABLE users ADD COLUMN opted_out INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
     con.commit()
     con.close()
 
@@ -93,16 +99,30 @@ def reject_user(telegram_id: int) -> None:
     con.close()
 
 
+def opt_out(telegram_id: int) -> None:
+    con = sqlite3.connect(_DB)
+    con.execute("UPDATE users SET opted_out=1 WHERE telegram_id=?", (telegram_id,))
+    con.commit()
+    con.close()
+
+
+def opt_in(telegram_id: int) -> None:
+    con = sqlite3.connect(_DB)
+    con.execute("UPDATE users SET opted_out=0 WHERE telegram_id=?", (telegram_id,))
+    con.commit()
+    con.close()
+
+
 def list_users() -> list[dict]:
     _init()
     con = sqlite3.connect(_DB)
     rows = con.execute(
-        "SELECT telegram_id, username, full_name, status, requested_at "
+        "SELECT telegram_id, username, full_name, status, requested_at, opted_out "
         "FROM users ORDER BY requested_at DESC"
     ).fetchall()
     con.close()
     return [
         {"id": r[0], "username": r[1], "full_name": r[2],
-         "status": r[3], "requested_at": r[4]}
+         "status": r[3], "requested_at": r[4], "opted_out": bool(r[5])}
         for r in rows
     ]
