@@ -2257,10 +2257,17 @@ def main():
     from datetime import time as dt_time
 
     async def _daily_monitor_job(context):
-        chat_id = context.bot_data.get("owner_chat_id")
-        if chat_id:
-            from monitor import show_monitor_menu
-            await show_monitor_menu(context, chat_id=chat_id, username="owner")
+        from monitor import show_monitor_menu
+        from users import list_users, get_username
+        # Owner
+        owner_chat_id = context.bot_data.get("owner_chat_id")
+        if owner_chat_id:
+            await show_monitor_menu(context, chat_id=owner_chat_id, username="owner")
+        # Utenti approvati
+        for u in list_users():
+            if u["status"] == "approved":
+                await show_monitor_menu(context, chat_id=u["id"],
+                                        username=u["username"] or f"user_{u['id']}")
 
     app.job_queue.run_daily(_daily_monitor_job, time=dt_time(hour=7, minute=0))
 
