@@ -467,7 +467,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 f"📌 {name}\n\n{bozza}\n\n"
                 f"🔗 {item_url}\n\n"
                 f"---\n"
-                f"{_t('footer', lang)}"
+                f"{_t('footer', 'it')}\n"
+                f"{_t('footer', 'en')}"
             )
 
             # Salva bozza in bot_data per il callback
