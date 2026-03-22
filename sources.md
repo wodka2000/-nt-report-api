@@ -13,6 +13,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | GU — Unione Europea | https://www.gazzettaufficiale.it/rss/S2 | rss | tutti | group:GU |
 | GU — Contratti Pubblici | https://www.gazzettaufficiale.it/rss/S5 | rss | tutti | group:GU |
 | ARERA | https://www.arera.it/comunicati-stampa/ | html | energia | link_filter:/comunicati-stampa/dettaglio/ |
+| ARERA — Atti e Provvedimenti | https://www.arera.it/atti-e-provvedimenti | html | energia | link_filter:/atti-e-provvedimenti/ timeout:60 |
 | EUR-Lex | https://eur-lex.europa.eu/rss/search.html | rss | tutti | aggiungere dopo |
 | ADM — Novità Giochi | https://www.adm.gov.it/portale/novita-giochi | html | gioco | link_filter:/portale/novita-giochi group:ADM |
 | ADM — Gioco Distanza Normativa | https://www.adm.gov.it/portale/monopoli/giochi/gioco_distanza/gioco_dist_normativa | html | gioco | group:ADM |

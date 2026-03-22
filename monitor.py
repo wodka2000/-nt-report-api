@@ -55,6 +55,9 @@ def _load_sources() -> list[dict]:
             source["group"] = g.group(1)
         if "fetch_summary" in note:
             source["fetch_summary"] = True
+        t = re.search(r"timeout:(\d+)", note)
+        if t:
+            source["timeout"] = int(t.group(1))
         sources.append(source)
     return sources
 
@@ -256,10 +259,10 @@ async def _fetch_rss(url: str) -> list[dict] | None:
         return None
 
 
-async def _fetch_html_links(url: str, link_filter: list[str] | None = None) -> list[dict] | None:
+async def _fetch_html_links(url: str, link_filter: list[str] | None = None, timeout: int = 15) -> list[dict] | None:
     """Scrapa una pagina HTML cercando link a comunicati/provvedimenti."""
     try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(resp.text, "html.parser")
         base = urlparse(url)
@@ -452,7 +455,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
         items = (
             await _fetch_rss(url)
             if source["type"] == "rss"
-            else await _fetch_html_links(url, link_filter=source.get("link_filter"))
+            else await _fetch_html_links(url, link_filter=source.get("link_filter"),
+                                         timeout=source.get("timeout", 15))
         )
 
         if items is None:
