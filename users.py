@@ -104,6 +104,15 @@ def reject_user(telegram_id: int) -> None:
     con.close()
 
 
+def get_approved_at(telegram_id: int) -> str | None:
+    """Restituisce la data di approvazione dell'utente o None."""
+    _init()
+    con = sqlite3.connect(_DB)
+    row = con.execute("SELECT approved_at FROM users WHERE telegram_id=?", (telegram_id,)).fetchone()
+    con.close()
+    return row[0] if row else None
+
+
 def set_lang(telegram_id: int, lang: str) -> None:
     con = sqlite3.connect(_DB)
     con.execute("UPDATE users SET lang=? WHERE telegram_id=?", (lang, telegram_id))

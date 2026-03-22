@@ -178,6 +178,37 @@ def _get_rated_examples(chat_id: str = "owner", limit: int = 5) -> tuple[list[st
     return high, low
 
 
+def _has_seen_source(chat_id: str, source: str) -> bool:
+    """Controlla se l'utente ha già visto almeno un item da questa fonte."""
+    con = sqlite3.connect(_db_path())
+    row = con.execute(
+        "SELECT 1 FROM seen_docs WHERE chat_id=? AND source=? LIMIT 1", (chat_id, source)
+    ).fetchone()
+    con.close()
+    return row is not None
+
+
+def _seed_seen_from_owner(chat_id: str, approved_at: str) -> int:
+    """Copia nella seen_docs dell'utente gli item già visti dall'owner prima di approved_at."""
+    from bot import OWNER_TELEGRAM_ID
+    owner_id = str(OWNER_TELEGRAM_ID)
+    con = sqlite3.connect(_db_path())
+    rows = con.execute(
+        "SELECT url, title, source, score, seen_at FROM seen_docs "
+        "WHERE chat_id=? AND seen_at < ?", (owner_id, approved_at)
+    ).fetchall()
+    count = 0
+    for url, title, source, score, seen_at in rows:
+        con.execute(
+            "INSERT OR IGNORE INTO seen_docs (url, chat_id, title, source, score, seen_at) "
+            "VALUES (?,?,?,?,?,?)", (url, chat_id, title, source, score, seen_at)
+        )
+        count += 1
+    con.commit()
+    con.close()
+    return count
+
+
 def _is_seen(url: str, chat_id: str = "owner") -> bool:
     con = sqlite3.connect(_db_path())
     row = con.execute("SELECT 1 FROM seen_docs WHERE url=? AND chat_id=?", (url, chat_id)).fetchone()
@@ -213,10 +244,11 @@ async def _fetch_rss(url: str) -> list[dict] | None:
                 raw = entry.content[0].get("value", "")
                 content = BeautifulSoup(raw, "html.parser").get_text(separator="\n", strip=True)
             items.append({
-                "url":     entry.get("link", ""),
-                "title":   entry.get("title", ""),
-                "summary": entry.get("summary", ""),
-                "content": content,
+                "url":       entry.get("link", ""),
+                "title":     entry.get("title", ""),
+                "summary":   entry.get("summary", ""),
+                "content":   content,
+                "published": entry.get("published_parsed"),  # time.struct_time o None
             })
         return items
     except Exception as e:
@@ -390,8 +422,20 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
 
     _init_db()
     loop = asyncio.get_event_loop()
-    from users import get_lang
+    from users import get_lang, get_approved_at
+    from bot import OWNER_TELEGRAM_ID, is_owner
     lang = get_lang(chat_id) if chat_id else "it"
+    is_owner_user = (chat_id == OWNER_TELEGRAM_ID)
+    approved_at = get_approved_at(chat_id) if (chat_id and not is_owner_user) else None
+
+    # Converti approved_at in struct_time per confronto con published_parsed RSS
+    import time as _time
+    approved_at_struct = None
+    if approved_at:
+        try:
+            approved_at_struct = _time.strptime(approved_at[:19], "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
 
     # Contatore bozze salvate in bot_data per i callback
     # Le bozze sono scoped per chat_id per evitare cross-contamination tra utenti
@@ -418,6 +462,19 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
 
         logger.info(f"Monitor: {name} — {len(items)} elementi da controllare")
 
+        # Non-owner + HTML: primo accesso → seed da owner e skip
+        if not is_owner_user and source["type"] == "html" and not _has_seen_source(str(chat_id), name):
+            for item in items:
+                if item["url"]:
+                    _mark_seen(item["url"], item["title"], name, 0.0, str(chat_id))
+            from bot import _t
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=_t("html_seeded", lang).format(name=name),
+                parse_mode="Markdown",
+            )
+            continue
+
         nuovi = 0
         riepilogo_fonte = []
 
@@ -427,6 +484,13 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 continue
             if _is_seen(item_url, str(chat_id)):
                 continue
+
+            # Non-owner + RSS: salta item pubblicati prima di approved_at
+            if not is_owner_user and source["type"] == "rss" and approved_at_struct:
+                pub = item.get("published")
+                if pub and pub < approved_at_struct:
+                    _mark_seen(item_url, item["title"], name, 0.0, str(chat_id))
+                    continue
 
             nuovi += 1
 
@@ -483,6 +547,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 "source_name": name,
                 "username":    username,
                 "chat_id":     str(chat_id),
+                "lang":        lang,
+                "contenuto":   contenuto[:6000],
             }
             context.bot_data[f"monitor_draft_counter_{chat_id}"] = draft_counter
 
@@ -518,10 +584,13 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                     InlineKeyboardButton("⭐⭐⭐⭐",   callback_data=f"mon_rating:{draft_id}:4"),
                     InlineKeyboardButton("⭐⭐⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:5"),
                 ])
-            rows.append([
+            action_row = [
                 InlineKeyboardButton(_t("use_post", lang), callback_data=f"mon_usa:{draft_id}"),
                 InlineKeyboardButton(_t("ignore",   lang), callback_data=f"mon_ignora:{draft_id}"),
-            ])
+            ]
+            if chat_id == OWNER_TELEGRAM_ID:
+                action_row.append(InlineKeyboardButton(_t("translate", lang), callback_data=f"mon_traduci:{draft_id}"))
+            rows.append(action_row)
             keyboard = InlineKeyboardMarkup(rows)
 
             await context.bot.send_message(
@@ -731,3 +800,48 @@ async def handle_mon_ignora_cb(update, context) -> None:
             _save_rating(draft["url"], 1, str(query.message.chat.id))
     await query.answer("Documento ignorato.")
     await query.edit_message_reply_markup(reply_markup=None)
+
+
+async def handle_mon_traduci_cb(update, context) -> None:
+    """Owner clicca 'Traduci' — rigenera la bozza nell'altra lingua."""
+    query = update.callback_query
+    await query.answer()
+
+    draft_id = query.data.split(":", 1)[1]
+    drafts   = context.bot_data.get("monitor_drafts", {})
+    draft    = drafts.get(draft_id)
+
+    if not draft:
+        await query.message.reply_text("⚠️ Bozza non più disponibile.")
+        return
+
+    from bot import _t, OWNER_TELEGRAM_ID
+    from users import get_lang, set_lang
+    chat_id = query.message.chat.id
+    current_lang = draft.get("lang", get_lang(chat_id))
+    new_lang = "en" if current_lang == "it" else "it"
+
+    await query.message.reply_text(f"⏳ Traduzione in corso…")
+
+    loop = asyncio.get_event_loop()
+    contenuto = draft.get("contenuto", "")
+    new_bozza = await loop.run_in_executor(
+        None, _generate_post, draft["source_name"], draft["titolo"], contenuto, "", new_lang
+    )
+    new_bozza = (
+        f"📌 {draft['source_name']}\n\n{new_bozza}\n\n"
+        f"🔗 {draft['url']}\n\n"
+        f"---\n"
+        f"{_t('footer', 'it')}\n"
+        f"{_t('footer', 'en')}"
+    )
+
+    # Aggiorna il draft con la nuova lingua e bozza
+    draft["bozza"] = new_bozza
+    draft["lang"]  = new_lang
+
+    await query.message.reply_text(
+        f"{_t('post_full', new_lang)}\n\n{new_bozza}",
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )

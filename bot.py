@@ -112,6 +112,14 @@ _STRINGS: dict[str, dict[str, str]] = {
         "it": "🤖 Post co-generato con Claude | Approfondisci su nt-report.com",
         "en": "🤖 Post co-created with Claude | Learn more at nt-report.com",
     },
+    "translate": {
+        "it": "🔄 Traduci",
+        "en": "🔄 Translate",
+    },
+    "html_seeded": {
+        "it": "ℹ️ *{name}*: prima scansione completata — monitorerai i nuovi contenuti da ora.",
+        "en": "ℹ️ *{name}*: first scan completed — you'll be notified of new content from now on.",
+    },
 }
 
 
@@ -2388,11 +2396,12 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_user_reject_cb,  pattern=r"^user_reject:"))
 
     # Monitor callbacks
-    from monitor import show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb, handle_mon_ignora_cb, handle_mon_rating_cb
+    from monitor import show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb, handle_mon_ignora_cb, handle_mon_rating_cb, handle_mon_traduci_cb
     app.add_handler(CallbackQueryHandler(handle_mon_fonte_cb,  pattern=r"^mon_fonte:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,    pattern=r"^mon_usa:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_rating_cb, pattern=r"^mon_rating:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb, pattern=r"^mon_ignora"))
+    app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,     pattern=r"^mon_usa:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_rating_cb,  pattern=r"^mon_rating:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb,  pattern=r"^mon_ignora:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_traduci_cb, pattern=r"^mon_traduci:"))
 
     # Job giornaliero alle 07:00 UTC = 08:00 ora italiana (CET, UTC+1)
     # NB: in estate (CEST, UTC+2) corrisponderà alle 09:00 — aggiornare a hour=6 da fine marzo
