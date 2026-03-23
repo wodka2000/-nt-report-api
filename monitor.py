@@ -231,29 +231,61 @@ def _mark_seen(url: str, title: str, source: str, score: float, chat_id: str = "
 
 # ── Fetch fonti ─────────────────────────────────────────────────────────────────
 
-async def _fetch_rss(url: str) -> list[dict] | None:
+_RSS_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+}
+
+
+def _parse_rss_entries(feed) -> list[dict]:
+    items = []
+    for entry in feed.entries[:30]:
+        if not entry.get("link"):
+            continue
+        content = ""
+        if hasattr(entry, "content") and entry.content:
+            raw = entry.content[0].get("value", "")
+            content = BeautifulSoup(raw, "html.parser").get_text(separator="\n", strip=True)
+        summary = entry.get("summary", "") or content[:600]
+        items.append({
+            "url":       entry.get("link", ""),
+            "title":     entry.get("title", ""),
+            "summary":   summary,
+            "content":   content,
+            "published": entry.get("published_parsed"),
+        })
+    return items
+
+
+async def _fetch_rss(url: str, timeout: int = 20) -> list[dict] | None:
     """Scarica un feed RSS. Restituisce None se la fonte non è raggiungibile."""
+    # Tentativo 1: httpx
     try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(url, headers=_RSS_HEADERS)
+        resp.raise_for_status()
         feed = feedparser.parse(resp.content)
-        items = []
-        for entry in feed.entries[:30]:
-            if not entry.get("link"):
-                continue
-            # Estrai contenuto completo se disponibile (content:encoded)
-            content = ""
-            if hasattr(entry, "content") and entry.content:
-                raw = entry.content[0].get("value", "")
-                content = BeautifulSoup(raw, "html.parser").get_text(separator="\n", strip=True)
-            items.append({
-                "url":       entry.get("link", ""),
-                "title":     entry.get("title", ""),
-                "summary":   entry.get("summary", ""),
-                "content":   content,
-                "published": entry.get("published_parsed"),  # time.struct_time o None
-            })
-        return items
+        if feed.entries:
+            return _parse_rss_entries(feed)
+        # feed vuoto con httpx → prova feedparser diretto
+    except Exception as e:
+        logger.warning(f"RSS httpx fallito per {url}: {e} — provo feedparser diretto")
+
+    # Tentativo 2: feedparser diretto (urllib, diverso stack HTTP)
+    try:
+        loop = asyncio.get_event_loop()
+        feed = await loop.run_in_executor(
+            None,
+            lambda: feedparser.parse(url, request_headers=_RSS_HEADERS),
+        )
+        if feed.get("bozo") and not feed.entries:
+            logger.error(f"Errore fetch RSS {url}: {feed.get('bozo_exception')}")
+            return None
+        return _parse_rss_entries(feed)
     except Exception as e:
         logger.error(f"Errore fetch RSS {url}: {e}")
         return None
@@ -445,23 +477,28 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
     drafts: dict = context.bot_data.setdefault("monitor_drafts", {})
     draft_counter: int = context.bot_data.get(f"monitor_draft_counter_{chat_id}", 0)
 
-    errori: list[str] = []
+    errori: list[tuple[str, str]] = []
     trovati: int = 0
 
     for source in sources:
         name = source["name"]
         url  = source["url"]
 
-        items = (
-            await _fetch_rss(url)
-            if source["type"] == "rss"
-            else await _fetch_html_links(url, link_filter=source.get("link_filter"),
-                                         timeout=source.get("timeout", 15))
-        )
+        try:
+            items = (
+                await _fetch_rss(url, timeout=source.get("timeout", 20))
+                if source["type"] == "rss"
+                else await _fetch_html_links(url, link_filter=source.get("link_filter"),
+                                             timeout=source.get("timeout", 15))
+            )
+            fetch_err = ""
+        except Exception as exc:
+            items = None
+            fetch_err = str(exc)[:120]
 
         if items is None:
-            errori.append(name)
-            logger.warning(f"Monitor: fonte non raggiungibile — {name}")
+            errori.append((name, fetch_err or "nessuna risposta/timeout"))
+            logger.warning(f"Monitor: fonte non raggiungibile — {name} ({fetch_err})")
             continue
 
         logger.info(f"Monitor: {name} — {len(items)} elementi da controllare")
@@ -621,18 +658,23 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             )
         else:
             from bot import _t
+            n_items = len(items) if items else 0
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=_t("no_new_docs", lang).format(name=name),
+                text=_t("no_new_docs", lang).format(name=name) + f"\n_(feed: {n_items} item, tutti già visti)_",
                 parse_mode="Markdown",
             )
 
     # Riepilogo finale
     if errori:
         from bot import _t
+        righe = [_t("sources_unreachable", lang).format(sources="")]
+        for nome, motivo in errori:
+            righe.append(f"• *{nome}*: `{motivo}`")
         await context.bot.send_message(
             chat_id=chat_id,
-            text=_t("sources_unreachable", lang).format(sources=", ".join(errori)),
+            text="\n".join(righe),
+            parse_mode="Markdown",
         )
 
     logger.info(f"Monitor: completato. Rilevanti: {trovati}, errori fonti: {len(errori)}")
@@ -780,12 +822,15 @@ async def handle_mon_usa_cb(update, context) -> None:
     lang = get_lang(query.message.chat.id)
     _save_rating(draft["url"], 5, str(query.message.chat.id))
     await query.edit_message_reply_markup(reply_markup=None)
-    await query.message.reply_text(
+    reply_text = (
         f"{_t('post_full', lang)}\n\n{draft['bozza']}\n\n"
-        f"{_t('source_label', lang)} {draft['url']}",
-        parse_mode="Markdown",
-        disable_web_page_preview=True,
+        f"{_t('source_label', lang)} {draft['url']}"
     )
+    try:
+        await query.message.reply_text(reply_text, parse_mode="Markdown",
+                                       disable_web_page_preview=True)
+    except Exception:
+        await query.message.reply_text(reply_text, disable_web_page_preview=True)
 
     # Salva nel report del giorno e pusha sul sito
     from bot import is_owner
@@ -844,8 +889,28 @@ async def handle_mon_traduci_cb(update, context) -> None:
     draft["bozza"] = new_bozza
     draft["lang"]  = new_lang
 
-    await query.message.reply_text(
-        f"{_t('post_full', new_lang)}\n\n{new_bozza}",
-        parse_mode="Markdown",
-        disable_web_page_preview=True,
-    )
+    # Rimuovi i bottoni dal messaggio originale
+    await query.edit_message_reply_markup(reply_markup=None)
+
+    # Ri-aggiungi i bottoni sul messaggio tradotto
+    action_row = [
+        InlineKeyboardButton(_t("use_post", new_lang), callback_data=f"mon_usa:{draft_id}"),
+        InlineKeyboardButton(_t("ignore",   new_lang), callback_data=f"mon_ignora:{draft_id}"),
+    ]
+    if chat_id == OWNER_TELEGRAM_ID:
+        action_row.append(InlineKeyboardButton(_t("translate", new_lang), callback_data=f"mon_traduci:{draft_id}"))
+    keyboard = InlineKeyboardMarkup([action_row])
+
+    try:
+        await query.message.reply_text(
+            f"{_t('post_full', new_lang)}\n\n{new_bozza}",
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+            reply_markup=keyboard,
+        )
+    except Exception:
+        await query.message.reply_text(
+            f"{_t('post_full', new_lang)}\n\n{new_bozza}",
+            disable_web_page_preview=True,
+            reply_markup=keyboard,
+        )
