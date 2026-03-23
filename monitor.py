@@ -724,8 +724,8 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> N
     placeholders = ",".join("?" * len(source_names))
     rows = con.execute(
         f"SELECT title, url, score, seen_at FROM seen_docs "
-        f"WHERE chat_id=? AND source IN ({placeholders}) "
-        f"AND seen_at >= datetime('now', '-7 days') "
+        f"WHERE chat_id IN (?, 'owner') AND source IN ({placeholders}) "
+        f"AND seen_at >= datetime('now', '-30 days') "
         f"ORDER BY seen_at DESC LIMIT 30",
         (str(chat_id), *source_names),
     ).fetchall()
