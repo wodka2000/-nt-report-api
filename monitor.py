@@ -119,6 +119,13 @@ def _init_db() -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path)
     con.execute("""
+        CREATE TABLE IF NOT EXISTS drafts (
+            draft_id  TEXT PRIMARY KEY,
+            data      TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    con.execute("""
         CREATE TABLE IF NOT EXISTS seen_docs (
             url      TEXT,
             chat_id  TEXT NOT NULL DEFAULT 'owner',
@@ -157,6 +164,25 @@ def _init_db() -> None:
         pass
     con.commit()
     con.close()
+
+
+def _save_draft(draft_id: str, draft: dict) -> None:
+    con = sqlite3.connect(_db_path())
+    con.execute(
+        "INSERT OR REPLACE INTO drafts (draft_id, data) VALUES (?, ?)",
+        (draft_id, json.dumps(draft, ensure_ascii=False)),
+    )
+    con.commit()
+    con.close()
+
+
+def _load_draft(draft_id: str) -> dict | None:
+    con = sqlite3.connect(_db_path())
+    row = con.execute("SELECT data FROM drafts WHERE draft_id=?", (draft_id,)).fetchone()
+    con.close()
+    if row:
+        return json.loads(row[0])
+    return None
 
 
 def _save_rating(url: str, rating: int, chat_id: str = "owner") -> None:
@@ -580,7 +606,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             # draft_id = "{chat_id}_{counter}" per evitare sovrapposizioni tra utenti
             draft_counter += 1
             draft_id = f"{chat_id}_{draft_counter}"
-            drafts[draft_id] = {
+            draft_data = {
                 "titolo":      item["title"],
                 "bozza":       bozza,
                 "url":         item_url,
@@ -591,6 +617,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 "lang":        lang,
                 "contenuto":   contenuto[:6000],
             }
+            drafts[draft_id] = draft_data
+            _save_draft(draft_id, draft_data)
             context.bot_data[f"monitor_draft_counter_{chat_id}"] = draft_counter
 
             # Messaggio Telegram con bozza
@@ -805,37 +833,44 @@ async def handle_mon_usa_cb(update, context) -> None:
     query = update.callback_query
     await query.answer()
 
-    draft_id = query.data.split(":", 1)[1]
-    drafts   = context.bot_data.get("monitor_drafts", {})
-    draft    = drafts.get(draft_id)
+    try:
+        draft_id = query.data.split(":", 1)[1]
+        drafts   = context.bot_data.get("monitor_drafts", {})
+        draft    = drafts.get(draft_id) or _load_draft(draft_id)
 
-    if not draft:
-        await query.edit_message_reply_markup(reply_markup=None)
         from bot import _t
         from users import get_lang
         lang = get_lang(query.message.chat.id)
-        await query.message.reply_text(_t("draft_unavailable", lang))
-        return
 
-    from bot import _t
-    from users import get_lang
-    lang = get_lang(query.message.chat.id)
-    _save_rating(draft["url"], 5, str(query.message.chat.id))
-    await query.edit_message_reply_markup(reply_markup=None)
-    reply_text = (
-        f"{_t('post_full', lang)}\n\n{draft['bozza']}\n\n"
-        f"{_t('source_label', lang)} {draft['url']}"
-    )
-    try:
-        await query.message.reply_text(reply_text, parse_mode="Markdown",
-                                       disable_web_page_preview=True)
-    except Exception:
-        await query.message.reply_text(reply_text, disable_web_page_preview=True)
+        if not draft:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text(_t("draft_unavailable", lang))
+            return
 
-    # Salva nel report del giorno e pusha sul sito
-    from bot import is_owner
-    await _save_post_to_report(context, draft, query.message,
-                               notify_errors=is_owner(update))
+        _save_rating(draft["url"], 5, str(query.message.chat.id))
+        await query.edit_message_reply_markup(reply_markup=None)
+
+        reply_text = (
+            f"{_t('post_full', lang)}\n\n{draft['bozza']}\n\n"
+            f"{_t('source_label', lang)} {draft['url']}"
+        )
+        try:
+            await query.message.reply_text(reply_text, parse_mode="Markdown",
+                                           disable_web_page_preview=True)
+        except Exception:
+            await query.message.reply_text(reply_text, disable_web_page_preview=True)
+
+        # Salva nel report del giorno e pusha sul sito
+        from bot import is_owner
+        await _save_post_to_report(context, draft, query.message,
+                                   notify_errors=is_owner(update))
+
+    except Exception as exc:
+        logger.exception("Errore in handle_mon_usa_cb")
+        try:
+            await query.message.reply_text(f"⚠️ Errore: {type(exc).__name__}: {str(exc)[:300]}")
+        except Exception:
+            pass
 
 
 async def handle_mon_ignora_cb(update, context) -> None:
@@ -844,7 +879,7 @@ async def handle_mon_ignora_cb(update, context) -> None:
     parts = query.data.split(":", 1)
     if len(parts) > 1:
         drafts = context.bot_data.get("monitor_drafts", {})
-        draft  = drafts.get(parts[1])
+        draft  = drafts.get(parts[1]) or _load_draft(parts[1])
         if draft:
             _save_rating(draft["url"], 1, str(query.message.chat.id))
     await query.answer("Documento ignorato.")
@@ -858,7 +893,7 @@ async def handle_mon_traduci_cb(update, context) -> None:
 
     draft_id = query.data.split(":", 1)[1]
     drafts   = context.bot_data.get("monitor_drafts", {})
-    draft    = drafts.get(draft_id)
+    draft    = drafts.get(draft_id) or _load_draft(draft_id)
 
     if not draft:
         await query.message.reply_text("⚠️ Bozza non più disponibile.")
