@@ -9,7 +9,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 
 | Nome | URL | Tipo | Settori | Note |
 |------|-----|------|---------|------|
-| GU — Serie Generale | https://www.gazzettaufficiale.it/rss/SG | rss | tutti | group:GU |
+| GU — Serie Generale | http://www.gazzettaufficiale.it/rss/SG | rss | tutti | group:GU timeout:45 |
 | GU — Unione Europea | https://www.gazzettaufficiale.it/rss/S2 | rss | tutti | group:GU |
 | GU — Contratti Pubblici | https://www.gazzettaufficiale.it/rss/S5 | rss | tutti | group:GU |
 | ARERA | https://www.arera.it/comunicati-stampa/ | html | energia | link_filter:/comunicati-stampa/dettaglio/ |
