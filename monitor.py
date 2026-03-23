@@ -166,8 +166,14 @@ def _init_db() -> None:
     con.close()
 
 
+def _db_connect():
+    con = sqlite3.connect(_db_path(), timeout=15)
+    con.execute("PRAGMA journal_mode=WAL")
+    return con
+
+
 def _save_draft(draft_id: str, draft: dict) -> None:
-    con = sqlite3.connect(_db_path())
+    con = _db_connect()
     con.execute(
         "INSERT OR REPLACE INTO drafts (draft_id, data) VALUES (?, ?)",
         (draft_id, json.dumps(draft, ensure_ascii=False)),
@@ -177,16 +183,20 @@ def _save_draft(draft_id: str, draft: dict) -> None:
 
 
 def _load_draft(draft_id: str) -> dict | None:
-    con = sqlite3.connect(_db_path())
-    row = con.execute("SELECT data FROM drafts WHERE draft_id=?", (draft_id,)).fetchone()
-    con.close()
-    if row:
-        return json.loads(row[0])
+    try:
+        _init_db()
+        con = _db_connect()
+        row = con.execute("SELECT data FROM drafts WHERE draft_id=?", (draft_id,)).fetchone()
+        con.close()
+        if row:
+            return json.loads(row[0])
+    except Exception:
+        pass
     return None
 
 
 def _save_rating(url: str, rating: int, chat_id: str = "owner") -> None:
-    con = sqlite3.connect(_db_path())
+    con = _db_connect()
     con.execute("UPDATE seen_docs SET rating=? WHERE url=? AND chat_id=?", (rating, url, chat_id))
     con.commit()
     con.close()
@@ -194,7 +204,7 @@ def _save_rating(url: str, rating: int, chat_id: str = "owner") -> None:
 
 def _get_rated_examples(chat_id: str = "owner", limit: int = 5) -> tuple[list[str], list[str]]:
     """Restituisce titoli di documenti con rating alto (4-5) e basso (1-2) per questo utente."""
-    con = sqlite3.connect(_db_path())
+    con = _db_connect()
     high = [r[0] for r in con.execute(
         "SELECT title FROM seen_docs WHERE chat_id=? AND rating >= 4 ORDER BY seen_at DESC LIMIT ?",
         (chat_id, limit)
@@ -209,7 +219,7 @@ def _get_rated_examples(chat_id: str = "owner", limit: int = 5) -> tuple[list[st
 
 def _has_seen_source(chat_id: str, source: str) -> bool:
     """Controlla se l'utente ha già visto almeno un item da questa fonte."""
-    con = sqlite3.connect(_db_path())
+    con = _db_connect()
     row = con.execute(
         "SELECT 1 FROM seen_docs WHERE chat_id=? AND source=? LIMIT 1", (chat_id, source)
     ).fetchone()
@@ -221,7 +231,7 @@ def _seed_seen_from_owner(chat_id: str, approved_at: str) -> int:
     """Copia nella seen_docs dell'utente gli item già visti dall'owner prima di approved_at."""
     from bot import OWNER_TELEGRAM_ID
     owner_id = str(OWNER_TELEGRAM_ID)
-    con = sqlite3.connect(_db_path())
+    con = _db_connect()
     rows = con.execute(
         "SELECT url, title, source, score, seen_at FROM seen_docs "
         "WHERE chat_id=? AND seen_at < ?", (owner_id, approved_at)
@@ -239,14 +249,14 @@ def _seed_seen_from_owner(chat_id: str, approved_at: str) -> int:
 
 
 def _is_seen(url: str, chat_id: str = "owner") -> bool:
-    con = sqlite3.connect(_db_path())
+    con = _db_connect()
     row = con.execute("SELECT 1 FROM seen_docs WHERE url=? AND chat_id=?", (url, chat_id)).fetchone()
     con.close()
     return row is not None
 
 
 def _mark_seen(url: str, title: str, source: str, score: float, chat_id: str = "owner") -> None:
-    con = sqlite3.connect(_db_path())
+    con = _db_connect()
     con.execute(
         "INSERT OR IGNORE INTO seen_docs (url, chat_id, title, source, score) VALUES (?,?,?,?,?)",
         (url, chat_id, title, source, score),
@@ -920,9 +930,10 @@ async def handle_mon_traduci_cb(update, context) -> None:
         f"{_t('footer', 'en')}"
     )
 
-    # Aggiorna il draft con la nuova lingua e bozza
+    # Aggiorna il draft con la nuova lingua e bozza e persisti su DB
     draft["bozza"] = new_bozza
     draft["lang"]  = new_lang
+    _save_draft(draft_id, draft)
 
     # Rimuovi i bottoni dal messaggio originale
     await query.edit_message_reply_markup(reply_markup=None)
