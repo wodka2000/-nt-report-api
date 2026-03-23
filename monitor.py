@@ -728,15 +728,6 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> N
         con = _db_connect()
         placeholders = ",".join("?" * len(source_names))
 
-        # Debug: conta tutti i record per queste fonti indipendentemente da chat_id e data
-        all_rows = con.execute(
-            f"SELECT chat_id, COUNT(*) FROM seen_docs WHERE source IN ({placeholders}) GROUP BY chat_id",
-            source_names,
-        ).fetchall()
-        debug_txt = "; ".join(f"{cid}:{n}" for cid, n in all_rows) or "nessuno"
-        await context.bot.send_message(chat_id=chat_id,
-            text=f"🔍 seen_docs per queste fonti: {debug_txt}")
-
         rows = con.execute(
             f"SELECT title, url, score, seen_at FROM seen_docs "
             f"WHERE chat_id IN (?, 'owner') AND source IN ({placeholders}) "
@@ -747,7 +738,6 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> N
         con.close()
 
         if not rows:
-            await context.bot.send_message(chat_id=chat_id, text="📭 Nessun item nei 30 giorni con questo chat_id.")
             return
 
         righe = ["📅 <b>Ultimi 30 giorni — già visti:</b>\n"]
