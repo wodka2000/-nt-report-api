@@ -750,17 +750,27 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> N
             await context.bot.send_message(chat_id=chat_id, text="📭 Nessun item nei 30 giorni con questo chat_id.")
             return
 
-        righe = ["📅 *Ultimi 30 giorni — già visti:*\n"]
+        righe = ["📅 <b>Ultimi 30 giorni — già visti:</b>\n"]
         for title, url, score, seen_at in rows:
             data = seen_at[:10] if seen_at else "?"
             emoji = "🟢" if (score or 0) >= 5 else "⚪"
-            righe.append(f"{emoji} [{score:.0f}/10] {data} — [{title[:70]}]({url})")
+            righe.append(f'{emoji} [{score:.0f}/10] {data} — <a href="{url}">{title[:70]}</a>')
 
-        testo = "\n".join(righe)
-        if len(testo) > 4000:
-            testo = testo[:4000] + "…"
-        await context.bot.send_message(chat_id=chat_id, text=testo,
-            parse_mode="Markdown", disable_web_page_preview=True)
+        # Manda in blocchi da max 4000 chars tagliando per righe intere
+        blocco: list[str] = []
+        size = 0
+        for riga in righe:
+            if size + len(riga) + 1 > 4000:
+                await context.bot.send_message(chat_id=chat_id,
+                    text="\n".join(blocco), parse_mode="HTML",
+                    disable_web_page_preview=True)
+                blocco, size = [], 0
+            blocco.append(riga)
+            size += len(riga) + 1
+        if blocco:
+            await context.bot.send_message(chat_id=chat_id,
+                text="\n".join(blocco), parse_mode="HTML",
+                disable_web_page_preview=True)
 
     except Exception as exc:
         logger.exception("Errore in _show_recent_seen")
