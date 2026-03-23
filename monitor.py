@@ -722,48 +722,50 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
 
 
 async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> None:
-    """Mostra i documenti già visti negli ultimi 7 giorni per le fonti indicate."""
-    con = _db_connect()
-    placeholders = ",".join("?" * len(source_names))
-    rows = con.execute(
-        f"SELECT title, url, score, seen_at FROM seen_docs "
-        f"WHERE chat_id IN (?, 'owner') AND source IN ({placeholders}) "
-        f"AND seen_at >= datetime('now', '-30 days') "
-        f"ORDER BY seen_at DESC LIMIT 30",
-        (str(chat_id), *source_names),
-    ).fetchall()
-    con.close()
+    """Mostra i documenti già visti negli ultimi 30 giorni per le fonti indicate."""
+    try:
+        _init_db()
+        con = _db_connect()
+        placeholders = ",".join("?" * len(source_names))
 
-    # Debug temporaneo: mostra sempre quante righe trova e con quali chat_id
-    con2 = _db_connect()
-    all_sources = con2.execute(
-        f"SELECT DISTINCT chat_id, source, COUNT(*) FROM seen_docs "
-        f"WHERE source IN ({placeholders}) GROUP BY chat_id, source",
-        source_names,
-    ).fetchall()
-    con2.close()
-    debug = "\n".join(f"  `{cid}` | {src} | {n}" for cid, src, n in all_sources)
-    await context.bot.send_message(chat_id=chat_id,
-        text=f"🔍 Debug seen_docs:\n{debug or '(vuoto)'}", parse_mode="Markdown")
+        # Debug: conta tutti i record per queste fonti indipendentemente da chat_id e data
+        all_rows = con.execute(
+            f"SELECT chat_id, COUNT(*) FROM seen_docs WHERE source IN ({placeholders}) GROUP BY chat_id",
+            source_names,
+        ).fetchall()
+        debug_txt = "; ".join(f"{cid}:{n}" for cid, n in all_rows) or "nessuno"
+        await context.bot.send_message(chat_id=chat_id,
+            text=f"🔍 seen_docs per queste fonti: {debug_txt}")
 
-    if not rows:
-        return
+        rows = con.execute(
+            f"SELECT title, url, score, seen_at FROM seen_docs "
+            f"WHERE chat_id IN (?, 'owner') AND source IN ({placeholders}) "
+            f"AND seen_at >= datetime('now', '-30 days') "
+            f"ORDER BY seen_at DESC LIMIT 30",
+            (str(chat_id), *source_names),
+        ).fetchall()
+        con.close()
 
-    righe = ["📅 *Ultimi 30 giorni — già visti:*\n"]
-    for title, url, score, seen_at in rows:
-        data = seen_at[:10] if seen_at else "?"
-        emoji = "🟢" if (score or 0) >= 5 else "⚪"
-        righe.append(f"{emoji} [{score:.0f}/10] {data} — [{title[:70]}]({url})")
+        if not rows:
+            await context.bot.send_message(chat_id=chat_id, text="📭 Nessun item nei 30 giorni con questo chat_id.")
+            return
 
-    testo = "\n".join(righe)
-    if len(testo) > 4000:
-        testo = testo[:4000] + "…"
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=testo,
-        parse_mode="Markdown",
-        disable_web_page_preview=True,
-    )
+        righe = ["📅 *Ultimi 30 giorni — già visti:*\n"]
+        for title, url, score, seen_at in rows:
+            data = seen_at[:10] if seen_at else "?"
+            emoji = "🟢" if (score or 0) >= 5 else "⚪"
+            righe.append(f"{emoji} [{score:.0f}/10] {data} — [{title[:70]}]({url})")
+
+        testo = "\n".join(righe)
+        if len(testo) > 4000:
+            testo = testo[:4000] + "…"
+        await context.bot.send_message(chat_id=chat_id, text=testo,
+            parse_mode="Markdown", disable_web_page_preview=True)
+
+    except Exception as exc:
+        logger.exception("Errore in _show_recent_seen")
+        await context.bot.send_message(chat_id=chat_id,
+            text=f"⚠️ Errore archivio: {type(exc).__name__}: {str(exc)[:200]}")
 
 
 # ── Callback handlers (da registrare in bot.py) ─────────────────────────────────
