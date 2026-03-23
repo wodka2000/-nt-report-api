@@ -731,10 +731,22 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> N
     ).fetchall()
     con.close()
 
+    # Debug temporaneo: mostra sempre quante righe trova e con quali chat_id
+    con2 = _db_connect()
+    all_sources = con2.execute(
+        f"SELECT DISTINCT chat_id, source, COUNT(*) FROM seen_docs "
+        f"WHERE source IN ({placeholders}) GROUP BY chat_id, source",
+        source_names,
+    ).fetchall()
+    con2.close()
+    debug = "\n".join(f"  `{cid}` | {src} | {n}" for cid, src, n in all_sources)
+    await context.bot.send_message(chat_id=chat_id,
+        text=f"🔍 Debug seen_docs:\n{debug or '(vuoto)'}", parse_mode="Markdown")
+
     if not rows:
         return
 
-    righe = ["📅 *Ultimi 7 giorni — già visti:*\n"]
+    righe = ["📅 *Ultimi 30 giorni — già visti:*\n"]
     for title, url, score, seen_at in rows:
         data = seen_at[:10] if seen_at else "?"
         emoji = "🟢" if (score or 0) >= 5 else "⚪"
