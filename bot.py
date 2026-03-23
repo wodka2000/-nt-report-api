@@ -2384,6 +2384,7 @@ def main():
     app.add_handler(CommandHandler("report",   cmd_report))
     app.add_handler(CommandHandler("pulisci",  cmd_pulisci))
     app.add_handler(CommandHandler("chat",     cmd_chat))
+    app.add_handler(CommandHandler("myid",     lambda u, c: u.message.reply_text(f"Il tuo chat ID è: `{u.effective_chat.id}`", parse_mode="Markdown")))
     app.add_handler(CommandHandler("fine",     cmd_fine))
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
     app.add_handler(CommandHandler("pausa",    cmd_pausa))
