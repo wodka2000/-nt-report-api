@@ -718,6 +718,39 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
     logger.info(f"Monitor: completato. Rilevanti: {trovati}, errori fonti: {len(errori)}")
 
 
+async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> None:
+    """Mostra i documenti già visti negli ultimi 7 giorni per le fonti indicate."""
+    con = _db_connect()
+    placeholders = ",".join("?" * len(source_names))
+    rows = con.execute(
+        f"SELECT title, url, score, seen_at FROM seen_docs "
+        f"WHERE chat_id=? AND source IN ({placeholders}) "
+        f"AND seen_at >= datetime('now', '-7 days') "
+        f"ORDER BY seen_at DESC LIMIT 30",
+        (str(chat_id), *source_names),
+    ).fetchall()
+    con.close()
+
+    if not rows:
+        return
+
+    righe = ["📅 *Ultimi 7 giorni — già visti:*\n"]
+    for title, url, score, seen_at in rows:
+        data = seen_at[:10] if seen_at else "?"
+        emoji = "🟢" if (score or 0) >= 5 else "⚪"
+        righe.append(f"{emoji} [{score:.0f}/10] {data} — [{title[:70]}]({url})")
+
+    testo = "\n".join(righe)
+    if len(testo) > 4000:
+        testo = testo[:4000] + "…"
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=testo,
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )
+
+
 # ── Callback handlers (da registrare in bot.py) ─────────────────────────────────
 
 async def handle_mon_fonte_cb(update, context) -> None:
@@ -752,6 +785,11 @@ async def handle_mon_fonte_cb(update, context) -> None:
     lang = get_lang(chat_id)
     await query.message.reply_text(_t("scan_start", lang).format(label=label), parse_mode="HTML")
     await _run_scan(context, selected, chat_id=chat_id, username=username)
+
+    # Per selezioni specifiche (non "tutte le fonti"), mostra anche i visti nell'ultima settimana
+    if token != "all":
+        source_names = [s["name"] for s in selected]
+        await _show_recent_seen(context, chat_id, source_names)
 
 
 async def _save_post_to_report(context, draft: dict, reply_target, notify_errors: bool = False) -> None:
