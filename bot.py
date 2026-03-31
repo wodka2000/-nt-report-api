@@ -1321,14 +1321,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_forwarded(msg, context: ContextTypes.DEFAULT_TYPE):
-    """Processa un messaggio inoltrato: PDF, link a PDF, link normale, testo."""
-    if not is_forward(msg):
+    """Processa un messaggio inoltrato o inviato direttamente: PDF, link a PDF, link normale, testo."""
+    forward = is_forward(msg)
+    has_pdf = msg.document and (
+        msg.document.mime_type == "application/pdf" or
+        (msg.document.file_name or "").lower().endswith(".pdf")
+    )
+    text_raw = msg.text or msg.caption or ""
+    has_url  = any(e.type == "url" for e in (msg.entities or msg.caption_entities or []))
+
+    # Messaggio diretto senza PDF e senza URL: ignoralo (è testo conversazionale)
+    if not forward and not has_pdf and not has_url:
         return
 
     logger.info(
-        f"Forward: id={msg.message_id} "
+        f"{'Forward' if forward else 'Direct'}: id={msg.message_id} "
         f"forward_origin={getattr(msg, 'forward_origin', None)} "
-        f"text={repr((msg.text or '')[:60])}"
+        f"text={repr(text_raw[:60])}"
     )
 
     # Salva in cache
@@ -1336,10 +1345,7 @@ async def handle_forwarded(msg, context: ContextTypes.DEFAULT_TYPE):
     cache[msg.message_id] = msg
 
     # ── PDF allegato ───────────────────────────────────────────────────────────
-    if msg.document and (
-        msg.document.mime_type == "application/pdf" or
-        (msg.document.file_name or "").lower().endswith(".pdf")
-    ):
+    if has_pdf:
         processing = await msg.reply_text(
             f"📄 *{msg.document.file_name}* — analisi in corso…",
             parse_mode="Markdown"
