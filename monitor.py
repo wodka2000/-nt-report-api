@@ -88,6 +88,35 @@ Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo:
 {{"score": <intero 0-10>, "settore": "<energia|gioco|tecnologia|concessioni|altro>", "motivo": "<max 20 parole in italiano>"}}
 """
 
+_UNIFIED_POST_PROMPT = """\
+Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia e concessioni.
+
+Hai esaminato i seguenti documenti provenienti da fonti diverse:
+
+{documenti}
+
+Prima identifica i PUNTI DI CONTATTO tra questi documenti (connessioni normative, temi comuni, implicazioni trasversali).
+
+Poi genera un post LinkedIn professionale in italiano che:
+- Metta in relazione i documenti evidenziando le connessioni
+- Citi esplicitamente tutte le fonti (nome fonte e titolo)
+- Sia scritto in prima persona come avvocato specialista
+- Non superi 1300 caratteri (testo + hashtag)
+- Termini sempre con una frase completa
+- Includa 3-5 hashtag pertinenti
+
+Formato ESATTO della risposta (rispetta questa struttura):
+
+📌 PUNTI DI CONTATTO:
+• [connessione 1]
+• [connessione 2]
+• [ecc.]
+
+---
+
+[POST LINKEDIN COMPLETO]
+"""
+
 _POST_PROMPT = """\
 Generate a professional LinkedIn post in {lingua} about the following regulatory document.
 
@@ -427,6 +456,26 @@ def _assess_relevance(titolo: str, sommario: str, chat_id: str = "owner") -> dic
         return {"score": 0, "settore": "altro", "motivo": "errore parsing"}
 
 
+def _generate_unified_post(drafts: list) -> str:
+    """Genera un post unificato che mette in relazione più documenti."""
+    from bot import call_claude
+    parts = []
+    for i, d in enumerate(drafts, 1):
+        parts.append(
+            f"DOCUMENTO {i} — Fonte: {d['source_name']}\n"
+            f"Titolo: {d['titolo']}\n"
+            f"Contenuto:\n{d.get('contenuto', d.get('bozza', ''))[:2000]}"
+        )
+    documenti = "\n\n---\n\n".join(parts)
+    prompt = _UNIFIED_POST_PROMPT.format(documenti=documenti)
+    msg = call_claude(
+        model="claude-sonnet-4-6",
+        max_tokens=1500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return msg.content[0].text.strip()
+
+
 def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "", lang: str = "it") -> str:
     """Usa Sonnet per generare la bozza del post LinkedIn."""
     from bot import call_claude
@@ -472,6 +521,7 @@ async def show_monitor_menu(context, chat_id: int = None, username: str = "owner
         else:
             buttons.append([InlineKeyboardButton(s["name"], callback_data=f"mon_fonte:{i}")])
     buttons.append([InlineKeyboardButton("📋 Tutte le fonti", callback_data="mon_fonte:all")])
+    buttons.append([InlineKeyboardButton("🔀 Confronta più fonti", callback_data="mon_ms:start")])
 
     from bot import _t
     from users import get_lang
@@ -483,8 +533,63 @@ async def show_monitor_menu(context, chat_id: int = None, username: str = "owner
     )
 
 
-async def _run_scan(context, sources: list[dict], chat_id: int = None, username: str = "owner") -> None:
-    """Esegue la scansione sulle fonti indicate e notifica i risultati."""
+def _get_monitor_items(sources: list) -> list:
+    """Ritorna le voci da mostrare nel menu multi-selezione (same logic as show_monitor_menu)."""
+    items = []
+    seen_groups: set = set()
+    for i, s in enumerate(sources):
+        group = s.get("group")
+        if group:
+            if group not in seen_groups:
+                seen_groups.add(group)
+                items.append({"key": f"g:{group}", "label": group, "is_group": True, "group": group})
+        else:
+            items.append({"key": f"i:{i}", "label": s["name"], "is_group": False, "group": None})
+    return items
+
+
+def _resolve_selection(sources: list, selected_keys: set) -> list:
+    """Converte le chiavi selezionate (g:GU, i:5 ecc.) in una lista di source dict."""
+    result = []
+    seen: set = set()
+    for i, s in enumerate(sources):
+        group = s.get("group")
+        key = f"g:{group}" if group else f"i:{i}"
+        if key in selected_keys and i not in seen:
+            result.append(s)
+            seen.add(i)
+    return result
+
+
+def _build_multisel_menu(sources: list, selected_keys: set):
+    """Ritorna (text, InlineKeyboardMarkup) per il menu di selezione multipla."""
+    items = _get_monitor_items(sources)
+    n = len(selected_keys)
+    rows = []
+    for item in items:
+        check = "✅" if item["key"] in selected_keys else "☐"
+        rows.append([InlineKeyboardButton(
+            f"{check} {item['label'][:50]}",
+            callback_data=f"mon_ms:t:{item['key']}",
+        )])
+    rows.append([
+        InlineKeyboardButton("✅ Tutte", callback_data="mon_ms:all"),
+        InlineKeyboardButton("☐ Nessuna",  callback_data="mon_ms:none"),
+    ])
+    if n >= 2:
+        btn_label = f"🔍 Avvia confronto ({n} fonti)"
+    else:
+        btn_label = "🔍 Seleziona almeno 2 fonti"
+    rows.append([InlineKeyboardButton(btn_label, callback_data="mon_ms:go")])
+    sel_str = f"*{n}* {'fonti selezionate' if n != 1 else 'fonte selezionata'}"
+    text = f"🔀 *Confronto multi-fonte*\n\nSeleziona le fonti da mettere in relazione tra loro.\n{sel_str}."
+    return text, InlineKeyboardMarkup(rows)
+
+
+async def _run_scan(context, sources: list[dict], chat_id: int = None, username: str = "owner",
+                    collect_drafts: bool = False):
+    """Esegue la scansione sulle fonti indicate e notifica i risultati.
+    Se collect_drafts=True, ritorna la lista di draft_id generati (per il post unificato)."""
     from bot import TOPICS
 
     if chat_id is None:
@@ -517,6 +622,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
 
     errori: list[tuple[str, str]] = []
     trovati: int = 0
+    session_draft_ids: list = []
 
     for source in sources:
         name = source["name"]
@@ -633,6 +739,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             drafts[draft_id] = draft_data
             _save_draft(draft_id, draft_data)
             context.bot_data[f"monitor_draft_counter_{chat_id}"] = draft_counter
+            if collect_drafts:
+                session_draft_ids.append(draft_id)
 
             # Messaggio Telegram con bozza
             topic_label = TOPICS.get(settore, "📌 Altro")
@@ -719,10 +827,12 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
         )
 
     logger.info(f"Monitor: completato. Rilevanti: {trovati}, errori fonti: {len(errori)}")
+    if collect_drafts:
+        return session_draft_ids
 
 
-async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> None:
-    """Mostra i documenti già visti negli ultimi 30 giorni per le fonti indicate."""
+async def _show_recent_seen(context, chat_id: int, source_names: list[str], days: int = 30) -> None:
+    """Mostra i documenti già visti negli ultimi `days` giorni per le fonti indicate."""
     try:
         _init_db()
         con = _db_connect()
@@ -731,8 +841,8 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> N
         rows = con.execute(
             f"SELECT title, url, score, seen_at FROM seen_docs "
             f"WHERE chat_id IN (?, 'owner') AND source IN ({placeholders}) "
-            f"AND seen_at >= datetime('now', '-30 days') "
-            f"ORDER BY seen_at DESC LIMIT 30",
+            f"AND seen_at >= datetime('now', '-{days} days') "
+            f"ORDER BY seen_at DESC LIMIT 50",
             (str(chat_id), *source_names),
         ).fetchall()
         con.close()
@@ -740,7 +850,8 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str]) -> N
         if not rows:
             return
 
-        righe = ["📅 <b>Ultimi 30 giorni — già visti:</b>\n"]
+        label = f"Ultimi {days} giorni" if days > 1 else "Ultime 24 ore"
+        righe = [f"📅 <b>{label} — già visti:</b>\n"]
         for title, url, score, seen_at in rows:
             data = seen_at[:10] if seen_at else "?"
             emoji = "🟢" if (score or 0) >= 5 else "⚪"
@@ -803,10 +914,13 @@ async def handle_mon_fonte_cb(update, context) -> None:
     await query.message.reply_text(_t("scan_start", lang).format(label=label), parse_mode="HTML")
     await _run_scan(context, selected, chat_id=chat_id, username=username)
 
-    # Per selezioni specifiche (non "tutte le fonti"), mostra anche i visti nell'ultima settimana
-    if token != "all":
-        source_names = [s["name"] for s in selected]
-        await _show_recent_seen(context, chat_id, source_names)
+    source_names = [s["name"] for s in selected]
+    if token == "all":
+        # Dopo scansione completa: mostra archivio ultimi 2 giorni (include ieri)
+        await _show_recent_seen(context, chat_id, source_names, days=2)
+    else:
+        # Per fonte/gruppo specifico: archivio ultimi 30 giorni
+        await _show_recent_seen(context, chat_id, source_names, days=30)
 
 
 async def _save_post_to_report(context, draft: dict, reply_target, notify_errors: bool = False) -> None:
@@ -1015,3 +1129,171 @@ async def handle_mon_traduci_cb(update, context) -> None:
             disable_web_page_preview=True,
             reply_markup=keyboard,
         )
+
+
+async def handle_mon_multisel_cb(update, context) -> None:
+    """Gestisce tutto il flusso multi-selezione fonti: start, toggle, all, none, conferma."""
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = query.message.chat.id
+    sources = _load_sources()
+    sel_key = f"mon_msel_{chat_id}"
+    selected: set = context.bot_data.get(sel_key, set())
+    # token[0]=mon_ms, token[1]=action, token[2]=key (opzionale)
+    parts = query.data.split(":", 2)
+    action = parts[1]
+
+    if action == "start":
+        selected = set()
+        context.bot_data[sel_key] = selected
+        text, kb = _build_multisel_menu(sources, selected)
+        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    if action == "t":
+        key = parts[2]
+        if key in selected:
+            selected.discard(key)
+        else:
+            selected.add(key)
+        context.bot_data[sel_key] = selected
+        text, kb = _build_multisel_menu(sources, selected)
+        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    if action == "all":
+        items = _get_monitor_items(sources)
+        selected = {item["key"] for item in items}
+        context.bot_data[sel_key] = selected
+        text, kb = _build_multisel_menu(sources, selected)
+        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    if action == "none":
+        selected = set()
+        context.bot_data[sel_key] = selected
+        text, kb = _build_multisel_menu(sources, selected)
+        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    if action == "go":
+        if len(selected) < 2:
+            await query.answer("⚠️ Seleziona almeno 2 fonti!", show_alert=True)
+            return
+
+        sel_sources = _resolve_selection(sources, selected)
+        source_names = [s["name"] for s in sel_sources]
+        label = f"{len(source_names)} fonti selezionate"
+
+        from bot import _t
+        from users import get_lang
+        lang = get_lang(chat_id)
+        username = context.bot_data.get(f"monitor_username_{chat_id}", "owner")
+
+        await query.edit_message_text(
+            _t("scan_start", lang).format(label=label), parse_mode="HTML"
+        )
+
+        # Scan con raccolta draft_ids
+        session_draft_ids = await _run_scan(
+            context, sel_sources, chat_id=chat_id, username=username, collect_drafts=True
+        )
+        # Archivio ultimi 30 giorni
+        await _show_recent_seen(context, chat_id, source_names, days=30)
+
+        if session_draft_ids and len(session_draft_ids) >= 2:
+            import uuid
+            session_id = uuid.uuid4().hex[:8]
+            context.bot_data[f"mon_session_{session_id}"] = {
+                "chat_id": chat_id,
+                "draft_ids": session_draft_ids,
+            }
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=(
+                    f"🔀 *Confronto completato* — {len(session_draft_ids)} documenti rilevanti trovati.\n\n"
+                    "Vuoi un post unificato che evidenzi i punti di contatto tra questi documenti?"
+                ),
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔗 Genera post unificato", callback_data=f"mon_unifica:{session_id}"),
+                ]]),
+            )
+
+
+async def handle_mon_unifica_cb(update, context) -> None:
+    """Genera il post unificato che mette in relazione più documenti da fonti diverse."""
+    query = update.callback_query
+    await query.answer()
+
+    session_id = query.data.split(":", 1)[1]
+    session = context.bot_data.get(f"mon_session_{session_id}")
+    if not session:
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text("⚠️ Sessione non più disponibile.")
+        return
+
+    draft_ids = session.get("draft_ids", [])
+    chat_id = session.get("chat_id", query.message.chat.id)
+    drafts_store = context.bot_data.get("monitor_drafts", {})
+    drafts = [drafts_store.get(did) or _load_draft(did) for did in draft_ids]
+    drafts = [d for d in drafts if d]  # rimuovi None
+
+    if not drafts:
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text("⚠️ Documenti non più disponibili.")
+        return
+
+    await query.edit_message_reply_markup(reply_markup=None)
+    processing = await query.message.reply_text(
+        f"⏳ Analizzo le connessioni tra {len(drafts)} documenti…"
+    )
+
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(None, _generate_unified_post, drafts)
+    except Exception as e:
+        logger.error(f"handle_mon_unifica_cb error: {e}", exc_info=True)
+        await processing.edit_text(f"❌ Errore generazione: {str(e)[:200]}")
+        return
+
+    try:
+        await processing.edit_text(
+            f"🔗 *Post unificato — {len(drafts)} fonti*\n\n{result}",
+            parse_mode="Markdown",
+            disable_web_page_preview=True,
+        )
+    except Exception:
+        await processing.edit_text(
+            f"🔗 Post unificato — {len(drafts)} fonti\n\n{result}",
+            disable_web_page_preview=True,
+        )
+
+    # Crea un draft sintetico per poterlo salvare con [Usa questo post]
+    import uuid
+    from bot import _t
+    from users import get_lang
+    lang = get_lang(chat_id)
+    unified_draft_id = f"unified_{uuid.uuid4().hex[:8]}"
+    unified_draft = {
+        "titolo":      f"Post unificato ({len(drafts)} fonti)",
+        "bozza":       result,
+        "url":         " | ".join(d.get("url", "") for d in drafts if d.get("url")),
+        "settore":     drafts[0].get("settore", "altro"),
+        "source_name": " + ".join(d.get("source_name", "") for d in drafts),
+        "username":    context.bot_data.get(f"monitor_username_{chat_id}", "owner"),
+        "chat_id":     str(chat_id),
+        "lang":        lang,
+        "contenuto":   result,
+    }
+    context.bot_data.setdefault("monitor_drafts", {})[unified_draft_id] = unified_draft
+    _save_draft(unified_draft_id, unified_draft)
+
+    await query.message.reply_text(
+        "Vuoi usare questo post?",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton(_t("use_post", lang), callback_data=f"mon_usa:{unified_draft_id}"),
+            InlineKeyboardButton(_t("ignore",   lang), callback_data=f"mon_ignora:{unified_draft_id}"),
+        ]]),
+    )

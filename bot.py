@@ -2384,7 +2384,6 @@ def main():
     app.add_handler(CommandHandler("report",   cmd_report))
     app.add_handler(CommandHandler("pulisci",  cmd_pulisci))
     app.add_handler(CommandHandler("chat",     cmd_chat))
-    app.add_handler(CommandHandler("myid",     lambda u, c: u.message.reply_text(f"Il tuo chat ID è: `{u.effective_chat.id}`", parse_mode="Markdown")))
     app.add_handler(CommandHandler("fine",     cmd_fine))
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
     app.add_handler(CommandHandler("pausa",    cmd_pausa))
@@ -2397,12 +2396,16 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_user_reject_cb,  pattern=r"^user_reject:"))
 
     # Monitor callbacks
-    from monitor import show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb, handle_mon_ignora_cb, handle_mon_rating_cb, handle_mon_traduci_cb
-    app.add_handler(CallbackQueryHandler(handle_mon_fonte_cb,  pattern=r"^mon_fonte:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,     pattern=r"^mon_usa:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_rating_cb,  pattern=r"^mon_rating:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb,  pattern=r"^mon_ignora:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_traduci_cb, pattern=r"^mon_traduci:"))
+    from monitor import (show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb,
+                         handle_mon_ignora_cb, handle_mon_rating_cb, handle_mon_traduci_cb,
+                         handle_mon_multisel_cb, handle_mon_unifica_cb)
+    app.add_handler(CallbackQueryHandler(handle_mon_fonte_cb,    pattern=r"^mon_fonte:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,      pattern=r"^mon_usa:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_rating_cb,   pattern=r"^mon_rating:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb,   pattern=r"^mon_ignora:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_traduci_cb,  pattern=r"^mon_traduci:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_multisel_cb, pattern=r"^mon_ms:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_unifica_cb,  pattern=r"^mon_unifica:"))
 
     # Job giornaliero alle 07:00 UTC = 08:00 ora italiana (CET, UTC+1)
     # NB: in estate (CEST, UTC+2) corrisponderà alle 09:00 — aggiornare a hour=6 da fine marzo
