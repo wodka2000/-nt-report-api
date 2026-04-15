@@ -146,7 +146,7 @@ LOGS_DIR      = BASE_DIR / "logs"
 # ── Claude API ─────────────────────────────────────────────────────────────────
 
 def call_claude(**kwargs) -> anthropic.types.Message:
-    """Chiama Claude con retry automatico su RateLimitError (max 3 tentativi, 60s ciascuno)."""
+    """Chiama Claude con retry automatico su RateLimitError e OverloadedError (max 3 tentativi)."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     for attempt in range(4):
         try:
@@ -157,6 +157,13 @@ def call_claude(**kwargs) -> anthropic.types.Message:
             wait = 60 * (attempt + 1)
             logger.warning(f"Rate limit, attendo {wait}s (tentativo {attempt + 1}/3)")
             time.sleep(wait)
+        except anthropic.APIStatusError as e:
+            if e.status_code == 529 and attempt < 3:
+                wait = 30 * (attempt + 1)
+                logger.warning(f"API overloaded (529), attendo {wait}s (tentativo {attempt + 1}/3)")
+                time.sleep(wait)
+            else:
+                raise
 
 
 # ── Cache bytes PDF su disco ───────────────────────────────────────────────────

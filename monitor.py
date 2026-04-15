@@ -521,7 +521,6 @@ async def show_monitor_menu(context, chat_id: int = None, username: str = "owner
         else:
             buttons.append([InlineKeyboardButton(s["name"], callback_data=f"mon_fonte:{i}")])
     buttons.append([InlineKeyboardButton("📋 Tutte le fonti", callback_data="mon_fonte:all")])
-    buttons.append([InlineKeyboardButton("🔀 Confronta più fonti", callback_data="mon_ms:start")])
 
     from bot import _t
     from users import get_lang
@@ -577,12 +576,12 @@ def _build_multisel_menu(sources: list, selected_keys: set):
         InlineKeyboardButton("☐ Nessuna",  callback_data="mon_ms:none"),
     ])
     if n >= 2:
-        btn_label = f"🔍 Avvia confronto ({n} fonti)"
+        btn_label = f"🔍 Confronta ({n} selezionate)"
     else:
         btn_label = "🔍 Seleziona almeno 2 fonti"
     rows.append([InlineKeyboardButton(btn_label, callback_data="mon_ms:go")])
     sel_str = f"*{n}* {'fonti selezionate' if n != 1 else 'fonte selezionata'}"
-    text = f"🔀 *Confronto multi-fonte*\n\nSeleziona le fonti da mettere in relazione tra loro.\n{sel_str}."
+    text = f"🔀 *Confronta due o più notizie*\n\nSeleziona le fonti da scansionare e mettere in relazione.\n{sel_str}."
     return text, InlineKeyboardMarkup(rows)
 
 
@@ -922,6 +921,14 @@ async def handle_mon_fonte_cb(update, context) -> None:
         # Per fonte/gruppo specifico: archivio ultimi 30 giorni
         await _show_recent_seen(context, chat_id, source_names, days=30)
 
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="🔀 Vuoi mettere in relazione questa notizia con altre?",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔀 Confronta due o più notizie", callback_data="mon_ms:start"),
+        ]]),
+    )
+
 
 async def _save_post_to_report(context, draft: dict, reply_target, notify_errors: bool = False) -> None:
     """Salva la bozza monitor nel file report del giorno e pusha su GitHub."""
@@ -1213,12 +1220,12 @@ async def handle_mon_multisel_cb(update, context) -> None:
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=(
-                    f"🔀 *Confronto completato* — {len(session_draft_ids)} documenti rilevanti trovati.\n\n"
-                    "Vuoi un post unificato che evidenzi i punti di contatto tra questi documenti?"
+                    f"🔀 *{len(session_draft_ids)} notizie trovate* — pronto per l'analisi congiunta.\n\n"
+                    "Genero un post che le mette in relazione, evidenziando connessioni normative e temi comuni?"
                 ),
                 parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔗 Genera post unificato", callback_data=f"mon_unifica:{session_id}"),
+                    InlineKeyboardButton("🔗 Genera post comparativo", callback_data=f"mon_unifica:{session_id}"),
                 ]]),
             )
 

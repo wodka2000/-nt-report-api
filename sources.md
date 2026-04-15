@@ -54,6 +54,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | |
 | Jamma.it | https://www.jamma.it/feed/ | rss | gioco | |
 | GiocoNews | https://www.gioconews.it/feed/ | rss | gioco | |
+| Press Giochi | https://www.pressgiochi.it/feed/ | rss | gioco | |
 
 ---
 
