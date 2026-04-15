@@ -32,7 +32,6 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | AGCM — Bollettino | https://www.agcm.it/pubblicazioni/bollettino-settimanale/ | html | altro | link_filter:/pubblicazioni/bollettino-settimanale/ group:AGCM fetch_summary |
 | Corte Costituzionale | https://www.cortecostituzionale.it/comunicati-stampa | html | concessioni | link_filter:/comunicati-stampa/ |
 | Normattiva | https://www.normattiva.it/showArchivioNews?anno=2026 | html | concessioni | link_filter:/showNewsDetail |
-| Giustizia Amministrativa | https://www.giustizia-amministrativa.it/ | html | concessioni | link_filter:/web/guest/-/ no_verify |
 
 ---
 

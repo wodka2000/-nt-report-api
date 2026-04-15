@@ -2411,9 +2411,10 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_user_reject_cb,  pattern=r"^user_reject:"))
 
     # Monitor callbacks
-    from monitor import (show_monitor_menu, handle_mon_fonte_cb, handle_mon_usa_cb,
-                         handle_mon_ignora_cb, handle_mon_rating_cb, handle_mon_traduci_cb,
-                         handle_mon_multisel_cb, handle_mon_unifica_cb)
+    from monitor import (show_monitor_menu, handle_mon_topic_cb, handle_mon_fonte_cb,
+                         handle_mon_usa_cb, handle_mon_ignora_cb, handle_mon_rating_cb,
+                         handle_mon_traduci_cb, handle_mon_multisel_cb, handle_mon_unifica_cb)
+    app.add_handler(CallbackQueryHandler(handle_mon_topic_cb,    pattern=r"^mon_topic:"))
     app.add_handler(CallbackQueryHandler(handle_mon_fonte_cb,    pattern=r"^mon_fonte:"))
     app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,      pattern=r"^mon_usa:"))
     app.add_handler(CallbackQueryHandler(handle_mon_rating_cb,   pattern=r"^mon_rating:"))

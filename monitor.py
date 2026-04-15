@@ -73,6 +73,94 @@ _SETTORI_DESC = """
 - concessioni: concessioni pubbliche, demanio, appalti, gare pubbliche, autorizzazioni, licenze
 """.strip()
 
+TOPICS_CONFIG: dict[str, dict] = {
+    "energia": {
+        "label": "⚡ Energia",
+        "settori": ["energia"],
+        "groups": ["GU", "AGCM"],
+        "prefixes": ["ARERA"],
+        "names": ["Normattiva", "Corte Costituzionale",
+                  "PV Magazine Italia", "Quotidiano Energia", "Staffetta Online"],
+        "filtered_groups": ["GU", "AGCM"],
+        "filtered_names": ["Normattiva", "Corte Costituzionale"],
+        "menu_buttons": [
+            ("GU",                   "group",  "GU"),
+            ("AGCM",                 "group",  "AGCM"),
+            ("Normattiva",           "name",   "Normattiva"),
+            ("Corte Costituzionale", "name",   "Corte Costituzionale"),
+            ("ARERA",                "prefix", "ARERA"),
+            ("PV Magazine",          "name",   "PV Magazine Italia"),
+            ("Quotidiano Energia",   "name",   "Quotidiano Energia"),
+            ("Staffetta Online",     "name",   "Staffetta Online"),
+        ],
+    },
+    "concessioni": {
+        "label": "🏖️ Concessioni demaniali",
+        "settori": ["concessioni"],
+        "groups": ["GU", "AGCM"],
+        "prefixes": [],
+        "names": ["Corte Costituzionale"],
+        "filtered_groups": ["GU", "AGCM"],
+        "filtered_names": ["Corte Costituzionale"],
+        "menu_buttons": [
+            ("GU",                   "group", "GU"),
+            ("AGCM",                 "group", "AGCM"),
+            ("Corte Costituzionale", "name",  "Corte Costituzionale"),
+        ],
+    },
+    "giochi": {
+        "label": "🎰 Giochi",
+        "settori": ["gioco"],
+        "groups": ["GU", "AGCM", "ADM"],
+        "prefixes": [],
+        "names": ["Normattiva", "Jamma.it", "GiocoNews", "Press Giochi"],
+        "filtered_groups": ["GU", "AGCM"],
+        "filtered_names": ["Normattiva"],
+        "menu_buttons": [
+            ("GU",           "group", "GU"),
+            ("AGCM",         "group", "AGCM"),
+            ("Normattiva",   "name",  "Normattiva"),
+            ("ADM",          "group", "ADM"),
+            ("Jamma.it",     "name",  "Jamma.it"),
+            ("GiocoNews",    "name",  "GiocoNews"),
+            ("Press Giochi", "name",  "Press Giochi"),
+        ],
+    },
+}
+
+
+def _get_topic_sources(topic_key: str, all_sources: list) -> list:
+    """Ritorna le fonti che appartengono al topic indicato."""
+    cfg = TOPICS_CONFIG[topic_key]
+    groups = set(cfg.get("groups", []))
+    prefixes = cfg.get("prefixes", [])
+    names = set(cfg.get("names", []))
+    result = []
+    for s in all_sources:
+        if s.get("group") in groups:
+            result.append(s)
+        elif any(s["name"].startswith(p) for p in prefixes):
+            result.append(s)
+        elif s["name"] in names:
+            result.append(s)
+    return result
+
+
+def _resolve_topic_selector(topic_key: str, sel_type: str, sel_value: str, all_sources: list) -> tuple[list, str]:
+    """Risolve il selettore (group/name/prefix/all) in una lista di fonti e un'etichetta."""
+    topic_sources = _get_topic_sources(topic_key, all_sources)
+    cfg = TOPICS_CONFIG[topic_key]
+    if sel_type == "all":
+        return topic_sources, f"tutte le fonti {cfg['label']}"
+    elif sel_type == "group":
+        return [s for s in topic_sources if s.get("group") == sel_value], sel_value
+    elif sel_type == "name":
+        return [s for s in topic_sources if s["name"] == sel_value], sel_value
+    elif sel_type == "prefix":
+        return [s for s in topic_sources if s["name"].startswith(sel_value)], sel_value
+    return [], "?"
+
+
 _RELEVANCE_PROMPT = """\
 Sei un assistente legale specializzato in diritto dell'energia, gioco pubblico, \
 tecnologia (AI Act, GDPR, DSA) e concessioni pubbliche italiane ed europee.
@@ -497,38 +585,69 @@ def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "", lang
 
 # ── Job principale ──────────────────────────────────────────────────────────────
 
+def _build_topic_kb() -> InlineKeyboardMarkup:
+    """Tastiera con i 3 topic principali."""
+    buttons = [
+        [InlineKeyboardButton(cfg["label"], callback_data=f"mon_topic:{key}")]
+        for key, cfg in TOPICS_CONFIG.items()
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+
+def _build_topic_source_kb(topic_key: str) -> InlineKeyboardMarkup:
+    """Tastiera con le fonti del topic e pulsanti Tutte + Indietro."""
+    cfg = TOPICS_CONFIG[topic_key]
+    rows = []
+    for label, sel_type, sel_value in cfg["menu_buttons"]:
+        cb = f"mon_fonte:{topic_key}:{sel_type}:{sel_value}"
+        rows.append([InlineKeyboardButton(label, callback_data=cb)])
+    rows.append([InlineKeyboardButton(
+        f"📋 Tutte le fonti {cfg['label']}",
+        callback_data=f"mon_fonte:{topic_key}:all:all",
+    )])
+    rows.append([InlineKeyboardButton("← Indietro", callback_data="mon_topic:back")])
+    return InlineKeyboardMarkup(rows)
+
+
 async def show_monitor_menu(context, chat_id: int = None, username: str = "owner") -> None:
-    """Manda il messaggio con la tastiera inline per scegliere la fonte da scansionare.
-    Usato sia dal job giornaliero che dal comando /monitor.
-    """
+    """Manda il messaggio con la selezione topic per scegliere l'area da monitorare."""
     if chat_id is None:
         chat_id = context.bot_data.get("owner_chat_id")
     if not chat_id:
         logger.warning("Monitor: chat_id non trovato — manda /start al bot per registrarti")
         return
-    # Salva username associato a questo chat per i callback
     context.bot_data[f"monitor_username_{chat_id}"] = username
 
-    sources = _load_sources()
-    seen_groups = set()
-    buttons = []
-    for i, s in enumerate(sources):
-        group = s.get("group")
-        if group:
-            if group not in seen_groups:
-                seen_groups.add(group)
-                buttons.append([InlineKeyboardButton(group, callback_data=f"mon_fonte:group:{group}")])
-        else:
-            buttons.append([InlineKeyboardButton(s["name"], callback_data=f"mon_fonte:{i}")])
-    buttons.append([InlineKeyboardButton("📋 Tutte le fonti", callback_data="mon_fonte:all")])
-
-    from bot import _t
-    from users import get_lang
-    lang = get_lang(chat_id) if chat_id else "it"
     await context.bot.send_message(
         chat_id=chat_id,
-        text=_t("monitor_menu", lang),
-        reply_markup=InlineKeyboardMarkup(buttons),
+        text="📡 *Monitor normativo* — Scegli l'area da scansionare:",
+        parse_mode="Markdown",
+        reply_markup=_build_topic_kb(),
+    )
+
+
+async def handle_mon_topic_cb(update, context) -> None:
+    """Gestisce la selezione del topic nel menu principale e il pulsante Indietro."""
+    query = update.callback_query
+    await query.answer()
+    token = query.data.split(":", 1)[1]  # "energia" | "concessioni" | "giochi" | "back"
+
+    if token == "back":
+        await query.edit_message_text(
+            "📡 *Monitor normativo* — Scegli l'area da scansionare:",
+            parse_mode="Markdown",
+            reply_markup=_build_topic_kb(),
+        )
+        return
+
+    if token not in TOPICS_CONFIG:
+        await query.answer("Topic non riconosciuto.", show_alert=True)
+        return
+
+    cfg = TOPICS_CONFIG[token]
+    await query.edit_message_text(
+        f"{cfg['label']} — Scegli la fonte da scansionare:",
+        reply_markup=_build_topic_source_kb(token),
     )
 
 
@@ -586,7 +705,7 @@ def _build_multisel_menu(sources: list, selected_keys: set):
 
 
 async def _run_scan(context, sources: list[dict], chat_id: int = None, username: str = "owner",
-                    collect_drafts: bool = False):
+                    collect_drafts: bool = False, settori_filter: list[str] | None = None):
     """Esegue la scansione sulle fonti indicate e notifica i risultati.
     Se collect_drafts=True, ritorna la lista di draft_id generati (per il post unificato)."""
     from bot import TOPICS
@@ -696,6 +815,8 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             riepilogo_fonte.append((score, settore, item["title"][:80], motivo))
 
             if score < 5:
+                continue
+            if settori_filter and settore not in settori_filter:
                 continue
 
             trovati += 1
@@ -881,25 +1002,41 @@ async def _show_recent_seen(context, chat_id: int, source_names: list[str], days
 # ── Callback handlers (da registrare in bot.py) ─────────────────────────────────
 
 async def handle_mon_fonte_cb(update, context) -> None:
-    """Utente ha scelto la fonte dal menu — avvia la scansione."""
+    """Utente ha scelto la fonte dal menu topic — avvia la scansione."""
     query = update.callback_query
     await query.answer()
     await query.edit_message_reply_markup(reply_markup=None)
 
-    token = query.data.split(":", 1)[1]  # "all", "group:ADM", oppure indice numerico
+    # Formato nuovo: mon_fonte:<topic>:<sel_type>:<sel_value>
+    # Formato legacy: mon_fonte:all | mon_fonte:group:X | mon_fonte:<idx>
+    raw = query.data.split(":", 1)[1]
     sources = _load_sources()
 
-    if token == "all":
-        selected = sources
-        label = "tutte le fonti"
-    elif token.startswith("group:"):
-        group_name = token.split(":", 1)[1]
-        selected = [s for s in sources if s.get("group") == group_name]
-        label = group_name
+    parts = raw.split(":", 1)
+    topic_key = parts[0] if parts[0] in TOPICS_CONFIG else None
+
+    if topic_key:
+        # Formato nuovo: <topic>:<sel_type>:<sel_value>
+        remainder = parts[1] if len(parts) > 1 else "all:all"
+        sel_parts = remainder.split(":", 1)
+        sel_type = sel_parts[0]
+        sel_value = sel_parts[1] if len(sel_parts) > 1 else ""
+        selected, label = _resolve_topic_selector(topic_key, sel_type, sel_value, sources)
+        settori_filter = TOPICS_CONFIG[topic_key]["settori"]
+        is_all = (sel_type == "all")
     else:
-        idx = int(token)
-        selected = [sources[idx]] if idx < len(sources) else []
-        label = selected[0]["name"] if selected else "fonte sconosciuta"
+        # Formato legacy (compatibilità)
+        settori_filter = None
+        if raw == "all":
+            selected, label, is_all = sources, "tutte le fonti", True
+        elif raw.startswith("group:"):
+            g = raw.split(":", 1)[1]
+            selected, label, is_all = [s for s in sources if s.get("group") == g], g, False
+        else:
+            idx = int(raw)
+            selected = [sources[idx]] if idx < len(sources) else []
+            label = selected[0]["name"] if selected else "fonte sconosciuta"
+            is_all = False
 
     if not selected:
         await query.message.reply_text("⚠️ Fonte non trovata.")
@@ -911,14 +1048,12 @@ async def handle_mon_fonte_cb(update, context) -> None:
     from users import get_lang
     lang = get_lang(chat_id)
     await query.message.reply_text(_t("scan_start", lang).format(label=label), parse_mode="HTML")
-    await _run_scan(context, selected, chat_id=chat_id, username=username)
+    await _run_scan(context, selected, chat_id=chat_id, username=username, settori_filter=settori_filter)
 
     source_names = [s["name"] for s in selected]
-    if token == "all":
-        # Dopo scansione completa: mostra archivio ultimi 2 giorni (include ieri)
+    if is_all:
         await _show_recent_seen(context, chat_id, source_names, days=2)
     else:
-        # Per fonte/gruppo specifico: archivio ultimi 30 giorni
         await _show_recent_seen(context, chat_id, source_names, days=30)
 
     await context.bot.send_message(
