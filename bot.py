@@ -73,12 +73,12 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "⚠️ Sources unreachable today: {sources}",
     },
     "use_post": {
-        "it": "✅ Usa questo post",
-        "en": "✅ Use this post",
+        "it": "📤 Pubblica",
+        "en": "📤 Publish",
     },
     "ignore": {
-        "it": "🗑 Ignora",
-        "en": "🗑 Ignore",
+        "it": "❌ Scarta",
+        "en": "❌ Discard",
     },
     "post_full": {
         "it": "📝 *Post completo — copia e incolla su LinkedIn:*",
@@ -131,7 +131,7 @@ TOPICS = {
     "energia":     "⚡ Energia",
     "gioco":       "🎰 Gioco",
     "tecnologia":  "💻 Tecnologia",
-    "concessioni": "📋 Concessioni",
+    "concessioni": "🏖️ Concessioni",
     "altro":       "📌 Altro",
 }
 
@@ -2334,6 +2334,18 @@ async def cmd_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_monitor_menu(context, chat_id=chat_id, username=username)
 
 
+async def cmd_confronta(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mostra il menu di selezione dei post pubblicati per generare un post comparativo."""
+    from users import is_approved
+    user_id = update.effective_user.id
+    if not (is_owner(update) or is_approved(user_id)):
+        await update.message.reply_text("Non sei autorizzato. Usa /start per richiedere l'accesso.")
+        return
+    chat_id = update.effective_chat.id
+    from monitor import show_compare_menu
+    await show_compare_menu(context, chat_id=chat_id)
+
+
 async def cmd_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Disattiva le notifiche giornaliere automatiche."""
     from users import is_approved, opt_out, get_lang
@@ -2401,6 +2413,7 @@ def main():
     app.add_handler(CommandHandler("chat",     cmd_chat))
     app.add_handler(CommandHandler("fine",     cmd_fine))
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
+    app.add_handler(CommandHandler("confronta", cmd_confronta))
     app.add_handler(CommandHandler("pausa",    cmd_pausa))
     app.add_handler(CommandHandler("riprendi", cmd_riprendi))
     app.add_handler(CommandHandler("lingua",   cmd_lingua))
@@ -2412,16 +2425,14 @@ def main():
 
     # Monitor callbacks
     from monitor import (show_monitor_menu, handle_mon_topic_cb, handle_mon_fonte_cb,
-                         handle_mon_usa_cb, handle_mon_ignora_cb, handle_mon_rating_cb,
-                         handle_mon_traduci_cb, handle_mon_multisel_cb, handle_mon_unifica_cb)
+                         handle_mon_usa_cb, handle_mon_ignora_cb,
+                         handle_mon_traduci_cb, handle_mon_cmp_cb)
     app.add_handler(CallbackQueryHandler(handle_mon_topic_cb,    pattern=r"^mon_topic:"))
     app.add_handler(CallbackQueryHandler(handle_mon_fonte_cb,    pattern=r"^mon_fonte:"))
     app.add_handler(CallbackQueryHandler(handle_mon_usa_cb,      pattern=r"^mon_usa:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_rating_cb,   pattern=r"^mon_rating:"))
     app.add_handler(CallbackQueryHandler(handle_mon_ignora_cb,   pattern=r"^mon_ignora:"))
     app.add_handler(CallbackQueryHandler(handle_mon_traduci_cb,  pattern=r"^mon_traduci:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_multisel_cb, pattern=r"^mon_ms:"))
-    app.add_handler(CallbackQueryHandler(handle_mon_unifica_cb,  pattern=r"^mon_unifica:"))
+    app.add_handler(CallbackQueryHandler(handle_mon_cmp_cb,      pattern=r"^mon_cmp:"))
 
     # Job giornaliero alle 07:00 UTC = 08:00 ora italiana (CET, UTC+1)
     # NB: in estate (CEST, UTC+2) corrisponderà alle 09:00 — aggiornare a hour=6 da fine marzo
@@ -2473,6 +2484,7 @@ def main():
             BotCommand("start",   "Benvenuto e istruzioni"),
             BotCommand("report",  "Genera post LinkedIn dai documenti"),
             BotCommand("monitor",  "Scansiona fonti normative ora"),
+            BotCommand("confronta","Crea un post comparativo da post pubblicati"),
             BotCommand("pausa",    "Disattiva notifiche giornaliere automatiche"),
             BotCommand("riprendi", "Riattiva notifiche giornaliere automatiche"),
             BotCommand("lingua",   "Cambia lingua / Change language"),

@@ -25,6 +25,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 
+# Limite ufficiale del testo di un post LinkedIn (feed standard).
+LINKEDIN_MAX_CHARS = 3000
+
 # ── Configurazione fonti ────────────────────────────────────────────────────────
 
 _SOURCES_FILE = Path(__file__).parent / "sources.md"
@@ -179,30 +182,28 @@ Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo:
 _UNIFIED_POST_PROMPT = """\
 Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia e concessioni.
 
-Hai esaminato i seguenti documenti provenienti da fonti diverse:
+Hai esaminato i seguenti post LinkedIn già pubblicati, provenienti da fonti diverse:
 
 {documenti}
 
-Prima identifica i PUNTI DI CONTATTO tra questi documenti (connessioni normative, temi comuni, implicazioni trasversali).
+Genera UN UNICO post LinkedIn in italiano che metta in relazione queste notizie, evidenziando connessioni normative, temi comuni e implicazioni trasversali.
 
-Poi genera un post LinkedIn professionale in italiano che:
-- Metta in relazione i documenti evidenziando le connessioni
-- Citi esplicitamente tutte le fonti (nome fonte e titolo)
-- Sia scritto in prima persona come avvocato specialista
-- Non superi 1300 caratteri (testo + hashtag)
-- Termini sempre con una frase completa
-- Includa 3-5 hashtag pertinenti
-
-Formato ESATTO della risposta (rispetta questa struttura):
-
-📌 PUNTI DI CONTATTO:
-• [connessione 1]
-• [connessione 2]
-• [ecc.]
-
----
-
-[POST LINKEDIN COMPLETO]
+REGOLE FORMATO (rispettarle alla lettera):
+1. Inizia con questa riga (header), niente prima:
+   {header}
+2. Poi una riga vuota.
+3. Per OGNI notizia scrivi un paragrafo che termina con la fonte inline tra parentesi.
+   Formato del paragrafo: "<analisi sintetica della notizia in 2-4 frasi> (Fonte: <nome fonte>)"
+   Niente elenchi puntati, niente numerazione, solo paragrafi separati da una riga vuota.
+4. Dopo l'ultimo paragrafo, una riga vuota e poi 3-5 hashtag pertinenti.
+5. NON aggiungere alcun recap finale, riepilogo, conclusione o elenco delle fonti.
+6. NON aggiungere il footer "co-generato con Claude" — viene aggiunto dal sistema.
+7. LIMITE TOTALE: il post (header incluso, hashtag inclusi, footer escluso) deve stare in {max_chars} caratteri.
+   Se il contenuto richiede più spazio per essere fedele alle notizie, dividi l'output in più post separati dal marcatore esatto:
+   ===POST_BREAK===
+   Ogni post deve rispettare lo stesso formato (header → paragrafi con fonte inline → hashtag) e stare comunque entro {max_chars} caratteri.
+   Mira a 1 solo post quando possibile.
+8. Termina sempre con una frase completa, mai a metà.
 """
 
 _POST_PROMPT = """\
@@ -254,6 +255,18 @@ def _init_db() -> None:
             rating   INTEGER DEFAULT NULL,
             seen_at  TEXT DEFAULT (datetime('now')),
             PRIMARY KEY (url, chat_id)
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS published_posts (
+            post_id      TEXT PRIMARY KEY,
+            chat_id      TEXT NOT NULL,
+            post_text    TEXT NOT NULL,
+            titolo       TEXT,
+            source_name  TEXT,
+            settore      TEXT,
+            url          TEXT,
+            published_at TEXT DEFAULT (datetime('now'))
         )
     """)
     # Migrazioni per DB esistenti
@@ -321,16 +334,56 @@ def _save_rating(url: str, rating: int, chat_id: str = "owner") -> None:
     con.close()
 
 
+# Rating massimo (post pubblicato) e minimo (post scartato) — il sistema 1-5⭐ è stato
+# rimosso, restano solo questi due valori per influenzare il giudizio di Haiku.
+RATING_PUBLISH = 5
+RATING_DISCARD = 1
+
+
+def _save_published_post(post_id: str, chat_id: str, *, post_text: str, titolo: str,
+                          source_name: str, settore: str, url: str) -> None:
+    """Salva il post pubblicato nella tabella published_posts (pool per /confronta)."""
+    con = _db_connect()
+    con.execute(
+        "INSERT OR REPLACE INTO published_posts "
+        "(post_id, chat_id, post_text, titolo, source_name, settore, url) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (post_id, chat_id, post_text, titolo, source_name, settore, url),
+    )
+    con.commit()
+    con.close()
+
+
+def _get_published_posts(chat_id: str, days: int = 30, limit: int = 50) -> list[dict]:
+    """Ritorna i post pubblicati dall'utente negli ultimi `days` giorni, più recenti prima."""
+    _init_db()
+    con = _db_connect()
+    rows = con.execute(
+        "SELECT post_id, post_text, titolo, source_name, settore, url, published_at "
+        "FROM published_posts "
+        "WHERE chat_id = ? AND published_at >= datetime('now', ?) "
+        "ORDER BY published_at DESC LIMIT ?",
+        (chat_id, f"-{int(days)} days", limit),
+    ).fetchall()
+    con.close()
+    return [
+        {"post_id": r[0], "post_text": r[1], "titolo": r[2], "source_name": r[3],
+         "settore": r[4], "url": r[5], "published_at": r[6]}
+        for r in rows
+    ]
+
+
 def _get_rated_examples(chat_id: str = "owner", limit: int = 5) -> tuple[list[str], list[str]]:
-    """Restituisce titoli di documenti con rating alto (4-5) e basso (1-2) per questo utente."""
+    """Restituisce titoli di documenti pubblicati e scartati per questo utente.
+    `RATING_PUBLISH` = pubblicati, `RATING_DISCARD` = scartati."""
     con = _db_connect()
     high = [r[0] for r in con.execute(
-        "SELECT title FROM seen_docs WHERE chat_id=? AND rating >= 4 ORDER BY seen_at DESC LIMIT ?",
-        (chat_id, limit)
+        "SELECT title FROM seen_docs WHERE chat_id=? AND rating=? ORDER BY seen_at DESC LIMIT ?",
+        (chat_id, RATING_PUBLISH, limit)
     ).fetchall()]
     low = [r[0] for r in con.execute(
-        "SELECT title FROM seen_docs WHERE chat_id=? AND rating <= 2 AND rating IS NOT NULL ORDER BY seen_at DESC LIMIT ?",
-        (chat_id, limit)
+        "SELECT title FROM seen_docs WHERE chat_id=? AND rating=? ORDER BY seen_at DESC LIMIT ?",
+        (chat_id, RATING_DISCARD, limit)
     ).fetchall()]
     con.close()
     return high, low
@@ -516,11 +569,11 @@ def _assess_relevance(titolo: str, sommario: str, chat_id: str = "owner") -> dic
     high, low = _get_rated_examples(chat_id)
     esempi = ""
     if high or low:
-        esempi = "\nPreferenze dell'utente (basate sui rating):"
+        esempi = "\nPreferenze dell'utente:"
         if high:
-            esempi += f"\n- Molto rilevanti (4-5 ⭐): {'; '.join(high[:3])}"
+            esempi += f"\n- Pubblicati (rilevanti): {'; '.join(high[:3])}"
         if low:
-            esempi += f"\n- Poco rilevanti (1-2 ⭐): {'; '.join(low[:3])}"
+            esempi += f"\n- Scartati (non rilevanti): {'; '.join(low[:3])}"
     prompt = _RELEVANCE_PROMPT.format(
         settori=_SETTORI_DESC,
         titolo=titolo,
@@ -544,24 +597,54 @@ def _assess_relevance(titolo: str, sommario: str, chat_id: str = "owner") -> dic
         return {"score": 0, "settore": "altro", "motivo": "errore parsing"}
 
 
-def _generate_unified_post(drafts: list) -> str:
-    """Genera un post unificato che mette in relazione più documenti."""
-    from bot import call_claude
+def _topic_header(settore: str) -> str:
+    """Header del post comparativo derivato dal topic dominante."""
+    from bot import TOPICS
+    return TOPICS.get(settore, TOPICS["altro"])
+
+
+def _dominant_settore(items: list) -> str:
+    """Restituisce il settore più frequente tra gli item (fallback: 'altro')."""
+    from collections import Counter
+    settori = [it.get("settore") or "altro" for it in items]
+    if not settori:
+        return "altro"
+    return Counter(settori).most_common(1)[0][0]
+
+
+def _generate_unified_post(items: list) -> list[str]:
+    """Genera uno o più post comparativi che mettono in relazione le notizie selezionate.
+
+    `items` è una lista di dict con almeno: source_name, titolo, post_text (o bozza),
+    settore. Restituisce la lista di post (1 o più se Claude suggerisce la suddivisione)
+    già completi di footer bilingue. Il caller li invia separatamente.
+    """
+    from bot import call_claude, _t
     parts = []
-    for i, d in enumerate(drafts, 1):
+    for i, d in enumerate(items, 1):
+        body = d.get("post_text") or d.get("bozza") or d.get("contenuto") or ""
         parts.append(
-            f"DOCUMENTO {i} — Fonte: {d['source_name']}\n"
-            f"Titolo: {d['titolo']}\n"
-            f"Contenuto:\n{d.get('contenuto', d.get('bozza', ''))[:2000]}"
+            f"NOTIZIA {i} — Fonte: {d.get('source_name','')}\n"
+            f"Titolo: {d.get('titolo','')}\n"
+            f"Testo:\n{body[:2500]}"
         )
     documenti = "\n\n---\n\n".join(parts)
-    prompt = _UNIFIED_POST_PROMPT.format(documenti=documenti)
+    settore = _dominant_settore(items)
+    prompt = _UNIFIED_POST_PROMPT.format(
+        documenti=documenti,
+        header=_topic_header(settore),
+        max_chars=LINKEDIN_MAX_CHARS,
+    )
     msg = call_claude(
         model="claude-sonnet-4-6",
-        max_tokens=1500,
+        max_tokens=4000,
         messages=[{"role": "user", "content": prompt}],
     )
-    return msg.content[0].text.strip()
+    raw = msg.content[0].text.strip()
+
+    chunks = [c.strip() for c in raw.split("===POST_BREAK===") if c.strip()]
+    footer = f"\n\n{_t('footer', 'it')}\n{_t('footer', 'en')}"
+    return [c + footer for c in chunks]
 
 
 def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "", lang: str = "it") -> str:
@@ -651,63 +734,56 @@ async def handle_mon_topic_cb(update, context) -> None:
     )
 
 
-def _get_monitor_items(sources: list) -> list:
-    """Ritorna le voci da mostrare nel menu multi-selezione (same logic as show_monitor_menu)."""
-    items = []
-    seen_groups: set = set()
-    for i, s in enumerate(sources):
-        group = s.get("group")
-        if group:
-            if group not in seen_groups:
-                seen_groups.add(group)
-                items.append({"key": f"g:{group}", "label": group, "is_group": True, "group": group})
-        else:
-            items.append({"key": f"i:{i}", "label": s["name"], "is_group": False, "group": None})
-    return items
-
-
-def _resolve_selection(sources: list, selected_keys: set) -> list:
-    """Converte le chiavi selezionate (g:GU, i:5 ecc.) in una lista di source dict."""
-    result = []
-    seen: set = set()
-    for i, s in enumerate(sources):
-        group = s.get("group")
-        key = f"g:{group}" if group else f"i:{i}"
-        if key in selected_keys and i not in seen:
-            result.append(s)
-            seen.add(i)
-    return result
-
-
-def _build_multisel_menu(sources: list, selected_keys: set):
-    """Ritorna (text, InlineKeyboardMarkup) per il menu di selezione multipla."""
-    items = _get_monitor_items(sources)
-    n = len(selected_keys)
+def _build_compare_menu(posts: list[dict], selected_ids: set):
+    """Ritorna (text, InlineKeyboardMarkup) per il menu /confronta sui post pubblicati."""
+    from bot import TOPICS
+    n = len(selected_ids)
     rows = []
-    for item in items:
-        check = "✅" if item["key"] in selected_keys else "☐"
-        rows.append([InlineKeyboardButton(
-            f"{check} {item['label'][:50]}",
-            callback_data=f"mon_ms:t:{item['key']}",
-        )])
+    for p in posts:
+        check = "✅" if p["post_id"] in selected_ids else "☐"
+        topic_lbl = TOPICS.get(p.get("settore") or "altro", TOPICS["altro"])
+        date = (p.get("published_at") or "")[:10]
+        titolo = (p.get("titolo") or "(senza titolo)")[:55]
+        label = f"{check} [{date}] {topic_lbl} {titolo}"
+        rows.append([InlineKeyboardButton(label[:64], callback_data=f"mon_cmp:t:{p['post_id']}")])
     rows.append([
-        InlineKeyboardButton("✅ Tutte", callback_data="mon_ms:all"),
-        InlineKeyboardButton("☐ Nessuna",  callback_data="mon_ms:none"),
+        InlineKeyboardButton("✅ Tutti", callback_data="mon_cmp:all"),
+        InlineKeyboardButton("☐ Nessuno", callback_data="mon_cmp:none"),
     ])
-    if n >= 2:
-        btn_label = f"🔍 Confronta ({n} selezionate)"
-    else:
-        btn_label = "🔍 Seleziona almeno 2 fonti"
-    rows.append([InlineKeyboardButton(btn_label, callback_data="mon_ms:go")])
-    sel_str = f"*{n}* {'fonti selezionate' if n != 1 else 'fonte selezionata'}"
-    text = f"🔀 *Confronta due o più notizie*\n\nSeleziona le fonti da scansionare e mettere in relazione.\n{sel_str}."
+    btn = f"🔗 Confronta ({n} selezionati)" if n >= 2 else "🔗 Seleziona almeno 2 post"
+    rows.append([InlineKeyboardButton(btn, callback_data="mon_cmp:go")])
+    text = (
+        "🔀 *Confronta due o più post pubblicati*\n\n"
+        "Seleziona i post da mettere in relazione. Il sistema genererà un post comparativo "
+        "con header per topic e fonte inline accanto a ogni notizia.\n"
+        f"*{n}* {'post selezionati' if n != 1 else 'post selezionato'}."
+    )
     return text, InlineKeyboardMarkup(rows)
 
 
+async def show_compare_menu(context, chat_id: int) -> None:
+    """Mostra il menu /confronta con la lista dei post pubblicati negli ultimi 30 giorni."""
+    posts = _get_published_posts(str(chat_id), days=30, limit=30)
+    if len(posts) < 2:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                "📭 Servono almeno 2 post pubblicati negli ultimi 30 giorni per usare /confronta.\n"
+                f"Attualmente disponibili: {len(posts)}.\n\n"
+                "Usa /monitor, genera dei post e premi 📤 *Pubblica* sui post che vuoi includere."
+            ),
+            parse_mode="Markdown",
+        )
+        return
+    context.bot_data[f"mon_cmp_sel_{chat_id}"] = set()
+    context.bot_data[f"mon_cmp_pool_{chat_id}"] = posts
+    text, kb = _build_compare_menu(posts, set())
+    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb, parse_mode="Markdown")
+
+
 async def _run_scan(context, sources: list[dict], chat_id: int = None, username: str = "owner",
-                    collect_drafts: bool = False, settori_filter: list[str] | None = None):
-    """Esegue la scansione sulle fonti indicate e notifica i risultati.
-    Se collect_drafts=True, ritorna la lista di draft_id generati (per il post unificato)."""
+                    settori_filter: list[str] | None = None):
+    """Esegue la scansione sulle fonti indicate e notifica i risultati."""
     from bot import TOPICS
 
     if chat_id is None:
@@ -740,7 +816,6 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
 
     errori: list[tuple[str, str]] = []
     trovati: int = 0
-    session_draft_ids: list = []
 
     for source in sources:
         name = source["name"]
@@ -859,8 +934,6 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             drafts[draft_id] = draft_data
             _save_draft(draft_id, draft_data)
             context.bot_data[f"monitor_draft_counter_{chat_id}"] = draft_counter
-            if collect_drafts:
-                session_draft_ids.append(draft_id)
 
             # Messaggio Telegram con bozza
             topic_label = TOPICS.get(settore, "📌 Altro")
@@ -885,23 +958,13 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
                 testo = testo[:4000] + "…"
 
             from bot import OWNER_TELEGRAM_ID, _t
-            rows = []
-            if chat_id == OWNER_TELEGRAM_ID:
-                rows.append([
-                    InlineKeyboardButton("⭐",     callback_data=f"mon_rating:{draft_id}:1"),
-                    InlineKeyboardButton("⭐⭐",   callback_data=f"mon_rating:{draft_id}:2"),
-                    InlineKeyboardButton("⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:3"),
-                    InlineKeyboardButton("⭐⭐⭐⭐",   callback_data=f"mon_rating:{draft_id}:4"),
-                    InlineKeyboardButton("⭐⭐⭐⭐⭐", callback_data=f"mon_rating:{draft_id}:5"),
-                ])
             action_row = [
                 InlineKeyboardButton(_t("use_post", lang), callback_data=f"mon_usa:{draft_id}"),
                 InlineKeyboardButton(_t("ignore",   lang), callback_data=f"mon_ignora:{draft_id}"),
             ]
             if chat_id == OWNER_TELEGRAM_ID:
                 action_row.append(InlineKeyboardButton(_t("translate", lang), callback_data=f"mon_traduci:{draft_id}"))
-            rows.append(action_row)
-            keyboard = InlineKeyboardMarkup(rows)
+            keyboard = InlineKeyboardMarkup([action_row])
 
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -947,8 +1010,6 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
         )
 
     logger.info(f"Monitor: completato. Rilevanti: {trovati}, errori fonti: {len(errori)}")
-    if collect_drafts:
-        return session_draft_ids
 
 
 async def _show_recent_seen(context, chat_id: int, source_names: list[str], days: int = 30) -> None:
@@ -1056,14 +1117,6 @@ async def handle_mon_fonte_cb(update, context) -> None:
     else:
         await _show_recent_seen(context, chat_id, source_names, days=30)
 
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text="🔀 Vuoi mettere in relazione questa notizia con altre?",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔀 Confronta due o più notizie", callback_data="mon_ms:start"),
-        ]]),
-    )
-
 
 async def _save_post_to_report(context, draft: dict, reply_target, notify_errors: bool = False) -> None:
     """Salva la bozza monitor nel file report del giorno e pusha su GitHub."""
@@ -1100,6 +1153,19 @@ async def _save_post_to_report(context, draft: dict, reply_target, notify_errors
         f.write(f"**Autore:** @{username}  \n")
         f.write(f"\n{draft['bozza']}\n\n---\n\n")
 
+    # Pool dei post pubblicati per /confronta
+    import uuid
+    chat_id_str = str(draft.get("chat_id") or "owner")
+    _save_published_post(
+        post_id=f"pub_{date_str}_{post_num}_{uuid.uuid4().hex[:6]}",
+        chat_id=chat_id_str,
+        post_text=draft["bozza"],
+        titolo=draft.get("titolo", ""),
+        source_name=source_name,
+        settore=settore,
+        url=draft.get("url", ""),
+    )
+
     from bot import _t
     from users import get_lang
     lang = get_lang(int(draft.get("chat_id", 0))) if draft.get("chat_id") else "it"
@@ -1133,25 +1199,8 @@ async def _save_post_to_report(context, draft: dict, reply_target, notify_errors
             await reply_target.reply_text(f"⚠️ Push fallito: {str(e)[:400]}")
 
 
-async def handle_mon_rating_cb(update, context) -> None:
-    """Utente ha assegnato un rating ⭐ — salva e rimuove i bottoni."""
-    query = update.callback_query
-    parts = query.data.split(":")  # mon_rating:{draft_id}:{stars}
-    draft_id = parts[1]
-    stars = int(parts[2])
-
-    drafts = context.bot_data.get("monitor_drafts", {})
-    draft  = drafts.get(draft_id)
-    if draft:
-        chat_id = str(query.message.chat.id)
-        _save_rating(draft["url"], stars, chat_id)
-
-    await query.answer(f"{'⭐' * stars} salvato")
-    await query.edit_message_reply_markup(reply_markup=None)
-
-
 async def handle_mon_usa_cb(update, context) -> None:
-    """Utente ha cliccato 'Usa questo post' — salva rating 5 e mostra il testo completo."""
+    """Utente ha cliccato 'Pubblica' — marca come pubblicato, salva nel report e nel pool /confronta."""
     query = update.callback_query
     await query.answer()
 
@@ -1169,7 +1218,7 @@ async def handle_mon_usa_cb(update, context) -> None:
             await query.message.reply_text(_t("draft_unavailable", lang))
             return
 
-        _save_rating(draft["url"], 5, str(query.message.chat.id))
+        _save_rating(draft["url"], RATING_PUBLISH, str(query.message.chat.id))
         await query.edit_message_reply_markup(reply_markup=None)
 
         reply_text = (
@@ -1196,15 +1245,15 @@ async def handle_mon_usa_cb(update, context) -> None:
 
 
 async def handle_mon_ignora_cb(update, context) -> None:
-    """Utente ha cliccato 'Ignora' — salva rating 1 e rimuove i bottoni."""
+    """Utente ha cliccato 'Scarta' — marca come non rilevante e rimuove i bottoni."""
     query = update.callback_query
     parts = query.data.split(":", 1)
     if len(parts) > 1:
         drafts = context.bot_data.get("monitor_drafts", {})
         draft  = drafts.get(parts[1]) or _load_draft(parts[1])
         if draft:
-            _save_rating(draft["url"], 1, str(query.message.chat.id))
-    await query.answer("Documento ignorato.")
+            _save_rating(draft["url"], RATING_DISCARD, str(query.message.chat.id))
+    await query.answer("Documento scartato.")
     await query.edit_message_reply_markup(reply_markup=None)
 
 
@@ -1274,169 +1323,101 @@ async def handle_mon_traduci_cb(update, context) -> None:
         )
 
 
-async def handle_mon_multisel_cb(update, context) -> None:
-    """Gestisce tutto il flusso multi-selezione fonti: start, toggle, all, none, conferma."""
+async def handle_mon_cmp_cb(update, context) -> None:
+    """Gestisce il menu /confronta: toggle, all, none, go (genera post comparativo)."""
     query = update.callback_query
     await query.answer()
 
     chat_id = query.message.chat.id
-    sources = _load_sources()
-    sel_key = f"mon_msel_{chat_id}"
+    sel_key  = f"mon_cmp_sel_{chat_id}"
+    pool_key = f"mon_cmp_pool_{chat_id}"
     selected: set = context.bot_data.get(sel_key, set())
-    # token[0]=mon_ms, token[1]=action, token[2]=key (opzionale)
+    posts: list = context.bot_data.get(pool_key) or []
+
     parts = query.data.split(":", 2)
     action = parts[1]
 
-    if action == "start":
-        selected = set()
-        context.bot_data[sel_key] = selected
-        text, kb = _build_multisel_menu(sources, selected)
-        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
-        return
+    if not posts and action != "refresh":
+        # Pool perso (riavvio bot): ricarica dal DB
+        posts = _get_published_posts(str(chat_id), days=30, limit=30)
+        context.bot_data[pool_key] = posts
 
     if action == "t":
-        key = parts[2]
-        if key in selected:
-            selected.discard(key)
+        pid = parts[2]
+        if pid in selected:
+            selected.discard(pid)
         else:
-            selected.add(key)
+            selected.add(pid)
         context.bot_data[sel_key] = selected
-        text, kb = _build_multisel_menu(sources, selected)
-        await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        text, kb = _build_compare_menu(posts, selected)
+        try:
+            await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+        except Exception:
+            pass
         return
 
     if action == "all":
-        items = _get_monitor_items(sources)
-        selected = {item["key"] for item in items}
+        selected = {p["post_id"] for p in posts}
         context.bot_data[sel_key] = selected
-        text, kb = _build_multisel_menu(sources, selected)
+        text, kb = _build_compare_menu(posts, selected)
         await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
         return
 
     if action == "none":
         selected = set()
         context.bot_data[sel_key] = selected
-        text, kb = _build_multisel_menu(sources, selected)
+        text, kb = _build_compare_menu(posts, selected)
         await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
         return
 
     if action == "go":
         if len(selected) < 2:
-            await query.answer("⚠️ Seleziona almeno 2 fonti!", show_alert=True)
+            await query.answer("⚠️ Seleziona almeno 2 post!", show_alert=True)
             return
 
-        sel_sources = _resolve_selection(sources, selected)
-        source_names = [s["name"] for s in sel_sources]
-        label = f"{len(source_names)} fonti selezionate"
-
-        from bot import _t
-        from users import get_lang
-        lang = get_lang(chat_id)
-        username = context.bot_data.get(f"monitor_username_{chat_id}", "owner")
-
-        await query.edit_message_text(
-            _t("scan_start", lang).format(label=label), parse_mode="HTML"
+        chosen = [p for p in posts if p["post_id"] in selected]
+        await query.edit_message_reply_markup(reply_markup=None)
+        processing = await query.message.reply_text(
+            f"⏳ Genero il post comparativo da {len(chosen)} notizie pubblicate…"
         )
 
-        # Scan con raccolta draft_ids
-        session_draft_ids = await _run_scan(
-            context, sel_sources, chat_id=chat_id, username=username, collect_drafts=True
-        )
-        # Archivio ultimi 30 giorni
-        await _show_recent_seen(context, chat_id, source_names, days=30)
+        loop = asyncio.get_event_loop()
+        try:
+            chunks = await loop.run_in_executor(None, _generate_unified_post, chosen)
+        except Exception as e:
+            logger.error(f"handle_mon_cmp_cb error: {e}", exc_info=True)
+            await processing.edit_text(f"❌ Errore generazione: {str(e)[:200]}")
+            return
 
-        if session_draft_ids and len(session_draft_ids) >= 2:
-            import uuid
-            session_id = uuid.uuid4().hex[:8]
-            context.bot_data[f"mon_session_{session_id}"] = {
-                "chat_id": chat_id,
-                "draft_ids": session_draft_ids,
-            }
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=(
-                    f"🔀 *{len(session_draft_ids)} notizie trovate* — pronto per l'analisi congiunta.\n\n"
-                    "Genero un post che le mette in relazione, evidenziando connessioni normative e temi comuni?"
-                ),
-                parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔗 Genera post comparativo", callback_data=f"mon_unifica:{session_id}"),
-                ]]),
+        if not chunks:
+            await processing.edit_text("⚠️ Nessun post generato.")
+            return
+
+        if len(chunks) == 1:
+            await processing.edit_text(
+                f"🔗 *Post comparativo — {len(chosen)} fonti*\n\n{chunks[0]}",
+                parse_mode="Markdown", disable_web_page_preview=True,
             )
+        else:
+            await processing.edit_text(
+                f"🔗 *Post comparativo in {len(chunks)} parti — {len(chosen)} fonti*\n"
+                f"_(il contenuto eccedeva i {LINKEDIN_MAX_CHARS} caratteri di LinkedIn, è stato suddiviso)_",
+                parse_mode="Markdown",
+            )
+            for i, chunk in enumerate(chunks, 1):
+                try:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"📄 *Parte {i}/{len(chunks)}*\n\n{chunk}",
+                        parse_mode="Markdown", disable_web_page_preview=True,
+                    )
+                except Exception:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"Parte {i}/{len(chunks)}\n\n{chunk}",
+                        disable_web_page_preview=True,
+                    )
 
-
-async def handle_mon_unifica_cb(update, context) -> None:
-    """Genera il post unificato che mette in relazione più documenti da fonti diverse."""
-    query = update.callback_query
-    await query.answer()
-
-    session_id = query.data.split(":", 1)[1]
-    session = context.bot_data.get(f"mon_session_{session_id}")
-    if not session:
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text("⚠️ Sessione non più disponibile.")
+        # Reset selezione per la prossima esecuzione
+        context.bot_data[sel_key] = set()
         return
-
-    draft_ids = session.get("draft_ids", [])
-    chat_id = session.get("chat_id", query.message.chat.id)
-    drafts_store = context.bot_data.get("monitor_drafts", {})
-    drafts = [drafts_store.get(did) or _load_draft(did) for did in draft_ids]
-    drafts = [d for d in drafts if d]  # rimuovi None
-
-    if not drafts:
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text("⚠️ Documenti non più disponibili.")
-        return
-
-    await query.edit_message_reply_markup(reply_markup=None)
-    processing = await query.message.reply_text(
-        f"⏳ Analizzo le connessioni tra {len(drafts)} documenti…"
-    )
-
-    loop = asyncio.get_event_loop()
-    try:
-        result = await loop.run_in_executor(None, _generate_unified_post, drafts)
-    except Exception as e:
-        logger.error(f"handle_mon_unifica_cb error: {e}", exc_info=True)
-        await processing.edit_text(f"❌ Errore generazione: {str(e)[:200]}")
-        return
-
-    try:
-        await processing.edit_text(
-            f"🔗 *Post unificato — {len(drafts)} fonti*\n\n{result}",
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-        )
-    except Exception:
-        await processing.edit_text(
-            f"🔗 Post unificato — {len(drafts)} fonti\n\n{result}",
-            disable_web_page_preview=True,
-        )
-
-    # Crea un draft sintetico per poterlo salvare con [Usa questo post]
-    import uuid
-    from bot import _t
-    from users import get_lang
-    lang = get_lang(chat_id)
-    unified_draft_id = f"unified_{uuid.uuid4().hex[:8]}"
-    unified_draft = {
-        "titolo":      f"Post unificato ({len(drafts)} fonti)",
-        "bozza":       result,
-        "url":         " | ".join(d.get("url", "") for d in drafts if d.get("url")),
-        "settore":     drafts[0].get("settore", "altro"),
-        "source_name": " + ".join(d.get("source_name", "") for d in drafts),
-        "username":    context.bot_data.get(f"monitor_username_{chat_id}", "owner"),
-        "chat_id":     str(chat_id),
-        "lang":        lang,
-        "contenuto":   result,
-    }
-    context.bot_data.setdefault("monitor_drafts", {})[unified_draft_id] = unified_draft
-    _save_draft(unified_draft_id, unified_draft)
-
-    await query.message.reply_text(
-        "Vuoi usare questo post?",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton(_t("use_post", lang), callback_data=f"mon_usa:{unified_draft_id}"),
-            InlineKeyboardButton(_t("ignore",   lang), callback_data=f"mon_ignora:{unified_draft_id}"),
-        ]]),
-    )
