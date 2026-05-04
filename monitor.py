@@ -180,30 +180,45 @@ Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo:
 """
 
 _UNIFIED_POST_PROMPT = """\
-Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia e concessioni.
+Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia e concessioni. Lingua del post: {lingua}.
 
 Hai esaminato i seguenti post LinkedIn già pubblicati, provenienti da fonti diverse:
 
 {documenti}
 
-Genera UN UNICO post LinkedIn in italiano che metta in relazione queste notizie, evidenziando connessioni normative, temi comuni e implicazioni trasversali.
+FASE 1 — ANALISI (interna, non scrivere nel post):
+Prima di scrivere, identifica i PATTERN LOGICI che collegano queste notizie. Cerca esplicitamente:
+- Convergenza normativa: regole/orientamenti diversi che spingono nella stessa direzione regolatoria.
+- Divergenza/tensione: segnali contraddittori tra livelli (UE/nazionale/autorità) o tra settori.
+- Catena causa-effetto: una decisione/sentenza/atto che innesca o anticipa l'altra.
+- Sequenza temporale: tappe di un processo regolatorio in corso (consultazione → delibera → impugnazione).
+- Parallelismo cross-settore: stessa logica giuridica applicata a settori diversi (es. energia ↔ concessioni ↔ giochi).
+- Effetti collaterali: una notizia spiega l'impatto pratico di un'altra.
+- Vuoti normativi: le notizie evidenziano insieme una lacuna o un punto cieco.
+Scegli i 1-3 pattern più forti che reggano l'argomentazione del post. Scarta correlazioni deboli o forzate.
+
+FASE 2 — POST.
+Genera UN UNICO post LinkedIn in {lingua} che articoli i pattern individuati, NON un elenco di notizie. Ogni paragrafo deve servire la tesi del pattern, non riassumere la notizia in sé.
 
 REGOLE FORMATO (rispettarle alla lettera):
 1. Inizia con questa riga (header), niente prima:
    {header}
 2. Poi una riga vuota.
-3. Per OGNI notizia scrivi un paragrafo che termina con la fonte inline tra parentesi.
-   Formato del paragrafo: "<analisi sintetica della notizia in 2-4 frasi> (Fonte: <nome fonte>)"
-   Niente elenchi puntati, niente numerazione, solo paragrafi separati da una riga vuota.
-4. Dopo l'ultimo paragrafo, una riga vuota e poi 3-5 hashtag pertinenti.
-5. NON aggiungere alcun recap finale, riepilogo, conclusione o elenco delle fonti.
-6. NON aggiungere il footer "co-generato con Claude" — viene aggiunto dal sistema.
-7. LIMITE TOTALE: il post (header incluso, hashtag inclusi, footer escluso) deve stare in {max_chars} caratteri.
+3. Subito dopo l'header, una frase-tesi (1-2 righe) che esplicita il pattern logico individuato — è la chiave di lettura del post.
+4. Poi una riga vuota, e per OGNI notizia un paragrafo che la inserisce DENTRO il pattern.
+   - Il paragrafo deve mostrare COSA dice la notizia rispetto al pattern (non un riassunto generico).
+   - Termina ogni paragrafo con la fonte inline tra parentesi: "(Fonte: <nome fonte>)" oppure in {lingua} l'equivalente ("(Source: <nome fonte>)" se inglese).
+   - Niente elenchi puntati, niente numerazione: solo paragrafi separati da una riga vuota.
+5. Dopo l'ultimo paragrafo, una riga vuota e poi 3-5 hashtag pertinenti (in {lingua}).
+6. NON aggiungere alcun recap finale, riepilogo, conclusione o elenco delle fonti.
+7. NON aggiungere il footer "co-generato con Claude" — viene aggiunto dal sistema.
+8. LIMITE TOTALE: il post (header incluso, hashtag inclusi, footer escluso) deve stare in {max_chars} caratteri.
    Se il contenuto richiede più spazio per essere fedele alle notizie, dividi l'output in più post separati dal marcatore esatto:
    ===POST_BREAK===
-   Ogni post deve rispettare lo stesso formato (header → paragrafi con fonte inline → hashtag) e stare comunque entro {max_chars} caratteri.
+   Ogni post deve rispettare lo stesso formato (header → tesi → paragrafi con fonte inline → hashtag) e stare comunque entro {max_chars} caratteri.
    Mira a 1 solo post quando possibile.
-8. Termina sempre con una frase completa, mai a metà.
+9. Termina sempre con una frase completa, mai a metà.
+10. Tono: analitico, professionale, mai sensazionalista. Nessuna speculazione: solo ciò che le notizie supportano.
 """
 
 _POST_PROMPT = """\
@@ -612,12 +627,12 @@ def _dominant_settore(items: list) -> str:
     return Counter(settori).most_common(1)[0][0]
 
 
-def _generate_unified_post(items: list) -> list[str]:
+def _generate_unified_post(items: list, lang: str = "it") -> list[str]:
     """Genera uno o più post comparativi che mettono in relazione le notizie selezionate.
 
     `items` è una lista di dict con almeno: source_name, titolo, post_text (o bozza),
-    settore. Restituisce la lista di post (1 o più se Claude suggerisce la suddivisione)
-    già completi di footer bilingue. Il caller li invia separatamente.
+    settore. `lang` ∈ {"it","en"}. Restituisce la lista di post (1 o più se Claude
+    suggerisce la suddivisione) già completi di footer bilingue.
     """
     from bot import call_claude, _t
     parts = []
@@ -630,10 +645,12 @@ def _generate_unified_post(items: list) -> list[str]:
         )
     documenti = "\n\n---\n\n".join(parts)
     settore = _dominant_settore(items)
+    lingua = "italiano" if lang == "it" else "English"
     prompt = _UNIFIED_POST_PROMPT.format(
         documenti=documenti,
         header=_topic_header(settore),
         max_chars=LINKEDIN_MAX_CHARS,
+        lingua=lingua,
     )
     msg = call_claude(
         model="claude-sonnet-4-6",
@@ -750,12 +767,18 @@ def _build_compare_menu(posts: list[dict], selected_ids: set):
         InlineKeyboardButton("✅ Tutti", callback_data="mon_cmp:all"),
         InlineKeyboardButton("☐ Nessuno", callback_data="mon_cmp:none"),
     ])
-    btn = f"🔗 Confronta ({n} selezionati)" if n >= 2 else "🔗 Seleziona almeno 2 post"
-    rows.append([InlineKeyboardButton(btn, callback_data="mon_cmp:go")])
+    if n >= 2:
+        rows.append([
+            InlineKeyboardButton(f"🇮🇹 Genera in italiano ({n})", callback_data="mon_cmp:go:it"),
+            InlineKeyboardButton(f"🇬🇧 Generate in English ({n})", callback_data="mon_cmp:go:en"),
+        ])
+    else:
+        rows.append([InlineKeyboardButton("🔗 Seleziona almeno 2 post", callback_data="mon_cmp:noop")])
     text = (
         "🔀 *Confronta due o più post pubblicati*\n\n"
-        "Seleziona i post da mettere in relazione. Il sistema genererà un post comparativo "
-        "con header per topic e fonte inline accanto a ogni notizia.\n"
+        "Seleziona i post da mettere in relazione. Il sistema individuerà i pattern logici "
+        "che li collegano (convergenza, divergenza, causa-effetto, parallelismo cross-settore) "
+        "e genererà un post comparativo con header per topic e fonte inline accanto a ogni notizia.\n"
         f"*{n}* {'post selezionati' if n != 1 else 'post selezionato'}."
     )
     return text, InlineKeyboardMarkup(rows)
@@ -1337,7 +1360,10 @@ async def handle_mon_cmp_cb(update, context) -> None:
     parts = query.data.split(":", 2)
     action = parts[1]
 
-    if not posts and action != "refresh":
+    if action == "noop":
+        return
+
+    if not posts:
         # Pool perso (riavvio bot): ricarica dal DB
         posts = _get_published_posts(str(chat_id), days=30, limit=30)
         context.bot_data[pool_key] = posts
@@ -1375,15 +1401,18 @@ async def handle_mon_cmp_cb(update, context) -> None:
             await query.answer("⚠️ Seleziona almeno 2 post!", show_alert=True)
             return
 
+        # parts[2] è la lingua: "it" o "en" (default it se mancante per sicurezza)
+        lang = parts[2] if len(parts) >= 3 and parts[2] in ("it", "en") else "it"
         chosen = [p for p in posts if p["post_id"] in selected]
         await query.edit_message_reply_markup(reply_markup=None)
+        lang_label = "italiano" if lang == "it" else "English"
         processing = await query.message.reply_text(
-            f"⏳ Genero il post comparativo da {len(chosen)} notizie pubblicate…"
+            f"⏳ Analizzo i pattern logici tra {len(chosen)} notizie e genero il post in {lang_label}…"
         )
 
         loop = asyncio.get_event_loop()
         try:
-            chunks = await loop.run_in_executor(None, _generate_unified_post, chosen)
+            chunks = await loop.run_in_executor(None, _generate_unified_post, chosen, lang)
         except Exception as e:
             logger.error(f"handle_mon_cmp_cb error: {e}", exc_info=True)
             await processing.edit_text(f"❌ Errore generazione: {str(e)[:200]}")
