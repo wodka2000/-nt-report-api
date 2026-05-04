@@ -207,7 +207,10 @@ REGOLE FORMATO (rispettarle alla lettera):
 3. Subito dopo l'header, una frase-tesi (1-2 righe) che esplicita il pattern logico individuato — è la chiave di lettura del post.
 4. Poi una riga vuota, e per OGNI notizia un paragrafo che la inserisce DENTRO il pattern.
    - Il paragrafo deve mostrare COSA dice la notizia rispetto al pattern (non un riassunto generico).
-   - Termina ogni paragrafo con la fonte inline tra parentesi: "(Fonte: <nome fonte>)" oppure in {lingua} l'equivalente ("(Source: <nome fonte>)" se inglese).
+   - Termina ogni paragrafo con la citazione della fonte sulla RIGA SUCCESSIVA, in questo formato:
+     IT → "Fonte: <nome fonte> — <URL completo>"
+     EN → "Source: <nome fonte> — <URL completo>"
+     L'URL deve essere riportato per esteso (https://...), così LinkedIn lo trasforma in link cliccabile. NON usare markdown link [testo](url), NON accorciare l'URL, NON ometterlo. Se l'URL della NOTIZIA è vuoto, scrivere solo "Fonte/Source: <nome fonte>".
    - Niente elenchi puntati, niente numerazione: solo paragrafi separati da una riga vuota.
 5. Dopo l'ultimo paragrafo, una riga vuota e poi 3-5 hashtag pertinenti (in {lingua}).
 6. NON aggiungere alcun recap finale, riepilogo, conclusione o elenco delle fonti.
@@ -640,6 +643,7 @@ def _generate_unified_post(items: list, lang: str = "it") -> list[str]:
         body = d.get("post_text") or d.get("bozza") or d.get("contenuto") or ""
         parts.append(
             f"NOTIZIA {i} — Fonte: {d.get('source_name','')}\n"
+            f"URL: {d.get('url','')}\n"
             f"Titolo: {d.get('titolo','')}\n"
             f"Testo:\n{body[:2500]}"
         )
