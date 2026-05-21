@@ -186,8 +186,11 @@ Hai esaminato i seguenti post LinkedIn già pubblicati, provenienti da fonti div
 
 {documenti}
 
-FASE 1 — ANALISI (interna, non scrivere nel post):
-Prima di scrivere, identifica i PATTERN LOGICI che collegano queste notizie. Cerca esplicitamente:
+OUTPUT richiesto in DUE blocchi separati dal marcatore esatto:
+===ANALYSIS_END===
+
+BLOCCO 1 — ANALISI (in italiano, sempre, anche se il post è in inglese):
+Identifica i PATTERN LOGICI che collegano queste notizie. Cerca esplicitamente:
 - Convergenza normativa: regole/orientamenti diversi che spingono nella stessa direzione regolatoria.
 - Divergenza/tensione: segnali contraddittori tra livelli (UE/nazionale/autorità) o tra settori.
 - Catena causa-effetto: una decisione/sentenza/atto che innesca o anticipa l'altra.
@@ -196,8 +199,12 @@ Prima di scrivere, identifica i PATTERN LOGICI che collegano queste notizie. Cer
 - Effetti collaterali: una notizia spiega l'impatto pratico di un'altra.
 - Vuoti normativi: le notizie evidenziano insieme una lacuna o un punto cieco.
 Scegli i 1-3 pattern più forti che reggano l'argomentazione del post. Scarta correlazioni deboli o forzate.
+Scrivi l'analisi in forma discorsiva e sintetica (max 600 caratteri), non come elenco. È un commento per l'autore, non per il pubblico.
 
-FASE 2 — POST.
+Dopo l'analisi, su una riga a parte, scrivi esattamente:
+===ANALYSIS_END===
+
+BLOCCO 2 — POST.
 Genera UN UNICO post LinkedIn in {lingua} che articoli i pattern individuati, NON un elenco di notizie. Ogni paragrafo deve servire la tesi del pattern, non riassumere la notizia in sé.
 
 REGOLE FORMATO (rispettarle alla lettera):
@@ -630,12 +637,12 @@ def _dominant_settore(items: list) -> str:
     return Counter(settori).most_common(1)[0][0]
 
 
-def _generate_unified_post(items: list, lang: str = "it") -> list[str]:
-    """Genera uno o più post comparativi che mettono in relazione le notizie selezionate.
+def _generate_unified_post(items: list, lang: str = "it") -> tuple[str, list[str]]:
+    """Genera analisi interna + uno o più post comparativi.
 
     `items` è una lista di dict con almeno: source_name, titolo, post_text (o bozza),
-    settore. `lang` ∈ {"it","en"}. Restituisce la lista di post (1 o più se Claude
-    suggerisce la suddivisione) già completi di footer bilingue.
+    settore. `lang` ∈ {"it","en"}. Restituisce (analisi, [post1, post2, ...]) dove
+    i post hanno già il footer bilingue sull'ultimo.
     """
     from bot import call_claude, _t
     parts = []
@@ -663,9 +670,19 @@ def _generate_unified_post(items: list, lang: str = "it") -> list[str]:
     )
     raw = msg.content[0].text.strip()
 
-    chunks = [c.strip() for c in raw.split("===POST_BREAK===") if c.strip()]
+    if "===ANALYSIS_END===" in raw:
+        analysis, _, posts_raw = raw.partition("===ANALYSIS_END===")
+        analysis = analysis.strip()
+        posts_raw = posts_raw.strip()
+    else:
+        analysis = ""
+        posts_raw = raw
+
+    chunks = [c.strip() for c in posts_raw.split("===POST_BREAK===") if c.strip()]
     footer = f"\n\n{_t('footer', 'it')}\n{_t('footer', 'en')}"
-    return [c + footer for c in chunks]
+    if chunks:
+        chunks[-1] = chunks[-1] + footer
+    return analysis, chunks
 
 
 def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "", lang: str = "it") -> str:
@@ -1416,7 +1433,7 @@ async def handle_mon_cmp_cb(update, context) -> None:
 
         loop = asyncio.get_event_loop()
         try:
-            chunks = await loop.run_in_executor(None, _generate_unified_post, chosen, lang)
+            analysis, chunks = await loop.run_in_executor(None, _generate_unified_post, chosen, lang)
         except Exception as e:
             logger.error(f"handle_mon_cmp_cb error: {e}", exc_info=True)
             await processing.edit_text(f"❌ Errore generazione: {str(e)[:200]}")
@@ -1427,7 +1444,6 @@ async def handle_mon_cmp_cb(update, context) -> None:
             return
 
         # Telegram limita un singolo messaggio a 4096 caratteri.
-        # Se un chunk eccede ~3800 char lo spezzo su confine di paragrafo.
         TG_SAFE = 3800
         def _split_long(text: str) -> list[str]:
             if len(text) <= TG_SAFE:
@@ -1438,7 +1454,6 @@ async def handle_mon_cmp_cb(update, context) -> None:
                     out.append(buf.rstrip())
                     buf = ""
                 if len(para) > TG_SAFE:
-                    # paragrafo enorme: hard-split su lunghezza
                     if buf:
                         out.append(buf.rstrip()); buf = ""
                     for i in range(0, len(para), TG_SAFE):
@@ -1449,38 +1464,58 @@ async def handle_mon_cmp_cb(update, context) -> None:
                 out.append(buf.rstrip())
             return out
 
+        async def _send_safe(text: str, use_markdown: bool = True) -> None:
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    parse_mode="Markdown" if use_markdown else None,
+                    disable_web_page_preview=True,
+                )
+            except Exception:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    disable_web_page_preview=True,
+                )
+
+        # 1) Analisi interna nel messaggio "⏳ Analizzo…" (o messaggio sostitutivo se assente)
+        if analysis:
+            analysis_text = f"🧠 *Analisi interna — pattern logici*\n\n{analysis}"
+            try:
+                await processing.edit_text(
+                    analysis_text, parse_mode="Markdown", disable_web_page_preview=True,
+                )
+            except Exception:
+                try:
+                    await processing.edit_text(
+                        analysis_text.replace("*", ""), disable_web_page_preview=True,
+                    )
+                except Exception:
+                    pass
+        else:
+            try:
+                await processing.edit_text("✅ Post pronti qui sotto:")
+            except Exception:
+                pass
+
+        # 2) Post da copiare/incollare, ognuno in un messaggio separato
         flat_chunks = []
         for c in chunks:
             flat_chunks.extend(_split_long(c))
 
-        # Header breve nel messaggio "⏳ Analizzo…"
-        if len(flat_chunks) == 1:
-            header = f"🔗 *Post comparativo — {len(chosen)} fonti*"
-        else:
-            header = (
-                f"🔗 *Post comparativo in {len(flat_chunks)} parti — {len(chosen)} fonti*"
-            )
-        try:
-            await processing.edit_text(header, parse_mode="Markdown")
-        except Exception:
-            try:
-                await processing.edit_text(header.replace("*", ""))
-            except Exception:
-                pass
-
         for i, chunk in enumerate(flat_chunks, 1):
-            label = f"📄 *Parte {i}/{len(flat_chunks)}*\n\n" if len(flat_chunks) > 1 else ""
+            label = f"📋 *Post {i}/{len(flat_chunks)} — pronto da copiare*\n\n" if len(flat_chunks) > 1 else "📋 *Post pronto da copiare*\n\n"
+            full = f"{label}{chunk}"
             try:
                 await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"{label}{chunk}",
+                    chat_id=chat_id, text=full,
                     parse_mode="Markdown", disable_web_page_preview=True,
                 )
             except Exception:
-                plain_label = f"Parte {i}/{len(flat_chunks)}\n\n" if len(flat_chunks) > 1 else ""
+                plain_label = f"Post {i}/{len(flat_chunks)} — pronto da copiare\n\n" if len(flat_chunks) > 1 else "Post pronto da copiare\n\n"
                 await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"{plain_label}{chunk}",
+                    chat_id=chat_id, text=f"{plain_label}{chunk}",
                     disable_web_page_preview=True,
                 )
 
