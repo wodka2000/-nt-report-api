@@ -1426,42 +1426,63 @@ async def handle_mon_cmp_cb(update, context) -> None:
             await processing.edit_text("⚠️ Nessun post generato.")
             return
 
-        if len(chunks) == 1:
+        # Telegram limita un singolo messaggio a 4096 caratteri.
+        # Se un chunk eccede ~3800 char lo spezzo su confine di paragrafo.
+        TG_SAFE = 3800
+        def _split_long(text: str) -> list[str]:
+            if len(text) <= TG_SAFE:
+                return [text]
+            out, buf = [], ""
+            for para in text.split("\n\n"):
+                if len(buf) + len(para) + 2 > TG_SAFE and buf:
+                    out.append(buf.rstrip())
+                    buf = ""
+                if len(para) > TG_SAFE:
+                    # paragrafo enorme: hard-split su lunghezza
+                    if buf:
+                        out.append(buf.rstrip()); buf = ""
+                    for i in range(0, len(para), TG_SAFE):
+                        out.append(para[i:i+TG_SAFE])
+                else:
+                    buf += para + "\n\n"
+            if buf.strip():
+                out.append(buf.rstrip())
+            return out
+
+        flat_chunks = []
+        for c in chunks:
+            flat_chunks.extend(_split_long(c))
+
+        # Header breve nel messaggio "⏳ Analizzo…"
+        if len(flat_chunks) == 1:
+            header = f"🔗 *Post comparativo — {len(chosen)} fonti*"
+        else:
+            header = (
+                f"🔗 *Post comparativo in {len(flat_chunks)} parti — {len(chosen)} fonti*"
+            )
+        try:
+            await processing.edit_text(header, parse_mode="Markdown")
+        except Exception:
             try:
-                await processing.edit_text(
-                    f"🔗 *Post comparativo — {len(chosen)} fonti*\n\n{chunks[0]}",
+                await processing.edit_text(header.replace("*", ""))
+            except Exception:
+                pass
+
+        for i, chunk in enumerate(flat_chunks, 1):
+            label = f"📄 *Parte {i}/{len(flat_chunks)}*\n\n" if len(flat_chunks) > 1 else ""
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{label}{chunk}",
                     parse_mode="Markdown", disable_web_page_preview=True,
                 )
             except Exception:
-                await processing.edit_text(
-                    f"🔗 Post comparativo — {len(chosen)} fonti\n\n{chunks[0]}",
+                plain_label = f"Parte {i}/{len(flat_chunks)}\n\n" if len(flat_chunks) > 1 else ""
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{plain_label}{chunk}",
                     disable_web_page_preview=True,
                 )
-        else:
-            try:
-                await processing.edit_text(
-                    f"🔗 *Post comparativo in {len(chunks)} parti — {len(chosen)} fonti*\n"
-                    f"_(il contenuto eccedeva i {LINKEDIN_MAX_CHARS} caratteri di LinkedIn, è stato suddiviso)_",
-                    parse_mode="Markdown",
-                )
-            except Exception:
-                await processing.edit_text(
-                    f"🔗 Post comparativo in {len(chunks)} parti — {len(chosen)} fonti\n"
-                    f"(il contenuto eccedeva i {LINKEDIN_MAX_CHARS} caratteri di LinkedIn, è stato suddiviso)",
-                )
-            for i, chunk in enumerate(chunks, 1):
-                try:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"📄 *Parte {i}/{len(chunks)}*\n\n{chunk}",
-                        parse_mode="Markdown", disable_web_page_preview=True,
-                    )
-                except Exception:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"Parte {i}/{len(chunks)}\n\n{chunk}",
-                        disable_web_page_preview=True,
-                    )
 
         # Reset selezione per la prossima esecuzione
         context.bot_data[sel_key] = set()
