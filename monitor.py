@@ -1504,18 +1504,25 @@ async def handle_mon_cmp_cb(update, context) -> None:
         for c in chunks:
             flat_chunks.extend(_split_long(c))
 
-        for i, chunk in enumerate(flat_chunks, 1):
-            label = f"📋 *Post {i}/{len(flat_chunks)} — pronto da copiare*\n\n" if len(flat_chunks) > 1 else "📋 *Post pronto da copiare*\n\n"
-            full = f"{label}{chunk}"
+        if len(flat_chunks) > 1:
             try:
                 await context.bot.send_message(
-                    chat_id=chat_id, text=full,
+                    chat_id=chat_id,
+                    text=f"📋 Post in {len(flat_chunks)} parti — copia ciascun messaggio sotto:",
+                    disable_web_page_preview=True,
+                )
+            except Exception:
+                pass
+
+        for chunk in flat_chunks:
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id, text=chunk,
                     parse_mode="Markdown", disable_web_page_preview=True,
                 )
             except Exception:
-                plain_label = f"Post {i}/{len(flat_chunks)} — pronto da copiare\n\n" if len(flat_chunks) > 1 else "Post pronto da copiare\n\n"
                 await context.bot.send_message(
-                    chat_id=chat_id, text=f"{plain_label}{chunk}",
+                    chat_id=chat_id, text=chunk,
                     disable_web_page_preview=True,
                 )
 
