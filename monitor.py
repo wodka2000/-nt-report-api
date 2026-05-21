@@ -1427,16 +1427,28 @@ async def handle_mon_cmp_cb(update, context) -> None:
             return
 
         if len(chunks) == 1:
-            await processing.edit_text(
-                f"🔗 *Post comparativo — {len(chosen)} fonti*\n\n{chunks[0]}",
-                parse_mode="Markdown", disable_web_page_preview=True,
-            )
+            try:
+                await processing.edit_text(
+                    f"🔗 *Post comparativo — {len(chosen)} fonti*\n\n{chunks[0]}",
+                    parse_mode="Markdown", disable_web_page_preview=True,
+                )
+            except Exception:
+                await processing.edit_text(
+                    f"🔗 Post comparativo — {len(chosen)} fonti\n\n{chunks[0]}",
+                    disable_web_page_preview=True,
+                )
         else:
-            await processing.edit_text(
-                f"🔗 *Post comparativo in {len(chunks)} parti — {len(chosen)} fonti*\n"
-                f"_(il contenuto eccedeva i {LINKEDIN_MAX_CHARS} caratteri di LinkedIn, è stato suddiviso)_",
-                parse_mode="Markdown",
-            )
+            try:
+                await processing.edit_text(
+                    f"🔗 *Post comparativo in {len(chunks)} parti — {len(chosen)} fonti*\n"
+                    f"_(il contenuto eccedeva i {LINKEDIN_MAX_CHARS} caratteri di LinkedIn, è stato suddiviso)_",
+                    parse_mode="Markdown",
+                )
+            except Exception:
+                await processing.edit_text(
+                    f"🔗 Post comparativo in {len(chunks)} parti — {len(chosen)} fonti\n"
+                    f"(il contenuto eccedeva i {LINKEDIN_MAX_CHARS} caratteri di LinkedIn, è stato suddiviso)",
+                )
             for i, chunk in enumerate(chunks, 1):
                 try:
                     await context.bot.send_message(
