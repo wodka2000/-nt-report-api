@@ -70,3 +70,46 @@ più di una sessione per distinguere segnale da rumore)*
 - Ipotesi da verificare: i post con citazione secca di sentenza/norma (stile Giustiniani)
   hanno reach basso ma pubblico molto qualificato; i post con angolo fiscale/economico
   (stile Giacobbe) generano più repost e ripresa da testate generaliste.
+
+## Argomenti in voga (ricerca per keyword, non feed — vedi metodo sotto)
+
+**2026-09-14** — Ricerca mirata su LinkedIn (search/content) per le 4 aree professionali,
+non lettura del feed (il feed generico resta poco verticale, vedi Osservazioni sopra):
+
+- **Energia**: le audizioni ARERA sul quadro strategico 2026-2029 sono citate da più
+  organizzazioni (Energy Traders Europe, IDA - Italian Datacenter Association) — tema caldo
+  trasversale. Sub-tema emergente: connessione dei data center alla Rete di Trasmissione
+  Nazionale (Codice di Rete, criteri di priorità, "queue cleansing"), spinto dalla domanda
+  elettrica crescente dei data center.
+- **Concessioni demaniali**: (1) rinnovo concessioni balneari comune per comune (es.
+  Riccione, primi 14 lotti a gara) — continua l'ondata di bandi post-scadenza; (2)
+  giurisprudenza in consolidamento contro le proroghe automatiche (TAR Salerno n.997/2026,
+  stessa linea di altri TAR) — solo proroga tecnica ammessa, e solo se gara già bandita;
+  (3) dibattito tecnico se il Codice dei Contratti Pubblici si applichi alle concessioni
+  demaniali marittime.
+- **Gioco pubblico**: caso Polymarket è IL tema del momento — ricorso al TAR contro
+  l'oscuramento ADM del prediction market, con quattro concessionari di gioco pubblico
+  intervenuti a sostegno di ADM (fonte: Jamma Magazine). Rilevante anche per concessioni
+  (stessa logica regolatoria di esclusiva del concessionario).
+- **Tecnologia**: due decreti legislativi di attuazione dell'AI Act approvati dal CdM
+  (regole IA pubblico/privato, potere sanzionatorio, limiti a decisioni automatizzate in
+  ambito lavoristico) — appena approvati, probabile materiale per settimane. Parallelo:
+  dal 12/09/2026 obbligo "access by design" del Data Act per prodotti connessi. GDPR Day
+  2026 il 29/10 a Bologna (16ª edizione) come evento di settore da segnalare.
+
+**Nuova fonte attivata**: Mondo Balneare (mondobalneare.com/feed/) — trovata durante questa
+sessione, RSS verificato attivo. Colma un vuoto reale: concessioni demaniali non aveva
+NESSUNA rivista di settore dedicata (solo GU/AGCM/Corte Costituzionale). Aggiunta a
+`sources.md` e a `TOPICS_CONFIG["concessioni"]` in `monitor.py`.
+
+**Altri spunti emersi, non ancora fonti attive**:
+- LEXIA (studio legale) — newsletter mensile "Data & Technology Innovation", stesso
+  formato denso e ricorrente di Legal Tech BDM (vedi "Post interessanti" sopra), copre
+  AI Act/Data Act/cybersecurity con cadenza affidabile.
+- Jamma Magazine — oltre al feed Jamma.it già attivo, pubblica anche contenuto "breaking"
+  (caso Polymarket) prima o in parallelo al sito, utile se in futuro si aggiunge un
+  controllo del profilo aziendale.
+- Vincenzo Laudani (consulente appalti pubblici, autore appaltiecontratti.it) — post
+  tecnici su giurisprudenza concessioni balneari con citazione precisa di sentenze,
+  registro molto vicino a TONO.md, engagement discreto (36/4 su un post). Candidato
+  profilo di riferimento per concessioni, da confermare con Niccolò.

@@ -2354,6 +2354,38 @@ async def cmd_digest_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _run_weekly_digest(context)
 
 
+async def cmd_rassegna_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner-only: genera subito la rassegna del giorno (senza aspettare il job delle 6:00)."""
+    if not is_owner(update):
+        return
+    context.bot_data["owner_chat_id"] = update.effective_chat.id
+    from rassegna import run_rassegna_job
+    await run_rassegna_job(context)
+
+
+async def cmd_rassegna_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner-only: segnala un articolo (es. Financial Times, La Stampa) da includere nella
+    rassegna stampa del giorno. Uso: /rassegna_add <testo o link>, anche in risposta a un
+    messaggio inoltrato (in quel caso usa il testo del messaggio a cui si risponde)."""
+    if not is_owner(update):
+        return
+    testo = " ".join(context.args) if context.args else ""
+    if not testo and update.message.reply_to_message:
+        testo = update.message.reply_to_message.text or update.message.reply_to_message.caption or ""
+    if not testo:
+        await update.message.reply_text(
+            "Uso: /rassegna_add <testo o link dell'articolo>, oppure rispondi con "
+            "/rassegna_add a un messaggio inoltrato."
+        )
+        return
+    import re
+    m = re.search(r"https?://\S+", testo)
+    url = m.group() if m else None
+    from monitor import _add_rassegna_queue_item
+    _add_rassegna_queue_item(testo, url, str(update.effective_chat.id))
+    await update.message.reply_text("Aggiunto alla rassegna di domani.")
+
+
 async def cmd_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Disattiva le notifiche giornaliere automatiche."""
     from users import is_approved, opt_out, get_lang
@@ -2423,6 +2455,8 @@ def main():
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
     app.add_handler(CommandHandler("confronta", cmd_confronta))
     app.add_handler(CommandHandler("digest_test", cmd_digest_test))
+    app.add_handler(CommandHandler("rassegna_add", cmd_rassegna_add))
+    app.add_handler(CommandHandler("rassegna_test", cmd_rassegna_test))
     app.add_handler(CommandHandler("pausa",    cmd_pausa))
     app.add_handler(CommandHandler("riprendi", cmd_riprendi))
     app.add_handler(CommandHandler("lingua",   cmd_lingua))
@@ -2500,6 +2534,14 @@ def main():
         time=dt_time(hour=7, minute=0, tzinfo=_ROME_TZ),
         days=(1,),
     )
+
+    async def _rassegna_job(context):
+        from rassegna import run_rassegna_job
+        await run_rassegna_job(context)
+
+    # Ogni giorno alle 06:00 Rome — lascia margine al print agent locale (08:30) per
+    # scaricare e stampare entro le 9:00.
+    app.job_queue.run_daily(_rassegna_job, time=dt_time(hour=6, minute=0, tzinfo=_ROME_TZ))
 
     app.add_handler(CallbackQueryHandler(handle_chat_select_cb,        pattern=r"^chat_sel:"))
     app.add_handler(CallbackQueryHandler(handle_chat_fine_cb,          pattern=r"^chat_fine$"))

@@ -104,13 +104,14 @@ TOPICS_CONFIG: dict[str, dict] = {
         "settori": ["concessioni"],
         "groups": ["GU", "AGCM"],
         "prefixes": [],
-        "names": ["Corte Costituzionale"],
+        "names": ["Corte Costituzionale", "Mondo Balneare"],
         "filtered_groups": ["GU", "AGCM"],
         "filtered_names": ["Corte Costituzionale"],
         "menu_buttons": [
             ("GU",                   "group", "GU"),
             ("AGCM",                 "group", "AGCM"),
             ("Corte Costituzionale", "name",  "Corte Costituzionale"),
+            ("Mondo Balneare",       "name",  "Mondo Balneare"),
         ],
     },
     "giochi": {
@@ -118,7 +119,7 @@ TOPICS_CONFIG: dict[str, dict] = {
         "settori": ["gioco"],
         "groups": ["GU", "AGCM", "ADM"],
         "prefixes": [],
-        "names": ["Normattiva", "Jamma.it", "GiocoNews", "Press Giochi"],
+        "names": ["Normattiva", "Jamma.it", "GiocoNews", "Press Giochi", "Agimeg"],
         "filtered_groups": ["GU", "AGCM"],
         "filtered_names": ["Normattiva"],
         "menu_buttons": [
@@ -129,6 +130,7 @@ TOPICS_CONFIG: dict[str, dict] = {
             ("Jamma.it",     "name",  "Jamma.it"),
             ("GiocoNews",    "name",  "GiocoNews"),
             ("Press Giochi", "name",  "Press Giochi"),
+            ("Agimeg",       "name",  "Agimeg"),
         ],
     },
 }
@@ -325,6 +327,16 @@ def _init_db() -> None:
             published_at TEXT DEFAULT (datetime('now'))
         )
     """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS rassegna_queue (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            testo       TEXT NOT NULL,
+            url         TEXT,
+            chat_id     TEXT NOT NULL,
+            aggiunto_il TEXT DEFAULT (datetime('now')),
+            usato       INTEGER NOT NULL DEFAULT 0
+        )
+    """)
     # Migrazioni per DB esistenti
     try:
         con.execute("ALTER TABLE seen_docs ADD COLUMN rating INTEGER DEFAULT NULL")
@@ -488,6 +500,18 @@ def _mark_seen(url: str, title: str, source: str, score: float, chat_id: str = "
     con.execute(
         "INSERT OR IGNORE INTO seen_docs (url, chat_id, title, source, score) VALUES (?,?,?,?,?)",
         (url, chat_id, title, source, score),
+    )
+    con.commit()
+    con.close()
+
+
+def _add_rassegna_queue_item(testo: str, url: str | None, chat_id: str) -> None:
+    """Salva una segnalazione manuale (es. articolo FT/La Stampa) per la rassegna del giorno."""
+    _init_db()
+    con = _db_connect()
+    con.execute(
+        "INSERT INTO rassegna_queue (testo, url, chat_id) VALUES (?, ?, ?)",
+        (testo, url, chat_id),
     )
     con.commit()
     con.close()
@@ -872,6 +896,52 @@ def _archive_to_drive(items: list) -> bool:
         return True
     except Exception as e:
         logger.warning(f"Archivio Drive fallito: {e}")
+        return False
+
+
+_DRIVE_RASSEGNA_NAME = "rassegna-oggi.pdf"
+
+
+def _find_drive_file_id(creds, name: str) -> str | None:
+    """Cerca un file per nome nella cartella Drive condivisa (stesso pattern di
+    _find_archive_sheet_id, ma senza vincolo di mimeType)."""
+    from googleapiclient.discovery import build
+    drive = build("drive", "v3", credentials=creds)
+    res = drive.files().list(
+        q=f"'{_DRIVE_FOLDER_ID}' in parents and name='{name}' and trashed=false",
+        fields="files(id)",
+    ).execute()
+    files = res.get("files", [])
+    return files[0]["id"] if files else None
+
+
+def _upload_rassegna_to_drive(pdf_path) -> bool:
+    """Sovrascrive il contenuto del file placeholder 'rassegna-oggi.pdf' già presente nella
+    cartella Drive condivisa (creato a mano una volta da Niccolò). Usa files().update, MAI
+    files().create: un Service Account senza quota di storage propria su Drive personale non
+    può creare file nuovi (storageQuotaExceeded), ma può aggiornare il contenuto di un file
+    esistente di cui è Editor, perché lo spazio resta a carico del proprietario del file."""
+    if not _DRIVE_SA_FILE.exists():
+        logger.info("Rassegna Drive: credenziali non configurate, salto upload.")
+        return False
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+
+    try:
+        creds = _get_google_creds()
+        file_id = _find_drive_file_id(creds, _DRIVE_RASSEGNA_NAME)
+        if not file_id:
+            logger.warning(
+                f"Rassegna Drive: nessun file '{_DRIVE_RASSEGNA_NAME}' nella cartella "
+                f"{_DRIVE_FOLDER_ID} — caricarne uno segnaposto a mano una volta."
+            )
+            return False
+        drive = build("drive", "v3", credentials=creds)
+        media = MediaFileUpload(str(pdf_path), mimetype="application/pdf", resumable=False)
+        drive.files().update(fileId=file_id, media_body=media).execute()
+        return True
+    except Exception as e:
+        logger.warning(f"Rassegna Drive: upload fallito: {e}")
         return False
 
 

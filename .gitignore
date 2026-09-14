@@ -22,6 +22,7 @@ data/
 pdf_bytes/
 *.pkl
 logs/
+/rassegna/
 
 # Chiavi e segreti
 .env

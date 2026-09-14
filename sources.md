@@ -57,6 +57,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | Press Giochi | https://www.pressgiochi.it/feed/ | rss | gioco | |
 | Agimeg | https://www.agimeg.it/feed/ | rss | gioco | |
 | Altalex | https://www.altalex.com/ | html | concessioni | aggiungere dopo (feed/documenti dietro login Wolters Kluwer, verificato 2026-09-14) |
+| Mondo Balneare | https://www.mondobalneare.com/feed/ | rss | concessioni | trovata durante sessione LinkedIn 2026-09-14, verificata attiva |
 
 ---
 
