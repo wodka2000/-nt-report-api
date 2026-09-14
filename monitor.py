@@ -83,7 +83,8 @@ TOPICS_CONFIG: dict[str, dict] = {
         "groups": ["GU", "AGCM"],
         "prefixes": ["ARERA"],
         "names": ["Normattiva", "Corte Costituzionale",
-                  "PV Magazine Italia", "Quotidiano Energia", "Staffetta Online"],
+                  "PV Magazine Italia", "Quotidiano Energia", "Staffetta Online",
+                  "Rinnovabili.it"],
         "filtered_groups": ["GU", "AGCM"],
         "filtered_names": ["Normattiva", "Corte Costituzionale"],
         "menu_buttons": [
@@ -95,6 +96,7 @@ TOPICS_CONFIG: dict[str, dict] = {
             ("PV Magazine",          "name",   "PV Magazine Italia"),
             ("Quotidiano Energia",   "name",   "Quotidiano Energia"),
             ("Staffetta Online",     "name",   "Staffetta Online"),
+            ("Rinnovabili.it",       "name",   "Rinnovabili.it"),
         ],
     },
     "concessioni": {
@@ -249,6 +251,29 @@ Rules:
 - Maximum 1300 characters (text + hashtags)
 - IMPORTANT: always end with a complete sentence, never mid-sentence
 - End with 3-5 relevant hashtags
+"""
+
+_WEEKLY_ARTICLE_PROMPT = """\
+Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia e concessioni \
+pubbliche, e scrivi il commento settimanale di approfondimento per il sito dello studio. Lingua: {lingua}.
+
+Hai raccolto le seguenti notizie/post pubblicati questa settimana, su ambiti diversi:
+
+{documenti}
+{condotte_block}
+Scrivi un articolo di approfondimento di 800-1200 parole che:
+- Individua i pattern logici che collegano le notizie (convergenza normativa, divergenza tra livelli, \
+causa-effetto, parallelismo cross-settore, vuoti normativi) — non è un riassunto notizia per notizia.
+- Usa riferimenti normativi precisi (decreto, articolo, comma, data) e cifre esatte quando disponibili.
+- Registro: esperto che informa altri esperti, mai divulgativo, mai sensazionalista. Nessuna valutazione \
+soggettiva, nessun hook emozionale, nessuna domanda retorica, nessuna call-to-action commerciale, niente emoji.
+- Vietate le costruzioni avversative tipo "non solo X, ma anche Y" e varianti simili.
+- Struttura: un titolo su una riga singola (senza markup), poi paragrafi con eventuali sottotitoli in \
+grassetto per separare i temi trattati.
+- Cita la fonte di ogni notizia discussa (nome fonte + URL per esteso) all'interno del paragrafo pertinente.
+- Chiusura con una considerazione tecnica trasversale, non un riepilogo delle notizie.
+
+Rispondi SOLO con il testo dell'articolo (titolo compreso), senza premesse né commenti fuori testo.
 """
 
 
@@ -702,6 +727,160 @@ def _generate_post(fonte: str, titolo: str, contenuto: str, data: str = "", lang
         messages=[{"role": "user", "content": prompt}],
     )
     return msg.content[0].text.strip()
+
+
+def _split_long_text(text: str, limit: int = 3800) -> list[str]:
+    """Divide un testo lungo in blocchi <= limit, spezzando su paragrafi interi quando possibile."""
+    if len(text) <= limit:
+        return [text]
+    out: list[str] = []
+    buf = ""
+    for para in text.split("\n\n"):
+        if len(buf) + len(para) + 2 > limit and buf:
+            out.append(buf.rstrip())
+            buf = ""
+        if len(para) > limit:
+            if buf:
+                out.append(buf.rstrip())
+                buf = ""
+            for i in range(0, len(para), limit):
+                out.append(para[i:i + limit])
+        else:
+            buf += para + "\n\n"
+    if buf.strip():
+        out.append(buf.rstrip())
+    return out
+
+
+def _load_linkedin_conduct_notes() -> str:
+    """Legge la sezione 'Condotte / pattern' di linkedin_kb.md, se presente."""
+    path = Path(__file__).parent / "linkedin_kb.md"
+    if not path.exists():
+        return ""
+    text = path.read_text(encoding="utf-8")
+    marker = "## Condotte / pattern"
+    idx = text.find(marker)
+    if idx == -1:
+        return ""
+    return text[idx + len(marker):].strip()[:1500]
+
+
+def _generate_weekly_article(items: list, lang: str = "it") -> str:
+    """Genera l'articolo lungo per il sito a partire dai post pubblicati della settimana."""
+    from bot import call_claude
+    parts = []
+    for i, d in enumerate(items, 1):
+        parts.append(
+            f"NOTIZIA {i} — Fonte: {d.get('source_name', '')}\n"
+            f"URL: {d.get('url', '')}\n"
+            f"Titolo: {d.get('titolo', '')}\n"
+            f"Testo:\n{(d.get('post_text') or '')[:2500]}"
+        )
+    documenti = "\n\n---\n\n".join(parts)
+    condotte = _load_linkedin_conduct_notes()
+    condotte_block = (
+        f"\nNote di calibrazione da osservazioni LinkedIn precedenti "
+        f"(usale per tono/enfasi, non citarle nell'articolo):\n{condotte}\n"
+        if condotte else ""
+    )
+    lingua = "italiano" if lang == "it" else "English"
+    prompt = _WEEKLY_ARTICLE_PROMPT.format(
+        documenti=documenti, condotte_block=condotte_block, lingua=lingua,
+    )
+    msg = call_claude(
+        model="claude-sonnet-4-6",
+        max_tokens=4000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return msg.content[0].text.strip()
+
+
+async def _run_weekly_digest(context) -> None:
+    """Job settimanale: un post LinkedIn di sintesi per ambito + un articolo lungo per il sito,
+    a partire dai post pubblicati (approvati) negli ultimi 7 giorni. Solo per l'owner."""
+    from bot import TOPICS, BASE_DIR
+    from users import get_lang
+
+    chat_id = context.bot_data.get("owner_chat_id")
+    if not chat_id:
+        logger.warning("Weekly digest: owner_chat_id non trovato — manda /start al bot")
+        return
+    lang = get_lang(chat_id)
+
+    posts = _get_published_posts(str(chat_id), days=7, limit=200)
+    if not posts:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="📭 Nessun post pubblicato negli ultimi 7 giorni — digest settimanale saltato.",
+        )
+        return
+
+    by_settore: dict[str, list] = {}
+    for p in posts:
+        by_settore.setdefault(p.get("settore") or "altro", []).append(p)
+
+    loop = asyncio.get_event_loop()
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=f"📅 *Digest settimanale* — {len(posts)} post della settimana, genero le sintesi per ambito…",
+        parse_mode="Markdown",
+    )
+
+    for settore in ("energia", "gioco", "tecnologia", "concessioni"):
+        items = by_settore.get(settore)
+        if not items:
+            continue
+        topic_label = TOPICS.get(settore, "📌 Altro")
+        try:
+            _, chunks = await loop.run_in_executor(None, _generate_unified_post, items, lang)
+        except Exception as e:
+            logger.error(f"Weekly digest errore generazione {settore}: {e}", exc_info=True)
+            await context.bot.send_message(
+                chat_id=chat_id, text=f"⚠️ Errore generazione post {topic_label}: {str(e)[:200]}",
+            )
+            continue
+        if not chunks:
+            continue
+        await context.bot.send_message(chat_id=chat_id, text=f"{topic_label} — post pronto:")
+        for chunk in chunks:
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id, text=chunk, parse_mode="Markdown", disable_web_page_preview=True,
+                )
+            except Exception:
+                await context.bot.send_message(chat_id=chat_id, text=chunk, disable_web_page_preview=True)
+
+    # Articolo lungo cross-settore, per il sito
+    all_items = [p for group in by_settore.values() for p in group]
+    try:
+        articolo = await loop.run_in_executor(None, _generate_weekly_article, all_items, lang)
+    except Exception as e:
+        logger.error(f"Weekly digest errore articolo: {e}", exc_info=True)
+        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Errore generazione articolo: {str(e)[:200]}")
+        return
+
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    articoli_dir = BASE_DIR / "articoli"
+    articoli_dir.mkdir(exist_ok=True)
+    (articoli_dir / f"{date_str}.md").write_text(articolo, encoding="utf-8")
+
+    await context.bot.send_message(chat_id=chat_id, text="📰 Commento lungo per il sito — pronto (salvato anche su file):")
+    for chunk in _split_long_text(articolo):
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=chunk, disable_web_page_preview=True)
+        except Exception:
+            pass
+
+    try:
+        await loop.run_in_executor(
+            None, _git_commit_push, [f"articoli/{date_str}.md"],
+            f"articolo: digest settimanale {date_str}",
+        )
+    except Exception as e:
+        logger.warning(f"Weekly digest git push fallito: {e}")
+        await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Salvato in locale ma push fallito: {str(e)[:300]}")
 
 
 # ── Job principale ──────────────────────────────────────────────────────────────
@@ -1162,9 +1341,23 @@ async def handle_mon_fonte_cb(update, context) -> None:
         await _show_recent_seen(context, chat_id, source_names, days=30)
 
 
+def _git_commit_push(paths: list[str], message: str) -> None:
+    """Esegue git add/commit/push per i file indicati. Solleva RuntimeError se il push fallisce."""
+    import subprocess
+    from bot import BASE_DIR
+    subprocess.run(["git", "-C", str(BASE_DIR), "stash"], capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(BASE_DIR), "pull", "--rebase"], capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(BASE_DIR), "stash", "pop"], capture_output=True, text=True)
+    r1 = subprocess.run(["git", "-C", str(BASE_DIR), "add", *paths], capture_output=True, text=True)
+    r2 = subprocess.run(["git", "-C", str(BASE_DIR), "commit", "-m", message], capture_output=True, text=True)
+    r3 = subprocess.run(["git", "-C", str(BASE_DIR), "push"], capture_output=True, text=True)
+    if r3.returncode != 0:
+        output = "\n".join(filter(None, [r1.stderr, r2.stderr, r3.stdout, r3.stderr]))
+        raise RuntimeError(output or "push fallito")
+
+
 async def _save_post_to_report(context, draft: dict, reply_target, notify_errors: bool = False) -> None:
     """Salva la bozza monitor nel file report del giorno e pusha su GitHub."""
-    import subprocess
     from datetime import datetime
     from bot import BASE_DIR, TOPICS
 
@@ -1217,23 +1410,11 @@ async def _save_post_to_report(context, draft: dict, reply_target, notify_errors
 
     # Git push + refresh sito
     loop = asyncio.get_event_loop()
-    def _git_push():
-        subprocess.run(["git", "-C", str(BASE_DIR), "stash"], capture_output=True, text=True)
-        subprocess.run(["git", "-C", str(BASE_DIR), "pull", "--rebase"],
-                       capture_output=True, text=True)
-        subprocess.run(["git", "-C", str(BASE_DIR), "stash", "pop"], capture_output=True, text=True)
-        r1 = subprocess.run(["git", "-C", str(BASE_DIR), "add", f"reports/{date_str}.md"],
-                            capture_output=True, text=True)
-        r2 = subprocess.run(["git", "-C", str(BASE_DIR), "commit", "-m",
-                              f"report: monitor post {date_str} ({source_name})"],
-                            capture_output=True, text=True)
-        r3 = subprocess.run(["git", "-C", str(BASE_DIR), "push"],
-                            capture_output=True, text=True)
-        if r3.returncode != 0:
-            output = "\n".join(filter(None, [r1.stderr, r2.stderr, r3.stdout, r3.stderr]))
-            raise RuntimeError(output or "push fallito")
     try:
-        await loop.run_in_executor(None, _git_push)
+        await loop.run_in_executor(
+            None, _git_commit_push, [f"reports/{date_str}.md"],
+            f"report: monitor post {date_str} ({source_name})",
+        )
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post("https://nt-report-api.onrender.com/api/refresh")
         await reply_target.reply_text(_t("site_updated", lang))
@@ -1443,27 +1624,6 @@ async def handle_mon_cmp_cb(update, context) -> None:
             await processing.edit_text("⚠️ Nessun post generato.")
             return
 
-        # Telegram limita un singolo messaggio a 4096 caratteri.
-        TG_SAFE = 3800
-        def _split_long(text: str) -> list[str]:
-            if len(text) <= TG_SAFE:
-                return [text]
-            out, buf = [], ""
-            for para in text.split("\n\n"):
-                if len(buf) + len(para) + 2 > TG_SAFE and buf:
-                    out.append(buf.rstrip())
-                    buf = ""
-                if len(para) > TG_SAFE:
-                    if buf:
-                        out.append(buf.rstrip()); buf = ""
-                    for i in range(0, len(para), TG_SAFE):
-                        out.append(para[i:i+TG_SAFE])
-                else:
-                    buf += para + "\n\n"
-            if buf.strip():
-                out.append(buf.rstrip())
-            return out
-
         async def _send_safe(text: str, use_markdown: bool = True) -> None:
             try:
                 await context.bot.send_message(
@@ -1502,7 +1662,7 @@ async def handle_mon_cmp_cb(update, context) -> None:
         # 2) Post da copiare/incollare, ognuno in un messaggio separato
         flat_chunks = []
         for c in chunks:
-            flat_chunks.extend(_split_long(c))
+            flat_chunks.extend(_split_long_text(c))
 
         if len(flat_chunks) > 1:
             try:

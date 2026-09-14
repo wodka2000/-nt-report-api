@@ -2346,6 +2346,14 @@ async def cmd_confronta(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_compare_menu(context, chat_id=chat_id)
 
 
+async def cmd_digest_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Owner-only: lancia subito il digest settimanale (senza aspettare il job del martedì)."""
+    if not is_owner(update):
+        return
+    from monitor import _run_weekly_digest
+    await _run_weekly_digest(context)
+
+
 async def cmd_pausa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Disattiva le notifiche giornaliere automatiche."""
     from users import is_approved, opt_out, get_lang
@@ -2414,6 +2422,7 @@ def main():
     app.add_handler(CommandHandler("fine",     cmd_fine))
     app.add_handler(CommandHandler("monitor",  cmd_monitor))
     app.add_handler(CommandHandler("confronta", cmd_confronta))
+    app.add_handler(CommandHandler("digest_test", cmd_digest_test))
     app.add_handler(CommandHandler("pausa",    cmd_pausa))
     app.add_handler(CommandHandler("riprendi", cmd_riprendi))
     app.add_handler(CommandHandler("lingua",   cmd_lingua))
@@ -2452,6 +2461,45 @@ def main():
                                         username=u["username"] or f"user_{u['id']}")
 
     app.job_queue.run_daily(_daily_monitor_job, time=dt_time(hour=7, minute=0))
+
+    # Promemoria LinkedIn (solo owner) e digest settimanale per ambito — orari in Europe/Rome
+    # (timezone-aware: niente aggiustamento manuale per l'ora legale, a differenza del job sopra)
+    import random
+    from datetime import datetime as _dt, timedelta as _timedelta
+    from zoneinfo import ZoneInfo
+    _ROME_TZ = ZoneInfo("Europe/Rome")
+
+    async def _linkedin_reminder_scheduler(context):
+        """Ogni giorno decide se oggi è un 'giorno promemoria' (~2-3 volte a settimana) e,
+        se sì, schedula l'invio a un orario casuale nella finestra del giorno (dispari 9-10,
+        pari 13-15 — parità sul giorno del mese)."""
+        owner_chat_id = context.bot_data.get("owner_chat_id")
+        if not owner_chat_id:
+            return
+        if random.random() >= 0.4:
+            return
+        now = _dt.now(_ROME_TZ)
+        start_h, end_h = (9, 10) if now.day % 2 == 1 else (13, 15)
+        minute_offset = random.randint(0, (end_h - start_h) * 60 - 1)
+        target = now.replace(hour=start_h, minute=0, second=0, microsecond=0) + _timedelta(minutes=minute_offset)
+
+        async def _send_reminder(ctx):
+            await ctx.bot.send_message(chat_id=owner_chat_id, text="📱 Facciamo un giro su LinkedIn?")
+
+        context.job_queue.run_once(_send_reminder, when=target)
+
+    app.job_queue.run_daily(_linkedin_reminder_scheduler, time=dt_time(hour=6, minute=0, tzinfo=_ROME_TZ))
+
+    async def _weekly_digest_job(context):
+        from monitor import _run_weekly_digest
+        await _run_weekly_digest(context)
+
+    # Martedì mattina (placeholder, da rivedere con i dati raccolti nella KB LinkedIn)
+    app.job_queue.run_daily(
+        _weekly_digest_job,
+        time=dt_time(hour=7, minute=0, tzinfo=_ROME_TZ),
+        days=(1,),
+    )
 
     app.add_handler(CallbackQueryHandler(handle_chat_select_cb,        pattern=r"^chat_sel:"))
     app.add_handler(CallbackQueryHandler(handle_chat_fine_cb,          pattern=r"^chat_fine$"))

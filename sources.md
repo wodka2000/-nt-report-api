@@ -51,9 +51,12 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | PV Magazine Italia | https://www.pv-magazine.it/feed/ | rss | energia | |
 | Quotidiano Energia | https://www.quotidianoenergia.it/xml/feed.xml | rss | energia | |
 | Staffetta Online | https://www.staffettaonline.com/rss/RSS_Home.xml | rss | energia | |
+| Rinnovabili.it | https://www.rinnovabili.it/feed/ | rss | energia | |
 | Jamma.it | https://www.jamma.it/feed/ | rss | gioco | |
 | GiocoNews | https://www.gioconews.it/feed/ | rss | gioco | |
 | Press Giochi | https://www.pressgiochi.it/feed/ | rss | gioco | |
+| Agimeg | https://www.agimeg.it/feed/ | rss | gioco | |
+| Altalex | https://www.altalex.com/ | html | concessioni | aggiungere dopo (feed/documenti dietro login Wolters Kluwer, verificato 2026-09-14) |
 
 ---
 
