@@ -19,14 +19,11 @@ calibrare tono e timing dei post generati.
 | Fabio Schiavolin | gioco | Ex CEO SNAI (10 anni), oggi investor/NED/advisor in TMT, Fintech, Entertainment | https://www.linkedin.com/in/fabio-schiavolin-3b37625/ | Autorevolezza reale nel merito (10 anni CEO SNAI), ma il feed attuale ha toni da motivatore/investitore generico ("Il tempo non aspetta più nessuno"), non contenuto tecnico di settore. Leggere i suoi post con filtro: valgono più le interazioni/commenti che i post stessi |
 | Andrea Venanzoni | tecnologia | Vicepresidente AssoCyber | https://www.linkedin.com/in/andrea-venanzoni-ba334514a/ | Editoriali pubblicati anche su Il Foglio (AI Act, geopolitica dell'IA), registro denso, tecnico e polemico insieme. 3.476 follower |
 | Giulio Grottoli | concessioni | Avvocato Cassazionista, Specialista Concessioni Demaniali Marittime, Studio Legale Machetta | https://www.linkedin.com/in/giulio-grottoli-5a4a8b1a3/ | Confermato da Niccolò il 14/09. Specializzazione praticamente identica all'ambito presidiato. Analisi tecnica di sentenze TAR/CdS, ma chiude con domanda retorica al pubblico ("Cosa ne pensate?") — pratica in contrasto con TONO.md, da non imitare pur restando un buon riferimento di contenuto |
+| Andrea Tarsi | concessioni | Ufficio di Gabinetto Ministero della Salute, avvocato amministrativista | https://www.linkedin.com/in/andrea-tarsi-06097b1a2/ | Confermato da Niccolò il 14/09. Post molto denso e tecnico su sentenze CdS (in house providing, concessioni demaniali marittime), zero fronzoli, molto vicino a TONO.md |
 
 Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
 - Alessandro Renna — Founder & CEO 4C, post riflessivi su AI Act (tecnologia)
 - Legalcommunity.it — testata, utile per news su investimenti IA degli studi legali
-- **Andrea Tarsi** (concessioni) — Ufficio di Gabinetto Ministero della Salute, avvocato,
-  amministrativista. https://www.linkedin.com/in/andrea-tarsi-06097b1a2/ — post molto denso e
-  tecnico su una sentenza CdS (in house providing / concessioni demaniali marittime), stile
-  molto vicino a TONO.md, nessun hook
 - Watergas (organizzazione/testata, energia) — post dati-fitti su ARERA (CMEM, PSV), stile
   giornalistico denso, potenziale fonte più che profilo personale da seguire
 - ARTE — Associazione Reseller e Trader dell'Energia (energia) — post istituzionale su una
@@ -55,6 +52,15 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
   commerciale ("scrivi BANDI nei commenti"), pieno di emoji e CTA. Esempio negativo di
   cosa NON fare: esattamente le pratiche vietate da TONO.md (CTA commerciale, emoji,
   semplificazione per il grande pubblico).
+- **Legal Tech BDM S.r.l.** (Studio legale Bassi Del Moro) — newsletter mensile densa di
+  dati precisi su sanzioni Garante/GDPR/AI Act (es. multa TIM 9,5M€, Uber 825M€ in Olanda,
+  Enel Energia, Lusha Systems 2M€). Ottima fonte per tecnologia, formato consistente e
+  ricorrente. https://lnkd.in/p/dVU5Pmh9
+- Giuseppe Mazzola (tecnologia) — un post molto solido su AI Act e responsabilità 231 per
+  deepfake/sistemi ad alto rischio, citazioni normative precise. MA controllando l'attività
+  recente del profilo, gli altri post sono personali/generici — segnale incoerente, non lo
+  classificherei come "profilo di riferimento" affidabile, solo il singolo post è di qualità.
+  https://lnkd.in/p/dyd4MniQ
 
 ## Condotte / pattern
 
