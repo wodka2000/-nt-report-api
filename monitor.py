@@ -860,18 +860,57 @@ def _archive_to_drive(items: list) -> bool:
         ] for it in items]
 
         sheets = build("sheets", "v4", credentials=creds)
-        existing = sheets.spreadsheets().values().get(spreadsheetId=sheet_id, range="A1:A1").execute()
+        existing = sheets.spreadsheets().values().get(spreadsheetId=sheet_id, range="notizie!A1:A1").execute()
         if not existing.get("values"):
             rows = [["data_pubblicazione", "settore", "fonte", "titolo", "url"]] + rows
 
         sheets.spreadsheets().values().append(
-            spreadsheetId=sheet_id, range="A:E",
+            spreadsheetId=sheet_id, range="notizie!A:E",
             valueInputOption="RAW", insertDataOption="INSERT_ROWS",
             body={"values": rows},
         ).execute()
         return True
     except Exception as e:
         logger.warning(f"Archivio Drive fallito: {e}")
+        return False
+
+
+def _archive_linkedin_findings(items: list) -> bool:
+    """Aggiunge profili/post interessanti trovati durante una sessione di browsing LinkedIn
+    alla scheda 'linkedin' dello stesso Google Sheet 'archivio'. `items` è una lista di dict
+    con chiavi tipo ('profilo'|'post'), nome, ambito, link, note. Non solleva mai."""
+    if not _DRIVE_SA_FILE.exists():
+        logger.info("Archivio Drive: credenziali non configurate, salto (linkedin).")
+        return False
+    from datetime import datetime
+    from googleapiclient.discovery import build
+
+    try:
+        creds = _get_google_creds()
+        sheet_id = _find_archive_sheet_id(creds)
+        if not sheet_id:
+            logger.warning(f"Archivio Drive: nessun Google Sheet '{_DRIVE_ARCHIVE_NAME}' trovato.")
+            return False
+
+        oggi = datetime.now().strftime("%Y-%m-%d")
+        rows = [[
+            oggi,
+            it.get("tipo") or "",
+            it.get("nome") or "",
+            it.get("ambito") or "",
+            it.get("link") or "",
+            it.get("note") or "",
+        ] for it in items]
+
+        sheets = build("sheets", "v4", credentials=creds)
+        sheets.spreadsheets().values().append(
+            spreadsheetId=sheet_id, range="linkedin!A:F",
+            valueInputOption="RAW", insertDataOption="INSERT_ROWS",
+            body={"values": rows},
+        ).execute()
+        return True
+    except Exception as e:
+        logger.warning(f"Archivio Drive (linkedin) fallito: {e}")
         return False
 
 
