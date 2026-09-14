@@ -231,6 +231,10 @@ REGOLE FORMATO (rispettarle alla lettera):
    Mira a 1 solo post quando possibile.
 9. Termina sempre con una frase completa, mai a metà.
 10. Tono: analitico, professionale, mai sensazionalista. Nessuna speculazione: solo ciò che le notizie supportano.
+11. VIETATE ASSOLUTAMENTE le costruzioni avversative che negano una cornice per poi affermarne un'altra,
+    in qualunque forma: "non è (solo) X: è Y", "non è solo X, ma soprattutto Y", "non si tratta solo
+    di... bensì di...", "non solo X, ma anche Y" e varianti simili. Affermare direttamente, senza
+    passare dalla negazione di un'alternativa.
 """
 
 _POST_PROMPT = """\
@@ -248,6 +252,8 @@ Rules:
 - Professional tone, never sensationalist
 - Only facts and regulatory references from the document
 - No speculation or subjective opinion
+- FORBIDDEN: adversative constructions that negate one framing to assert another, in any form
+  ("this is not just X: it's Y", "it's not only X, but Y", and similar). State things directly.
 - Maximum 1300 characters (text + hashtags)
 - IMPORTANT: always end with a complete sentence, never mid-sentence
 - End with 3-5 relevant hashtags
