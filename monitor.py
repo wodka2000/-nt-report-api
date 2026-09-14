@@ -795,6 +795,80 @@ def _generate_weekly_article(items: list, lang: str = "it") -> str:
     return msg.content[0].text.strip()
 
 
+# ── Archivio Google Drive ────────────────────────────────────────────────────
+# NB: un service account non ha quota di storage propria su un Drive personale
+# e non può quindi CREARE file nuovi — solo modificare file esistenti a cui ha
+# accesso. Per questo l'archivio è un Google Sheet che l'utente crea una volta
+# a mano nella cartella condivisa; il codice si limita ad "append" via Sheets API.
+
+_DRIVE_FOLDER_ID = "1KoZUSKO75QJsWJJqYJ_emT3qjEL07iM5"
+_DRIVE_SA_FILE = Path(__file__).parent / "secrets" / "google-drive-sa.json"
+_DRIVE_ARCHIVE_NAME = "archivio"
+_DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
+
+
+def _get_google_creds():
+    from google.oauth2 import service_account
+    return service_account.Credentials.from_service_account_file(str(_DRIVE_SA_FILE), scopes=_DRIVE_SCOPES)
+
+
+def _find_archive_sheet_id(creds) -> str | None:
+    from googleapiclient.discovery import build
+    drive = build("drive", "v3", credentials=creds)
+    res = drive.files().list(
+        q=(f"'{_DRIVE_FOLDER_ID}' in parents and name='{_DRIVE_ARCHIVE_NAME}' "
+           f"and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"),
+        fields="files(id)",
+    ).execute()
+    files = res.get("files", [])
+    return files[0]["id"] if files else None
+
+
+def _archive_to_drive(items: list) -> bool:
+    """Aggiunge le notizie della settimana in fondo al Google Sheet 'archivio' nella cartella
+    Drive condivisa (creato a mano una volta dall'utente). Non solleva mai: ritorna False
+    (con log) se le credenziali/il foglio mancano o qualcosa fallisce, così l'archiviazione
+    non blocca mai il resto del digest settimanale."""
+    if not _DRIVE_SA_FILE.exists():
+        logger.info("Archivio Drive: credenziali non configurate (secrets/google-drive-sa.json), salto.")
+        return False
+    from googleapiclient.discovery import build
+
+    try:
+        creds = _get_google_creds()
+        sheet_id = _find_archive_sheet_id(creds)
+        if not sheet_id:
+            logger.warning(
+                f"Archivio Drive: nessun Google Sheet chiamato '{_DRIVE_ARCHIVE_NAME}' nella "
+                f"cartella {_DRIVE_FOLDER_ID} — crearlo a mano una volta (il service account "
+                f"non può crearlo per limiti di quota storage)."
+            )
+            return False
+
+        rows = [[
+            (it.get("published_at") or "")[:10],
+            it.get("settore") or "",
+            it.get("source_name") or "",
+            it.get("titolo") or "",
+            it.get("url") or "",
+        ] for it in items]
+
+        sheets = build("sheets", "v4", credentials=creds)
+        existing = sheets.spreadsheets().values().get(spreadsheetId=sheet_id, range="A1:A1").execute()
+        if not existing.get("values"):
+            rows = [["data_pubblicazione", "settore", "fonte", "titolo", "url"]] + rows
+
+        sheets.spreadsheets().values().append(
+            spreadsheetId=sheet_id, range="A:E",
+            valueInputOption="RAW", insertDataOption="INSERT_ROWS",
+            body={"values": rows},
+        ).execute()
+        return True
+    except Exception as e:
+        logger.warning(f"Archivio Drive fallito: {e}")
+        return False
+
+
 async def _run_weekly_digest(context) -> None:
     """Job settimanale: un post LinkedIn di sintesi per ambito + un articolo lungo per il sito,
     a partire dai post pubblicati (approvati) negli ultimi 7 giorni. Solo per l'owner."""
@@ -820,6 +894,12 @@ async def _run_weekly_digest(context) -> None:
         by_settore.setdefault(p.get("settore") or "altro", []).append(p)
 
     loop = asyncio.get_event_loop()
+
+    archived_ok = await loop.run_in_executor(None, _archive_to_drive, posts)
+    if archived_ok:
+        await context.bot.send_message(chat_id=chat_id, text=f"📂 {len(posts)} notizie archiviate su Drive.")
+    else:
+        await context.bot.send_message(chat_id=chat_id, text="⚠️ Archiviazione su Drive saltata o fallita (vedi log).")
 
     await context.bot.send_message(
         chat_id=chat_id,

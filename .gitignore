@@ -27,6 +27,7 @@ logs/
 .env
 *.env
 secrets.py
+secrets/
 
 # Script locali con secrets
 avvia.bat
