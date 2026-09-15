@@ -12,8 +12,11 @@ Struttura del giornale (richiesta da Niccolò il 2026-09-14):
      estrazione dai fondali marini, spazio, scienza (fisica/biologia/materiali) (~3 pagine,
      solo se c'è qualcosa di rilevante)
   4. Attualità — cronaca, politica/economia generale, sport (~1 pagina)
-  5. Varie — cruciverba, un piatto/vino/ristorante, una mostra, un'attività coi bambini,
-     un libro, un disco (~1 pagina)
+  5. Varie — meteo di domani (Roma + eventuali città di viaggio dalla ToDo list),
+     oroscopo, cruciverba giuridico (soluzioni pubblicate il giorno dopo, come sui
+     giornali), una mostra, un'attività coi bambini, un libro, un disco, un
+     piatto/vino/ristorante (per ultimo) — ciascuno con un link reale trovato via web
+     search, non inventato (~1 pagina)
 
 Il job in bot.py chiama genera_rassegna_pdf() ogni mattina, poi carica il risultato su
 Drive (monitor.py, _upload_rassegna_to_drive) sovrascrivendo un file placeholder già
@@ -154,7 +157,7 @@ async def _fetch_feed_list(feeds: list[tuple[str, str]], max_per_fonte: int, hou
     return out
 
 
-async def _fetch_attualita(max_per_fonte: int = 4) -> list[dict]:
+async def _fetch_attualita(max_per_fonte: int = 5) -> list[dict]:
     return await _fetch_feed_list(_ATTUALITA_FEEDS, max_per_fonte)
 
 
@@ -165,7 +168,11 @@ _SETTORI_CHAT_ID = "rassegna_settori"  # namespace dedicato in seen_docs, separa
 # in tema. Le fonti di settore vere e proprie (ARERA, PV Magazine, Mondo Balneare, ADM,
 # Jamma.it...) sono già mono-tema per costruzione e non hanno bisogno di verifica.
 _SHARED_GROUPS = {"GU", "AGCM"}
-_SHARED_NAMES = {"Corte Costituzionale"}
+# "Ministro Protezione Civile e Politiche del Mare — Notizie" pubblica anche notizie di
+# Protezione Civile (terremoti, emergenze) insieme a quelle sul mare: va filtrata per
+# pertinenza come le altre fonti condivise, non trattata come mono-tema (richiesta di
+# Niccolò, 2026-09-15: "non consultazioni ma news, e solo quelle importanti").
+_SHARED_NAMES = {"Corte Costituzionale", "Ministro Protezione Civile e Politiche del Mare — Notizie"}
 
 
 def _is_shared_source(s: dict) -> bool:
@@ -234,7 +241,7 @@ async def _score_and_bucket(items: list[dict], valid_settori: set[str]) -> dict[
     return out
 
 
-async def _fetch_settori_professionali(max_per_settore: int = 5) -> dict[str, list[dict]]:
+async def _fetch_settori_professionali(max_per_settore: int = 6) -> dict[str, list[dict]]:
     """Notizie del giorno per energia/giochi/concessioni dalle fonti già configurate in
     sources.md (stesso meccanismo del monitoraggio principale, TOPICS_CONFIG, incluse le
     riviste di settore già censite lì — PV Magazine, Quotidiano Energia, Staffetta Online,
@@ -257,10 +264,17 @@ async def _fetch_settori_professionali(max_per_settore: int = 5) -> dict[str, li
         freschi = [it for it in recenti if not _is_seen(it["url"], chat_id=_SETTORI_CHAT_ID)]
         for it in freschi:
             _mark_seen(it["url"], it["title"], it.get("source_name", ""), 0, chat_id=_SETTORI_CHAT_ID)
-        # Fallback a cascata: prima le novità mai viste, poi quelle recenti già viste (nessun
-        # aggiornamento ma non vecchie), infine qualunque item pertinente disponibile — mai
-        # una lista vuota se esiste almeno un candidato pertinente, anche datato.
-        return (freschi or recenti or candidati)[:max_per_settore]
+        if freschi:
+            return freschi[:max_per_settore]
+        # Fallback SOLO su item con una data verificabile (RSS con published_parsed): le
+        # pagine ADM sono scaricate via HTML e non hanno una data reale, quindi _recent()
+        # le lascia passare sempre per costruzione — senza questo controllo, quando una
+        # fonte ADM non pubblica nulla di nuovo (il caso più frequente), il fallback
+        # ripescava avvisi anche di un anno prima presentandoli come notizia del giorno
+        # (segnalato da Niccolò, 2026-09-15). Meglio una sezione vuota che notizie del 2025
+        # spacciate per attuali.
+        con_data = [it for it in candidati if it.get("published")]
+        return con_data[:max_per_settore]
 
     topic_keys = ("energia", "concessioni", "giochi")
     label_by_topic = {"energia": "Energia", "concessioni": "Concessioni demaniali", "giochi": "Giochi"}
@@ -554,70 +568,392 @@ async def _arricchisci_con_riassunti(*gruppi: list[dict]) -> None:
         _summarize_items(gruppo)
 
 
-# ── Sezione "Varie" (contenuti generati, non notizie) ─────────────────────────────
+# ── Ricerca web (meteo, link reali per "Varie") ────────────────────────────────────
 
-def _genera_varie() -> dict[str, str]:
-    """Un blocco di spunti non-notiziosi: piatto/vino/ristorante, mostra, attività con
-    bambini, libro, disco. Sono spunti EVERGREEN (classici, non legati a un evento con
-    data/luogo verificabile solo oggi) per evitare di presentare come fatto verificato
-    qualcosa che un modello linguistico non può controllare in tempo reale (es. una mostra
-    con date/sede specifiche che potrebbe non esistere)."""
+def _claude_web_search_json(prompt: str, model: str = "claude-sonnet-4-6", max_tokens: int = 1500):
+    """Chiama Claude con il tool di web search nativo (server-side, eseguito automaticamente
+    dall'API — nessuna esecuzione locale) e ritorna il JSON dell'ultimo blocco di testo della
+    risposta. Usato dove serve un dato verificabile (meteo, link reali) invece di un
+    suggerimento generico: la ricerca web riduce il rischio di invenzione, ma non lo azzera —
+    i link vanno considerati "trovati da un assistente", non garantiti al 100%."""
     from bot import call_claude
     import json
 
-    prompt = """\
-Genera spunti per la rubrica "Varie" di una rassegna stampa personale per un avvocato
-italiano appassionato di cultura generale. Servono 5 suggerimenti BREVI (max 2 frasi
-ciascuno), in italiano, in tono colloquiale ma non sciatto:
+    for tentativo in range(2):
+        try:
+            msg = call_claude(
+                model=model,
+                max_tokens=max_tokens,
+                tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+                messages=[{"role": "user", "content": prompt}],
+            )
+            blocchi_testo = [b.text for b in msg.content if getattr(b, "type", None) == "text"]
+            if not blocchi_testo:
+                raise ValueError("nessun blocco di testo nella risposta")
+            raw = blocchi_testo[-1].strip()
+            raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.MULTILINE).strip()
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                # Il modello a volte aggiunge prosa prima/dopo il JSON nonostante
+                # l'istruzione di rispondere solo con l'oggetto — ultimo tentativo:
+                # estrai la sottostringa tra la prima { e l'ultima }.
+                match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+                if not match:
+                    raise
+                return json.loads(match.group())
+        except Exception as e:
+            if tentativo == 0:
+                logger.info(f"Rassegna: ricerca web Claude fallita al primo tentativo, riprovo: {e}")
+                continue
+            logger.warning(f"Rassegna: ricerca web Claude fallita (2 tentativi): {e}")
+            return None
 
-1. piatto_vino: un abbinamento piatto+vino della tradizione italiana da provare (classico,
-   non legato a un ristorante specifico che non puoi verificare esista ancora)
-2. mostra: un suggerimento culturale SENZA inventare date/sedi di mostre temporanee
-   specifiche che non puoi verificare — va bene un museo/collezione permanente italiana
-   nota, o un genere di mostra da cercare nella propria città
-3. attivita_bambini: un'idea di attività da fare con bambini, generica e replicabile
-   (non legata a un evento specifico con data)
-4. libro: un libro (classico o comunque consolidato, non un'uscita recentissima che non
-   puoi verificare) pertinente a diritto, economia, storia o scienza
-5. disco: un disco/album (qualsiasi genere) da riascoltare
 
-Rispondi SOLO con un oggetto JSON valido:
-{"piatto_vino": "...", "mostra": "...", "attivita_bambini": "...", "libro": "...", "disco": "..."}
-"""
+def _rileva_citta_viaggio(todo: list[str]) -> str | None:
+    """Individua nella ToDo list un eventuale spostamento (treno/aereo/auto/trasferta)
+    programmato per DOMANI (rispetto alla data di generazione) e ritorna la città di
+    destinazione, o None. Una sola città: il caso d'uso è 'domani sono in viaggio', non un
+    itinerario multi-tappa. Voci con una data esplicita diversa da domani (es. 'il 22 vado a
+    Milano' scritto quando domani è il 16) vanno ignorate finché non è effettivamente la
+    vigilia — altrimenti il meteo di viaggio comparirebbe ogni giorno a partire da quando la
+    voce è stata aggiunta, molto prima che sia utile."""
+    from bot import call_claude
+    import json
+
+    todo_text = "\n".join(todo)
+    if not todo_text:
+        return None
+    domani = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    prompt = f"""\
+Oggi è {datetime.now().strftime("%Y-%m-%d")}, quindi domani è {domani}.
+
+Nella lista di cose da fare qui sotto, individua un eventuale spostamento (treno, aereo,
+auto, viaggio, trasferta) verso un'altra città PROGRAMMATO PROPRIO PER DOMANI ({domani}).
+Se una voce ha una data esplicita diversa da domani (passata, odierna o più lontana nel
+futuro), ignorala: conta solo se lo spostamento è domani. Se una voce non ha una data
+esplicita, ignorala (non presumere che sia domani). Ignora città citate per altri motivi
+(non spostamenti).
+
+{todo_text}
+
+Rispondi SOLO con un oggetto JSON: {{"citta": "Milano"}} oppure {{"citta": null}} se nessuno
+spostamento per domani è menzionato."""
     try:
-        msg = call_claude(
-            model="claude-sonnet-4-6",
-            max_tokens=600,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = msg.content[0].text.strip()
-        raw = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
-        return json.loads(raw)
+        msg = call_claude(model="claude-haiku-4-5", max_tokens=100,
+                           messages=[{"role": "user", "content": prompt}])
+        raw = re.sub(r"^```(?:json)?|```$", "", msg.content[0].text.strip(), flags=re.MULTILINE).strip()
+        return json.loads(raw).get("citta") or None
     except Exception as e:
-        logger.warning(f"Rassegna varie: generazione fallita: {e}")
-        return {}
+        logger.warning(f"Rassegna: individuazione città di viaggio fallita: {e}")
+        return None
+
+
+# Condizioni riconosciute: mappate su un'icona SVG disegnata a mano (vedi _METEO_ICONE) —
+# niente immagini scaricate da siti meteo (fragili, spesso sprite/JS, difficili da isolare
+# come URL singolo affidabile). Claude sceglie la condizione più vicina tra queste, il
+# rendering dell'icona è deterministico lato nostro.
+_METEO_CONDIZIONI = ["sereno", "nuvoloso", "pioggia", "neve", "nebbia", "caldo", "freddo"]
+
+_METEO_ICONE = {
+    "sereno": '<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="5" fill="none" stroke="#111" stroke-width="1.5"/><g stroke="#111" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/></g></svg>',
+    "nuvoloso": '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 17a4 4 0 0 1-.5-7.97A5 5 0 0 1 15 8.5 4 4 0 0 1 18 17H6z" fill="none" stroke="#111" stroke-width="1.5"/></svg>',
+    "pioggia": '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 13a4 4 0 0 1-.5-7.97A5 5 0 0 1 15 4.5 4 4 0 0 1 18 13H6z" fill="none" stroke="#111" stroke-width="1.5"/><g stroke="#111" stroke-width="1.5"><line x1="8" y1="16" x2="7" y2="20"/><line x1="12" y1="16" x2="11" y2="20"/><line x1="16" y1="16" x2="15" y2="20"/></g></svg>',
+    "neve": '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 13a4 4 0 0 1-.5-7.97A5 5 0 0 1 15 4.5 4 4 0 0 1 18 13H6z" fill="none" stroke="#111" stroke-width="1.5"/><g stroke="#111" stroke-width="1.3"><line x1="8" y1="16" x2="8" y2="21"/><line x1="6" y1="17.5" x2="10" y2="19.5"/><line x1="10" y1="17.5" x2="6" y2="19.5"/><line x1="16" y1="16" x2="16" y2="21"/><line x1="14" y1="17.5" x2="18" y2="19.5"/><line x1="18" y1="17.5" x2="14" y2="19.5"/></g></svg>',
+    "nebbia": '<svg viewBox="0 0 24 24" width="20" height="20"><g stroke="#111" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="6" y1="16" x2="18" y2="16"/><line x1="3" y1="20" x2="21" y2="20"/></g></svg>',
+    "caldo": '<svg viewBox="0 0 24 24" width="20" height="20"><rect x="10" y="3" width="4" height="12" rx="2" fill="none" stroke="#111" stroke-width="1.5"/><circle cx="12" cy="18" r="3.5" fill="#111" stroke="#111" stroke-width="1.5"/><line x1="12" y1="8" x2="12" y2="15" stroke="#111" stroke-width="1.5"/></svg>',
+    "freddo": '<svg viewBox="0 0 24 24" width="20" height="20"><rect x="10" y="3" width="4" height="12" rx="2" fill="none" stroke="#111" stroke-width="1.5"/><circle cx="12" cy="18" r="3.5" fill="none" stroke="#111" stroke-width="1.5"/><g stroke="#111" stroke-width="1.2"><line x1="17" y1="4" x2="21" y2="4"/><line x1="19" y1="2" x2="19" y2="6"/><line x1="17.6" y1="2.6" x2="20.4" y2="5.4"/><line x1="20.4" y1="2.6" x2="17.6" y2="5.4"/></g></svg>',
+}
+
+
+def _slugify_citta(citta: str) -> str:
+    sostituzioni = str.maketrans("àèéìòù", "aeeiou")
+    return citta.strip().lower().translate(sostituzioni).replace(" ", "-")
+
+
+def _condizione_da_dati_verificati(rain_class: str, rain_pct: int, temp_c: int) -> str:
+    """Deriva la condizione SOLO da segnali verificabili estratti dal DOM (probabilità di
+    pioggia, classe pioggia sì/no, temperatura) — niente mappatura dei codici icona
+    'icon-awi-white-NN' di meteoam.it: verificato il 2026-09-15 che quei codici non hanno
+    una legenda pubblica reperibile (non nei CSS/JS del sito), e indovinarli avrebbe
+    significato mostrare un'icona sbagliata (es. sole quando piove) — peggio che non avere
+    l'icona. Risultato: distingue solo pioggia/caldo/freddo/sereno, non nuvoloso/neve/nebbia
+    (mai verificabili con i dati disponibili)."""
+    if "icon-rain" in rain_class and "no-rain" not in rain_class:
+        return "pioggia"
+    if rain_pct >= 40:
+        return "pioggia"
+    if temp_c >= 32:
+        return "caldo"
+    if temp_c <= 3:
+        return "freddo"
+    return "sereno"
+
+
+def _fetch_meteo_playwright(citta: str) -> dict | None:
+    """Legge le previsioni reali da meteoam.it renderizzando la pagina con un browser
+    headless (Playwright/Chromium): è una SPA JS, l'HTML statico non contiene i dati
+    (verificato 2026-09-15). Estrae dal DOM renderizzato: alba/tramonto/umidità dal pannello
+    principale, temperatura/vento/probabilità di pioggia orari da '.weather-info-container'
+    (che copre abbondantemente anche il giorno dopo). La direzione del vento è codificata
+    direttamente nel nome classe CSS (es. 'd-e-se' = Est-Sudest, verificato campionando più
+    orari) — niente inferenza, solo parsing di un valore già presente nel markup."""
+    from bs4 import BeautifulSoup
+    from playwright.sync_api import sync_playwright
+
+    slug = _slugify_citta(citta)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            page.goto(f"https://www.meteoam.it/it/meteo-citta/{slug}", wait_until="networkidle", timeout=30000)
+            page.wait_for_timeout(1500)
+            html = page.content()
+            browser.close()
+    except Exception as e:
+        logger.warning(f"Rassegna meteo: rendering Playwright fallito per {citta}: {e}")
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    def _valore_parametro(tipo: str) -> str | None:
+        icona = soup.select_one(f".meteogram-info-list-parameter-icon.{tipo}")
+        if not icona:
+            return None
+        valore = icona.find_next_sibling("span", class_="meteogram-info-list-parameter-value")
+        return valore.get_text(strip=True) if valore else None
+
+    alba = _valore_parametro("sunrise")
+    tramonto = _valore_parametro("sunset")
+    umidita = _valore_parametro("humidity")
+    if not alba:
+        logger.warning(f"Rassegna meteo: pannello principale non trovato per {citta} — layout cambiato?")
+        return None
+
+    containers = soup.select(".weather-info-container")
+    if not containers:
+        return None
+
+    try:
+        prima_ora = int(containers[0].select_one(".weather-info-date").get_text(strip=True)[:2])
+    except Exception:
+        return None
+
+    oggi = datetime.now().date()
+    orari: dict[tuple, dict] = {}
+    for i, c in enumerate(containers):
+        data_corrente = oggi + timedelta(days=(prima_ora + i) // 24)
+        ora = (prima_ora + i) % 24
+        temp_el = c.select_one(".weather-info-temperature")
+        rain_el = c.select_one(".weather-rain-probability")
+        rain_icon_el = c.select_one(".weather-rain-icon")
+        wind_icon_el = c.select_one(".wind-icon")
+        wind_val_el = c.select_one(".wind-value")
+        if not temp_el:
+            continue
+        try:
+            temp_c = int(re.sub(r"[^\d-]", "", temp_el.get_text(strip=True)))
+        except ValueError:
+            continue
+        rain_pct = int(re.sub(r"\D", "", rain_el.get_text())) if rain_el and rain_el.get_text(strip=True) else 0
+        rain_class = " ".join(rain_icon_el.get("class", [])) if rain_icon_el else ""
+        direzione = ""
+        if wind_icon_el:
+            classi = [cl for cl in wind_icon_el.get("class", []) if cl.startswith("d-")]
+            if classi:
+                direzione = classi[0][2:].upper().replace("-", "")
+        velocita = wind_val_el.get_text(strip=True) if wind_val_el else ""
+        orari[(data_corrente, ora)] = {
+            "condizione": _condizione_da_dati_verificati(rain_class, rain_pct, temp_c),
+            "temperatura": f"{temp_c}°C",
+            "vento_intensita": f"{velocita} km/h" if velocita else "",
+            "vento_direzione": direzione,
+        }
+
+    domani = oggi + timedelta(days=1)
+
+    def _fascia(ora: int, con_vento: bool = True) -> dict | None:
+        dato = orari.get((domani, ora))
+        if not dato:
+            return None
+        return dato if con_vento else {"condizione": dato["condizione"], "temperatura": dato["temperatura"]}
+
+    mattina, pomeriggio, sera, notte = _fascia(9), _fascia(15), _fascia(20), _fascia(23, con_vento=False)
+    if not any((mattina, pomeriggio, sera, notte)):
+        logger.warning(f"Rassegna meteo: nessun orario di domani trovato nella finestra scaricata per {citta}")
+        return None
+
+    return {
+        "citta": citta, "alba": alba, "tramonto": tramonto, "umidita": umidita,
+        "mattina": mattina, "pomeriggio": pomeriggio, "sera": sera, "notte": notte,
+    }
+
+
+async def _fetch_meteo_dettagliato(citta: str) -> dict | None:
+    """Previsioni di domani per una città: condizione, temperatura e vento per mattina/
+    pomeriggio/sera, condizione+temperatura per la notte, alba/tramonto, umidità. Fonte
+    primaria: rendering diretto di meteoam.it via Playwright (dati reali, non riassunti da
+    un modello — vedi _fetch_meteo_playwright). Se il sito cambia layout o il rendering
+    fallisce, ripiega sulla web search di Claude (meno affidabile ma non dipende dalla
+    struttura HTML del sito)."""
+    loop = asyncio.get_event_loop()
+    dati = await loop.run_in_executor(None, _fetch_meteo_playwright, citta)
+    if dati:
+        return dati
+
+    logger.info(f"Rassegna meteo: fallback su web search per {citta} (Playwright non ha trovato dati)")
+    import functools
+
+    condizioni_str = "/".join(_METEO_CONDIZIONI)
+    dati = await loop.run_in_executor(
+        None,
+        functools.partial(
+            _claude_web_search_json,
+            f"""Cerca le previsioni meteo di DOMANI per {citta}, Italia su una fonte meteo
+affidabile (3bmeteo.com, ilmeteo.it, ilmeteo.com). Usa solo dati realmente trovati, non
+inventare temperature o condizioni.
+
+Per "condizione" scegli SEMPRE uno di questi valori esatti: {condizioni_str}
+("caldo"/"freddo" solo se la temperatura è l'aspetto dominante della giornata, altrimenti
+usa sereno/nuvoloso/pioggia/neve/nebbia in base al cielo).
+
+IMPORTANTE: il tuo messaggio finale deve contenere SOLO l'oggetto JSON seguente, nessun
+testo prima o dopo, anche se hai dovuto cambiare fonte o non hai trovato tutti i campi
+(ometti un campo se davvero non lo trovi, ma non inventarlo):
+{{"citta": "{citta}", "alba": "06:45", "tramonto": "19:20", "umidita": "60%",
+  "mattina": {{"condizione": "sereno", "temperatura": "18°C", "vento_intensita": "debole", "vento_direzione": "NE"}},
+  "pomeriggio": {{"condizione": "sereno", "temperatura": "27°C", "vento_intensita": "moderato", "vento_direzione": "O"}},
+  "sera": {{"condizione": "nuvoloso", "temperatura": "21°C", "vento_intensita": "debole", "vento_direzione": "O"}},
+  "notte": {{"condizione": "sereno", "temperatura": "16°C"}}}}
+Se non trovi alcun dato affidabile su nessuna fonte, rispondi SOLO con
+{{"citta": "{citta}", "alba": null}}.""",
+            max_tokens=2000,
+        ),
+    )
+    if not dati or not dati.get("alba"):
+        return None
+    return dati
+
+
+async def _fetch_meteo(citta_viaggio: str | None) -> list[dict]:
+    """Meteo dettagliato di domani per Roma (sempre) e per l'eventuale città di viaggio già
+    individuata a monte nella ToDo list (es. 'treno Milano ore 17') — la rilevazione è
+    unica e condivisa con _fetch_varie_viaggio per non duplicare la chiamata Claude."""
+    citta = ["Roma"]
+    if citta_viaggio and citta_viaggio not in citta:
+        citta.append(citta_viaggio)
+
+    risultati = []
+    for c in citta:
+        dati = await _fetch_meteo_dettagliato(c)
+        if dati:
+            risultati.append(dati)
+    return risultati
+
+
+def _fetch_varie_viaggio(citta: str | None) -> dict | None:
+    """Se è stata individuata una città di viaggio nella ToDo list, cerca sul web cosa fare/
+    vedere/mangiare lì (link reali, stesso principio di _genera_varie) — richiesta di
+    Niccolò, 2026-09-15: 'ricorda anche questo, oltre al meteo, se vedi che sono in
+    viaggio'."""
+    if not citta:
+        return None
+    dati = _claude_web_search_json(
+        f"""Cerca sul web spunti REALI e verificabili per un avvocato in viaggio a {citta}
+domani: cosa fare, cosa vedere, dove mangiare. Per ciascuno un testo BREVE (max 2 frasi, in
+italiano) e un link reale trovato con la ricerca (non inventato).
+
+Rispondi SOLO con un oggetto JSON:
+{{"citta": "{citta}",
+  "fare": {{"testo": "...", "link": "https://..."}},
+  "vedere": {{"testo": "...", "link": "https://..."}},
+  "mangiare": {{"testo": "...", "link": "https://..."}}}}
+Se per un campo non trovi un link reale affidabile, ometti quella chiave piuttosto che
+inventarla.""",
+        max_tokens=2000,
+    )
+    return dati if dati and dati.get("citta") else None
+
+
+# ── Sezione "Varie" (contenuti generati, non notizie) ─────────────────────────────
+
+def _genera_varie() -> dict[str, dict]:
+    """Un blocco di spunti non-notiziosi: mostra, attività con bambini, libro, disco,
+    piatto/vino/ristorante (in quest'ordine — "a tavola" per ultimo su richiesta di
+    Niccolò). Ogni spunto è cercato sul web (non inventato "a memoria") e viene sempre
+    con un link reale verificabile — per "con i bambini" può essere un'immagine invece
+    che un link, se più adatta. La ricerca web riduce ma non azzera il rischio che un
+    link non sia perfettamente accurato: vale la stessa cautela di _claude_web_search_json."""
+    dati = _claude_web_search_json(
+        """\
+Cerca sul web spunti REALI e verificabili per la rubrica "Varie" di una rassegna stampa
+personale per un avvocato italiano appassionato di cultura generale. Servono 5 elementi,
+ciascuno con un testo BREVE (max 2 frasi, in italiano, tono colloquiale ma non sciatto) e
+un link reale trovato con la ricerca (non inventato):
+
+Per mostra, attivita_bambini e piatto_vino (se un ristorante): PREDILIGI opzioni a Roma o
+nel Lazio, dove vive l'avvocato — vanno bene opzioni altrove SOLO se eccezionalmente
+importanti/note (es. una mostra internazionale di grande rilievo), altrimenti scegli sempre
+qualcosa di raggiungibile senza viaggiare.
+
+1. mostra: una mostra/esposizione attualmente visitabile a Roma o nel Lazio (o una
+   collezione permanente nota lì), con link al sito ufficiale della mostra/museo
+2. attivita_bambini: un'attività o risorsa per bambini, preferibilmente a Roma/Lazio se è
+   un'attività fisica (gioco, laboratorio, sito educativo) — se è un libro illustrato o
+   un'idea generica la localizzazione non si applica; con link — se più adatta di un link,
+   indica anche (o in alternativa) l'URL di un'immagine rappresentativa reale nel campo
+   "immagine"
+3. libro: un libro (anche un classico) pertinente a diritto, economia, storia o scienza,
+   con link a una pagina reale (editore, libreria online, Wikipedia)
+4. disco: un disco/album da riascoltare, con link a una pagina reale (Wikipedia, servizio
+   di streaming, etichetta)
+5. piatto_vino: una ricetta, una bottiglia o un ristorante reale — se un ristorante,
+   preferibilmente a Roma/Lazio — con link alla fonte trovata (sito della ricetta, cantina,
+   ristorante)
+
+Rispondi SOLO con un oggetto JSON valido, in questo ordine di chiavi:
+{"mostra": {"testo": "...", "link": "https://..."},
+ "attivita_bambini": {"testo": "...", "link": "https://...", "immagine": "https://..." },
+ "libro": {"testo": "...", "link": "https://..."},
+ "disco": {"testo": "...", "link": "https://..."},
+ "piatto_vino": {"testo": "...", "link": "https://..."}}
+Se per un campo non trovi un link reale affidabile, ometti quella chiave (link o immagine)
+piuttosto che inventarla.""",
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
+    )
+    return dati or {}
 
 
 # ── Cruciverba ─────────────────────────────────────────────────────────────────────
 
 _CRUCIVERBA_TEMI = [
-    "diritto e istituzioni italiane", "energia e ambiente", "spazio e astronomia",
-    "storia contemporanea", "geografia europea", "cultura generale",
+    "diritto amministrativo italiano", "diritto costituzionale italiano",
+    "diritto civile italiano", "diritto dell'energia e regolazione ARERA",
+    "diritto del gioco pubblico e concessioni demaniali", "diritto dell'Unione Europea",
+    "procedura civile e amministrativa", "diritto internazionale del mare",
 ]
 
 
 def _genera_parole_cruciverba() -> list[tuple[str, str]]:
-    """Chiede a Claude 7 parole italiane brevi (5-9 lettere, senza spazi né accenti) con
-    definizione in stile cruciverba, su un tema a rotazione giornaliera."""
+    """Chiede a Claude 7 parole italiane (6-10 lettere, senza spazi né accenti) con
+    definizione in stile cruciverba DIFFICILE — istituti, brocardi, principi e organi
+    giuridici, non lessico generico — su un tema giuridico a rotazione giornaliera
+    (richiesta di Niccolò, 2026-09-15: cruciverba orientato al diritto, non a cultura
+    generale)."""
     from bot import call_claude
     import json
 
     tema = _CRUCIVERBA_TEMI[datetime.now().toordinal() % len(_CRUCIVERBA_TEMI)]
     prompt = f"""\
-Genera 7 parole italiane per un mini cruciverba, tema: {tema}.
-Regole per ogni parola: 5-9 lettere, UNA sola parola (no spazi, no trattini, no accenti,
-tutto maiuscolo), niente nomi propri.
-Per ognuna scrivi anche la definizione in stile cruciverba (breve, max 8 parole).
+Genera 7 parole italiane per un mini cruciverba DIFFICILE per un avvocato esperto,
+tema: {tema}.
+Regole per ogni parola: 6-10 lettere, UNA sola parola (no spazi, no trattini, no accenti,
+tutto maiuscolo), niente nomi propri. Preferisci termini tecnici, istituti giuridici,
+principi, organi o nozioni processuali specifiche (non lessico comune/generico) — deve
+essere impegnativo anche per chi mastica diritto.
+Per ognuna scrivi anche la definizione in stile cruciverba (breve, max 10 parole),
+tecnica e precisa, non generica.
 
 Rispondi SOLO con un array JSON: [{{"parola": "ESEMPIO", "definizione": "..."}}, ...]
 """
@@ -635,7 +971,7 @@ Rispondi SOLO con un array JSON: [{{"parola": "ESEMPIO", "definizione": "..."}},
             parola = re.sub(r"[^A-Za-zÀ-ÿ]", "", d.get("parola", "")).upper()
             parola = (parola.replace("À", "A").replace("È", "E").replace("É", "E")
                       .replace("Ì", "I").replace("Ò", "O").replace("Ù", "U"))
-            if 4 <= len(parola) <= 10:
+            if 5 <= len(parola) <= 11:
                 out.append((parola, d.get("definizione", "")))
         return out
     except Exception as e:
@@ -741,12 +1077,41 @@ def _crossword_render(result: dict) -> dict | None:
     return {"grid_html": grid_html, "across": across, "down": down, "answers": answers}
 
 
+def _save_cruciverba_soluzioni(soluzioni: str) -> None:
+    """Salva le soluzioni di oggi per pubblicarle nell'edizione di domani (come nei
+    cruciverba dei giornali veri, non svelate lo stesso giorno — richiesta di Niccolò,
+    2026-09-15). Tabella dedicata, separata dallo schema di monitor.py."""
+    from monitor import _db_connect
+    con = _db_connect()
+    con.execute("CREATE TABLE IF NOT EXISTS cruciverba_soluzioni (data TEXT PRIMARY KEY, soluzioni TEXT)")
+    oggi = datetime.now().strftime("%Y-%m-%d")
+    con.execute(
+        "INSERT OR REPLACE INTO cruciverba_soluzioni (data, soluzioni) VALUES (?, ?)",
+        (oggi, soluzioni),
+    )
+    con.commit()
+    con.close()
+
+
+def _load_cruciverba_soluzioni_ieri() -> str | None:
+    from monitor import _db_connect
+    con = _db_connect()
+    con.execute("CREATE TABLE IF NOT EXISTS cruciverba_soluzioni (data TEXT PRIMARY KEY, soluzioni TEXT)")
+    ieri = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    row = con.execute("SELECT soluzioni FROM cruciverba_soluzioni WHERE data=?", (ieri,)).fetchone()
+    con.close()
+    return row[0] if row else None
+
+
 def _genera_cruciverba() -> dict | None:
     parole = _genera_parole_cruciverba()
     if len(parole) < 3:
         return None
     piazzate = _crossword_place(parole)
-    return _crossword_render(piazzate)
+    renderizzato = _crossword_render(piazzate)
+    if renderizzato:
+        _save_cruciverba_soluzioni(renderizzato["answers"])
+    return renderizzato
 
 
 # ── Composizione HTML ──────────────────────────────────────────────────────────────
@@ -778,6 +1143,7 @@ _CSS = """
   .section-body li { margin: 0; padding: 7px 0; line-height: 1.35; border-top: 1px solid #ddd;
                       break-inside: avoid; }
   .section-body li:first-child { border-top: none; }
+  .settore-blocco { break-inside: avoid-column; }
   .section-body li a { display: block; font-size: 11.5px; margin-bottom: 3px; }
   .section-body li .riassunto { display: block; font-size: 11px; font-weight: normal;
                                   color: #333; margin-bottom: 3px; }
@@ -802,6 +1168,18 @@ _CSS = """
 
   .varie-block { margin-bottom: 16px; }
   .varie-block .label { font-weight: bold; }
+  .varie-block a { font-weight: normal; font-size: 10px; color: #555; }
+  .varie-img { max-width: 100%; max-height: 160px; margin-top: 6px; }
+  .meteo-blocco .label { display: block; margin-bottom: 4px; }
+  .meteo-sole { font-size: 10.5px; color: #555; margin-bottom: 8px; }
+  table.meteo-tabella { border-collapse: collapse; width: 100%; }
+  td.meteo-fascia { border: 1px solid #ccc; text-align: center; padding: 6px 4px;
+                     vertical-align: top; width: 25%; }
+  .meteo-fascia-nome { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+                        color: #777; margin-bottom: 4px; }
+  .meteo-icona svg { display: block; margin: 0 auto; }
+  .meteo-temp { font-weight: bold; font-size: 13px; margin-top: 4px; }
+  .meteo-vento { font-size: 9px; color: #555; margin-top: 3px; }
   table.cw-grid { border-collapse: collapse; margin: 10px 0; }
   table.cw-grid td { width: 26px; height: 26px; text-align: center; vertical-align: top;
                       position: relative; }
@@ -879,17 +1257,17 @@ def _build_settori_page(settori: dict, giustizia_amm: list) -> str:
         if not items:
             continue
         righe = "".join(_render_item_li(it) for it in items)
-        blocchi.append(f"<h3>{label}</h3><ul>{righe}</ul>")
+        blocchi.append(f'<div class="settore-blocco"><h3>{label}</h3><ul>{righe}</ul></div>')
     corpo = "".join(blocchi) or "<p><em>Nessuna novità nelle fonti professionali oggi.</em></p>"
 
     if giustizia_amm:
         righe = "".join(_render_item_li(it) for it in giustizia_amm)
-        corpo += f"<h3>Giustizia Amministrativa — Ufficio Studi</h3><ul>{righe}</ul>"
+        corpo += f'<div class="settore-blocco"><h3>Giustizia Amministrativa — Ufficio Studi</h3><ul>{righe}</ul></div>'
 
     return f"""
 <div class="page">
   <h2 class="sezione">Professionale — Energia, Giochi, Concessioni, Tecnologia</h2>
-  <div class="section-body cols-2">{corpo}</div>
+  <div class="section-body cols-3">{corpo}</div>
 </div>"""
 
 
@@ -931,21 +1309,83 @@ def _build_attualita_page(attualita: list, ft_stampa: list) -> str:
 </div>"""
 
 
-def _build_varie_page(varie: dict, cruciverba: dict | None, oroscopo: str | None) -> str:
-    blocchi = []
+def _render_varie_block(label: str, dato: dict | None) -> str:
+    if not dato or not dato.get("testo"):
+        return ""
+    html = f'<div class="varie-block"><span class="label">{label}:</span> {dato["testo"]}'
+    if dato.get("link"):
+        html += f' — <a href="{dato["link"]}">{dato["link"]}</a>'
+    if dato.get("immagine"):
+        html += f'<br><img class="varie-img" src="{dato["immagine"]}">'
+    html += "</div>"
+    return html
+
+
+def _render_meteo_fascia(nome: str, dato: dict | None) -> str:
+    if not dato:
+        return f'<td class="meteo-fascia"><div class="meteo-fascia-nome">{nome}</div></td>'
+    icona = _METEO_ICONE.get(dato.get("condizione", ""), "")
+    temp = dato.get("temperatura", "")
+    vento = ""
+    if dato.get("vento_intensita") or dato.get("vento_direzione"):
+        vento = f'<div class="meteo-vento">Vento: {dato.get("vento_intensita","")} {dato.get("vento_direzione","")}</div>'
+    return f"""<td class="meteo-fascia">
+      <div class="meteo-fascia-nome">{nome}</div>
+      <div class="meteo-icona">{icona}</div>
+      <div class="meteo-temp">{temp}</div>
+      {vento}
+    </td>"""
+
+
+def _render_meteo_blocco(m: dict) -> str:
+    intestazione = f'<div class="label">Meteo domani — {m["citta"]}</div>'
+    riga_sole = (
+        f'<div class="meteo-sole">Alba {m.get("alba","?")} · Tramonto {m.get("tramonto","?")}'
+        + (f' · Umidità {m["umidita"]}' if m.get("umidita") else "")
+        + "</div>"
+    )
+    celle = "".join(
+        _render_meteo_fascia(nome, m.get(chiave))
+        for nome, chiave in (("Mattina", "mattina"), ("Pomeriggio", "pomeriggio"),
+                              ("Sera", "sera"), ("Notte", "notte"))
+    )
+    return f"""
+    <div class="varie-block meteo-blocco">
+      {intestazione}
+      {riga_sole}
+      <table class="meteo-tabella"><tr>{celle}</tr></table>
+    </div>"""
+
+
+def _build_varie_page(varie: dict, cruciverba: dict | None, oroscopo: str | None,
+                       meteo: list[dict], soluzioni_ieri: str | None,
+                       varie_viaggio: dict | None) -> str:
+    # "A tavola" per ultimo tra gli spunti (richiesta di Niccolò, 2026-09-15).
     labels = {
-        "piatto_vino": "A tavola", "mostra": "Da vedere", "attivita_bambini": "Con i bambini",
-        "libro": "Da leggere", "disco": "Da ascoltare",
+        "mostra": "Da vedere", "attivita_bambini": "Con i bambini",
+        "libro": "Da leggere", "disco": "Da ascoltare", "piatto_vino": "A tavola",
     }
-    for key, label in labels.items():
-        if varie.get(key):
-            blocchi.append(f'<div class="varie-block"><span class="label">{label}:</span> {varie[key]}</div>')
-    varie_html = "".join(blocchi)
+    varie_html = "".join(_render_varie_block(label, varie.get(key)) for key, label in labels.items())
+
+    meteo_html = "".join(_render_meteo_blocco(m) for m in meteo)
+
+    viaggio_html = ""
+    if varie_viaggio:
+        labels_viaggio = {"fare": "Cosa fare", "vedere": "Cosa vedere", "mangiare": "Dove mangiare"}
+        blocchi_viaggio = "".join(
+            _render_varie_block(label, varie_viaggio.get(key)) for key, label in labels_viaggio.items()
+        )
+        viaggio_html = f'<h3>In viaggio a {varie_viaggio["citta"]}</h3>{blocchi_viaggio}'
 
     cw_html = ""
     if cruciverba:
         clues_a = "".join(f"<li>{n}. {c}</li>" for n, c in cruciverba["across"])
         clues_d = "".join(f"<li>{n}. {c}</li>" for n, c in cruciverba["down"])
+        soluzioni_html = (
+            f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
+            if soluzioni_ieri else
+            '<div class="cw-answers">Soluzioni sul numero di domani.</div>'
+        )
         cw_html = f"""
         <h3>Cruciverba</h3>
         {cruciverba["grid_html"]}
@@ -953,20 +1393,25 @@ def _build_varie_page(varie: dict, cruciverba: dict | None, oroscopo: str | None
           <div><strong>Orizzontali</strong><ul>{clues_a}</ul></div>
           <div><strong>Verticali</strong><ul>{clues_d}</ul></div>
         </div>
-        <div class="cw-answers">Soluzioni: {cruciverba["answers"]}</div>"""
+        {soluzioni_html}"""
+    elif soluzioni_ieri:
+        cw_html = f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
 
     oro_html = f'<div class="varie-block"><span class="label">Oroscopo (Paolo Fox):</span> {oroscopo}</div>' if oroscopo else ""
 
     return f"""
 <div class="page">
   <h2 class="sezione">Varie</h2>
-  {varie_html}
+  {meteo_html}
+  {viaggio_html}
   {oro_html}
   {cw_html}
+  {varie_html}
 </div>"""
 
 
-def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba, oroscopo, todo) -> str:
+def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
+                 oroscopo, todo, meteo, soluzioni_ieri, varie_viaggio) -> str:
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -978,7 +1423,7 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
   {_build_settori_page(settori, giustizia_amm)}
   {_build_interessi_page(interessi)}
   {_build_attualita_page(attualita, ft_stampa)}
-  {_build_varie_page(varie, cruciverba, oroscopo)}
+  {_build_varie_page(varie, cruciverba, oroscopo, meteo, soluzioni_ieri, varie_viaggio)}
 </body>
 </html>"""
 
@@ -989,7 +1434,7 @@ async def run_rassegna_job(context) -> None:
     """Job giornaliero: genera il PDF, lo carica su Drive (per il print agent locale) e lo
     invia come documento Telegram all'owner. Solo per l'owner, non blocca in caso di errori
     parziali (es. upload Drive fallito) — avvisa e prosegue dove possibile."""
-    from monitor import _upload_rassegna_to_drive
+    from monitor import _upload_rassegna_to_drive, _upload_rassegna_settimana_to_drive
 
     chat_id = context.bot_data.get("owner_chat_id")
     if not chat_id:
@@ -1014,6 +1459,13 @@ async def run_rassegna_job(context) -> None:
             text="⚠️ Upload su Drive saltato o fallito (vedi log) — la stampa automatica non partirà.",
         )
 
+    settimana_ok = await loop.run_in_executor(None, _upload_rassegna_settimana_to_drive, pdf_path)
+    if not settimana_ok:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="⚠️ Archivio settimanale su Drive saltato o fallito (vedi log).",
+        )
+
     with open(pdf_path, "rb") as f:
         await context.bot.send_document(chat_id=chat_id, document=f, filename=pdf_path.name)
 
@@ -1027,15 +1479,20 @@ async def genera_rassegna_html() -> str:
     giustizia_amm = await _fetch_giustizia_amministrativa()
     oroscopo = await _fetch_oroscopo()
     ft_stampa = _get_ft_stampa_queue()
-    varie = _genera_varie()
     cruciverba = _genera_cruciverba()
+    soluzioni_ieri = _load_cruciverba_soluzioni_ieri()
     todo = _fetch_todo_list()
+    citta_viaggio = _rileva_citta_viaggio(todo)
+    varie = _genera_varie()
+    varie_viaggio = _fetch_varie_viaggio(citta_viaggio)
+    meteo = await _fetch_meteo(citta_viaggio)
 
     # Il PDF va stampato: ogni voce deve avere un riassunto leggibile, non solo un link.
     settori_items = [it for items in settori.values() for it in items]
     await _arricchisci_con_riassunti(settori_items, interessi, attualita, giustizia_amm)
 
-    return _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba, oroscopo, todo)
+    return _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
+                        oroscopo, todo, meteo, soluzioni_ieri, varie_viaggio)
 
 
 async def genera_rassegna_pdf() -> Path:

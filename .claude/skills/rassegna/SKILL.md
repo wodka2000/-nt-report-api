@@ -8,8 +8,11 @@ version: 1.0.0
 
 Genera un'edizione di prova del PDF "rassegna stampa" (`rassegna.py`) su questa macchina
 Windows e la consegna a Niccolò via chat. Questo è il percorso di **test locale**, distinto
-dal job di produzione (`run_rassegna_job` in `rassegna.py`, eseguito ogni mattina alle 6:00
-sul server Oracle Cloud con WeasyPrint + upload Drive + invio Telegram automatico).
+dal job di produzione (`run_rassegna_job` in `rassegna.py`, eseguito ogni pomeriggio alle
+16:30 Rome sul server Oracle Cloud con WeasyPrint + upload Drive [oggi + archivio
+settimanale] + invio Telegram automatico). La stampa fisica avviene alle 17:00 tramite
+`print_agent.py` locale (Task Scheduler Windows, task "NTReportPrint") e il driver Windows
+della Sharp BP-70M65 (non più raw socket — vedi "Stampa fisica" più sotto).
 
 ## Perché un percorso separato
 
@@ -108,3 +111,95 @@ quella di produzione, quindi l'anteprima è fedele nei contenuti.
   8/10) senza che Niccolò lo chieda esplicitamente — è stata calibrata a sua richiesta il
   2026-09-14 per essere più esigente della soglia 5/10 usata da `monitor.py` per le bozze
   LinkedIn.
+- Non abbassare `max_per_settore`/`max_per_fonte` (6 e 5) senza controllare prima
+  un'anteprima — se una pagina resta comunque vuota il problema è a monte (poche notizie
+  pertinenti quel giorno), non il cap. Storia: alzati a 8/6 il 2026-09-15 per "riempire le
+  pagine", poi ridotti a 6/5 lo stesso giorno perché avevano allungato troppo (10 pagine
+  invece di 6-8) — usare l'anteprima per ritarare, non aumentare/diminuire alla cieca.
+- La sezione professionale usa `cols-3` (non `cols-2`) apposta per ridurre il rischio di
+  pagine quasi vuote quando una sotto-sezione (tipicamente Tecnologia, che ha solo 2 fonti
+  dedicate) è corta — mitiga ma non elimina il rischio, controllare visivamente.
+- Non riportare mai in produzione la mappatura dei codici icona `icon-awi-white-NN` di
+  meteoam.it come sereno/nuvoloso/nebbia/neve: verificato il 2026-09-15 che non esiste una
+  legenda pubblica recuperabile (controllati CSS e bundle JS del sito). `_fetch_meteo_playwright`
+  deriva la condizione SOLO da segnali verificati (probabilità di pioggia, temperatura) — se
+  si trova un modo per verificare la legenda reale, si può estendere a nuvoloso/nebbia/neve,
+  ma non prima.
+
+## Sezione Varie — meteo, link reali, cruciverba giuridico (dal 2026-09-15)
+
+- **Meteo**: `_fetch_meteo_playwright()` renderizza meteoam.it con un browser headless
+  (Playwright/Chromium, installato sia in locale sia sul server in `venv` come utente
+  `ntbot` — vedi sotto) ed estrae dati REALI dal DOM: alba/tramonto/umidità dal pannello
+  principale (selettori `.meteogram-info-list-parameter-*`), temperatura/vento/probabilità
+  di pioggia orari da `.weather-info-container` (che copre abbondantemente anche il giorno
+  dopo — non serve interagire con lo swiper). La direzione del vento è nel nome della classe
+  CSS dell'icona (es. `d-e-se` = Est-Sudest), non serve indovinarla. Se il rendering
+  fallisce (sito cambia layout, timeout) ripiega su `_claude_web_search_json` (meno
+  affidabile, usato solo come fallback). Cerca sempre Roma, più l'eventuale città di viaggio
+  individuata nella ToDo list SOLO se lo spostamento è programmato per domani esattamente
+  (non per una data futura più lontana — vedi `_rileva_citta_viaggio`).
+  - **Setup necessario**: `playwright install chromium` va eseguito come l'utente che
+    esegue il bot (`ntbot` sul server, tramite `sudo -u ntbot venv/bin/playwright install
+    chromium` — MAI con `sudo` semplice, altrimenti scarica nella cache di root e il
+    servizio non lo trova a runtime). La prima volta serve anche `--with-deps` (una tantum,
+    con sudo semplice va bene per le librerie di sistema) per le dipendenze apt.
+- **Link reali in Varie** (mostra, con i bambini, libro, disco, a tavola): via
+  `_claude_web_search_json`, non generati "a memoria" — riduce ma NON azzera il rischio che
+  un link non sia perfettamente accurato. Segnalare sempre a Niccolò, quando si consegna
+  un'anteprima, di dare un'occhiata ai link prima che vengano stampati automaticamente.
+  "A tavola" è sempre l'ultimo blocco della pagina (richiesta esplicita di Niccolò). Mostra/
+  bambini/ristorante preferiscono Roma o Lazio salvo eccezioni molto importanti.
+- **Viaggio**: se la ToDo list indica uno spostamento per domani, `_fetch_varie_viaggio`
+  aggiunge cosa fare/vedere/mangiare nella città di destinazione (stesso principio, link
+  reali). Condivide la rilevazione città con `_fetch_meteo` (`_rileva_citta_viaggio`,
+  chiamata una sola volta in `genera_rassegna_html`, non duplicarla).
+- **Cruciverba**: tema sempre giuridico (`_CRUCIVERBA_TEMI`, rotazione tra sotto-aree del
+  diritto), parole 6-10 lettere, definizioni tecniche — deliberatamente difficile. Le
+  soluzioni di oggi NON vengono stampate lo stesso giorno: si salvano in una tabella SQLite
+  dedicata (`cruciverba_soluzioni`, creata da `rassegna.py` stesso, non in `monitor.py`) e
+  compaiono nell'edizione del giorno successivo, come nei cruciverba dei giornali veri. Se si
+  rigenera la rassegna dello stesso giorno più volte per test, questo sovrascrive la riga di
+  oggi (comportamento voluto, `INSERT OR REPLACE`).
+- **Fallback "mai vuoto" nel professionale**: `_select_with_fallback` ripesca item vecchi
+  SOLO se hanno un `published` verificato (RSS). Le pagine ADM sono HTML senza data reale:
+  prima del 2026-09-15 il fallback le riproponeva come notizie del giorno anche se vecchie
+  di mesi/anni (bug reale, segnalato da Niccolò). Non rimuovere questo controllo per "non
+  lasciare mai vuota" una sezione — è un compromesso deliberato, meglio vuota che falsa.
+
+## Archivio settimanale su Drive (dal 2026-09-15)
+
+Oltre al file rotante `rassegna-oggi.pdf` (usato dal print agent), ogni generazione carica
+anche un secondo file rotante a 7 slot per giorno della settimana:
+`rassegna-lunedi.pdf` ... `rassegna-domenica.pdf` (funzione
+`_upload_rassegna_settimana_to_drive` in `monitor.py`, stessa cartella Drive). Stesso vincolo
+delle altre funzioni Drive: il Service Account non può creare file nuovi
+(`storageQuotaExceeded`, riverificato anche con `files().copy()` — fallisce allo stesso
+modo), quindi **Niccolò deve caricare a mano, una volta sola, 7 file placeholder con questi
+nomi esatti** nella cartella condivisa. Finché non lo fa, l'upload settimanale fallisce in
+silenzio (loggato come warning, non blocca il resto del job) — verificare con
+`_find_drive_file_id` prima di assumere che sia già a posto.
+
+## Stampa fisica — driver Windows, non raw socket (dal 2026-09-15)
+
+La stampa via socket raw (porta 9100, JetDirect) NON applica fronte-retro/pinzatura ed è
+risultata inaffidabile (byte accettati dalla stampante ma stampa non sempre partita — la
+Sharp probabilmente non ha "PDF Direct Print" abilitato). Il metodo corretto passa dal
+driver Windows già installato ("SHARP BP-70M65 PCL6", porta TCP/IP 10.0.0.65):
+
+- Fronte-retro (bordo lungo) e pinzatura (1 punto, angolo) sono impostati come default del
+  driver via PowerShell `Set-PrintConfiguration -PrinterName "SHARP BP-70M65 PCL6"
+  -DuplexingMode TwoSidedLongEdge -PrintTicketXml <ticket con Feature
+  psk:JobStapleAllDocuments, Option psk:StapleTopLeft>` — verificato che il driver espone
+  la pinzatura tramite Print Schema (non tutti i driver lo fanno).
+- L'invio effettivo del job NON è ancora risolto in modo affidabile: `Acrobat.exe /t` è
+  stato provato ma non ha funzionato in un caso con un'istanza di Acrobat già aperta con un
+  altro documento (probabile conflitto DDE) — non riutilizzare questo metodo senza
+  verificarlo di nuovo. La stampa manuale (Niccolò apre il PDF e lo stampa lui) funziona
+  correttamente con queste impostazioni. Se serve automatizzare di nuovo l'invio (per
+  `print_agent.py`), NON passare da Acrobat: valutare alternative che non aprano/riusino
+  un'istanza già in esecuzione.
+- `print_agent.py` in repo usa ancora il vecchio metodo raw socket — da aggiornare per
+  usare il driver quando si troverà un metodo di invio affidabile, altrimenti la stampa
+  automatica delle 17:00 rischia di non funzionare (nessuna conferma di stampa fisica
+  riuscita in automatico, solo test manuali finora).

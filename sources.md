@@ -32,6 +32,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | AGCM — Bollettino | https://www.agcm.it/pubblicazioni/bollettino-settimanale/ | html | altro | link_filter:/pubblicazioni/bollettino-settimanale/ group:AGCM fetch_summary |
 | Corte Costituzionale | https://www.cortecostituzionale.it/comunicati-stampa | html | concessioni | link_filter:/comunicati-stampa/ |
 | Normattiva | https://www.normattiva.it/showArchivioNews?anno=2026 | html | concessioni | link_filter:/showNewsDetail |
+| Ministro Protezione Civile e Politiche del Mare — Notizie | https://www.ministroprotezionecivileemare.gov.it/it/notizie/ | html | concessioni | link_filter:/it/notizie/ — feed misto (anche Protezione Civile, non solo mare), va filtrato per pertinenza come GU/AGCM |
 
 ---
 

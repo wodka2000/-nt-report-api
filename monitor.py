@@ -104,14 +104,15 @@ TOPICS_CONFIG: dict[str, dict] = {
         "settori": ["concessioni"],
         "groups": ["GU", "AGCM"],
         "prefixes": [],
-        "names": ["Corte Costituzionale", "Mondo Balneare"],
+        "names": ["Corte Costituzionale", "Mondo Balneare", "Ministro Protezione Civile e Politiche del Mare — Notizie"],
         "filtered_groups": ["GU", "AGCM"],
-        "filtered_names": ["Corte Costituzionale"],
+        "filtered_names": ["Corte Costituzionale", "Ministro Protezione Civile e Politiche del Mare — Notizie"],
         "menu_buttons": [
             ("GU",                   "group", "GU"),
             ("AGCM",                 "group", "AGCM"),
             ("Corte Costituzionale", "name",  "Corte Costituzionale"),
             ("Mondo Balneare",       "name",  "Mondo Balneare"),
+            ("Politiche del Mare",   "name",  "Ministro Protezione Civile e Politiche del Mare — Notizie"),
         ],
     },
     "giochi": {
@@ -942,6 +943,41 @@ def _upload_rassegna_to_drive(pdf_path) -> bool:
         return True
     except Exception as e:
         logger.warning(f"Rassegna Drive: upload fallito: {e}")
+        return False
+
+
+_GIORNI_SETTIMANA = ["lunedi", "martedi", "mercoledi", "giovedi", "venerdi", "sabato", "domenica"]
+
+
+def _upload_rassegna_settimana_to_drive(pdf_path) -> bool:
+    """Archivio rotante a 7 file ('rassegna-lunedi.pdf' ... 'rassegna-domenica.pdf'), uno per
+    giorno della settimana, nella stessa cartella Drive di 'rassegna-oggi.pdf'. La prima
+    settimana i 7 placeholder vanno creati a mano da Niccolò (stesso motivo di
+    _upload_rassegna_to_drive: il Service Account non può creare file nuovi); dalla settimana
+    successiva ogni giorno sovrascrive automaticamente lo stesso file del giorno della
+    settimana precedente, mantenendo sempre le ultime 7 edizioni disponibili."""
+    if not _DRIVE_SA_FILE.exists():
+        return False
+    from datetime import datetime
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+
+    nome_file = f"rassegna-{_GIORNI_SETTIMANA[datetime.now().weekday()]}.pdf"
+    try:
+        creds = _get_google_creds()
+        file_id = _find_drive_file_id(creds, nome_file)
+        if not file_id:
+            logger.warning(
+                f"Rassegna Drive (archivio settimanale): nessun file '{nome_file}' nella "
+                f"cartella {_DRIVE_FOLDER_ID} — creare a mano i 7 placeholder la prima volta."
+            )
+            return False
+        drive = build("drive", "v3", credentials=creds)
+        media = MediaFileUpload(str(pdf_path), mimetype="application/pdf", resumable=False)
+        drive.files().update(fileId=file_id, media_body=media).execute()
+        return True
+    except Exception as e:
+        logger.warning(f"Rassegna Drive (archivio settimanale): upload fallito: {e}")
         return False
 
 
