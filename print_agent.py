@@ -2,14 +2,15 @@
 print_agent.py — Agente locale di stampa per la rassegna stampa quotidiana.
 
 Gira SOLO su questo PC Windows (stessa LAN della stampante), NON sul server Oracle Cloud.
-Va schedulato con Task Scheduler di Windows, una volta al giorno (consigliato: 08:30).
+Va schedulato con Task Scheduler di Windows, una volta al giorno (consigliato: 17:00,
+stampa serale).
 
 Cosa fa:
   1. Si autentica su Google Drive con lo stesso Service Account già usato dal bot
      (secrets/google-drive-sa.json).
   2. Scarica il file placeholder "rassegna-oggi.pdf" dalla cartella Drive condivisa,
      riprovando ogni 2 minuti finché non è stato aggiornato OGGI (il job del bot lo
-     aggiorna ogni mattina alle 06:00) o finché non scade il tempo massimo di attesa.
+     aggiorna ogni pomeriggio alle 16:30) o finché non scade il tempo massimo di attesa.
   3. Lo stampa inviandolo via socket grezzo (JetDirect) alla Sharp BP-70M65 sulla porta 9100
      — verificato funzionante il 2026-09-14 con un PDF di prova.
   4. Se qualcosa fallisce (nessun aggiornamento entro il timeout, stampante irraggiungibile),
@@ -20,7 +21,7 @@ Cosa fa:
     secrets/google-drive-sa.json) con questo contenuto:
         {"telegram_token": "<token del bot>", "owner_chat_id": <chat id di Niccolò>}
   - Task Scheduler → crea attività:
-      Trigger:  giornaliero, ore 08:30
+      Trigger:  giornaliero, ore 17:00
       Azione:   "py" con argomenti "-3.12 J:\\2026\\NT\\Report\\print_agent.py"
                 (directory di lavoro: J:\\2026\\NT\\Report)
 """
@@ -44,7 +45,7 @@ PRINTER_HOST = "10.0.0.65"
 PRINTER_PORT = 9100
 
 POLL_INTERVAL_SECONDS = 120
-STOP_POLLING_AFTER = "08:55"
+STOP_POLLING_AFTER = "17:30"
 
 
 def _load_config() -> dict:
@@ -129,7 +130,7 @@ def main() -> None:
         time.sleep(POLL_INTERVAL_SECONDS)
 
     if not found:
-        msg = "⚠️ Print agent: la rassegna di oggi non è comparsa su Drive entro le 08:55 — stampa NON avviata."
+        msg = f"⚠️ Print agent: la rassegna di oggi non è comparsa su Drive entro le {STOP_POLLING_AFTER} — stampa NON avviata."
         print(msg)
         _send_telegram_alert(config, msg)
         sys.exit(1)

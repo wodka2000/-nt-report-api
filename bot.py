@@ -2539,9 +2539,10 @@ def main():
         from rassegna import run_rassegna_job
         await run_rassegna_job(context)
 
-    # Ogni giorno alle 06:00 Rome — lascia margine al print agent locale (08:30) per
-    # scaricare e stampare entro le 9:00.
-    app.job_queue.run_daily(_rassegna_job, time=dt_time(hour=6, minute=0, tzinfo=_ROME_TZ))
+    # Ogni giorno alle 16:30 Rome — stampa serale (17:00): notizie della giornata piu
+    # aggiornate rispetto a una generazione mattutina, 30 minuti di margine al print agent
+    # locale per scaricare da Drive e stampare.
+    app.job_queue.run_daily(_rassegna_job, time=dt_time(hour=16, minute=30, tzinfo=_ROME_TZ))
 
     app.add_handler(CallbackQueryHandler(handle_chat_select_cb,        pattern=r"^chat_sel:"))
     app.add_handler(CallbackQueryHandler(handle_chat_fine_cb,          pattern=r"^chat_fine$"))
