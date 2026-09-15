@@ -2535,6 +2535,21 @@ def main():
         days=(1,),
     )
 
+    async def _linkedin_kb_session_reminder(context):
+        """Promemoria fisso (owner-only, tutti i giorni) per la sessione live di ricerca
+        LinkedIn sugli argomenti in voga nei settori professionali — precede la generazione
+        della rassegna delle 16:30. Distinto da _linkedin_reminder_scheduler sopra, che è un
+        promemoria generico e occasionale a orario casuale."""
+        owner_chat_id = context.bot_data.get("owner_chat_id")
+        if not owner_chat_id:
+            return
+        await context.bot.send_message(
+            chat_id=owner_chat_id,
+            text="🔍 Ore 16: giro su LinkedIn per gli argomenti in voga, prima della rassegna delle 16:30.",
+        )
+
+    app.job_queue.run_daily(_linkedin_kb_session_reminder, time=dt_time(hour=16, minute=0, tzinfo=_ROME_TZ))
+
     async def _rassegna_job(context):
         from rassegna import run_rassegna_job
         await run_rassegna_job(context)
