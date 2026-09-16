@@ -440,6 +440,52 @@ def _get_ft_stampa_queue() -> list[dict]:
     return [{"testo": r[1], "url": r[2]} for r in rows]
 
 
+def _save_linkedin_vetrina(items: list[dict]) -> None:
+    """Salva i pick di un giro supervisionato su LinkedIn (Niccolò + Claude presenti,
+    MAI un cron automatico — vedi linkedin_kb.md e memoria di progetto). Sovrascrive
+    solo le voci di oggi (INSERT preceduto da DELETE della stessa data), così rigenerare
+    più volte nello stesso giorno non duplica."""
+    from monitor import _db_connect
+    con = _db_connect()
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS linkedin_vetrina (data TEXT, testo TEXT, url TEXT, autore TEXT)"
+    )
+    oggi = datetime.now().strftime("%Y-%m-%d")
+    con.execute("DELETE FROM linkedin_vetrina WHERE data=?", (oggi,))
+    for it in items:
+        con.execute(
+            "INSERT INTO linkedin_vetrina (data, testo, url, autore) VALUES (?, ?, ?, ?)",
+            (oggi, it.get("testo"), it.get("url"), it.get("autore")),
+        )
+    con.commit()
+    con.close()
+
+
+def _load_linkedin_vetrina_recente(giorni: int = 5) -> list[dict]:
+    """Ritorna i pick dell'ultimo giro su LinkedIn, solo se abbastanza recente (default
+    5 giorni) — altrimenti la rubrica sparisce invece di mostrare contenuto vecchio
+    spacciato per "dal mio giro" di oggi. Nessuna navigazione automatica qui: questa
+    funzione legge solo quello che una sessione supervisionata ha già salvato."""
+    from monitor import _db_connect
+    con = _db_connect()
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS linkedin_vetrina (data TEXT, testo TEXT, url TEXT, autore TEXT)"
+    )
+    ultima_data = con.execute("SELECT MAX(data) FROM linkedin_vetrina").fetchone()[0]
+    if not ultima_data:
+        con.close()
+        return []
+    soglia = (datetime.now() - timedelta(days=giorni)).strftime("%Y-%m-%d")
+    if ultima_data < soglia:
+        con.close()
+        return []
+    righe = con.execute(
+        "SELECT testo, url, autore FROM linkedin_vetrina WHERE data=?", (ultima_data,)
+    ).fetchall()
+    con.close()
+    return [{"testo": t, "url": u, "autore": a} for t, u, a in righe]
+
+
 # ── Riassunti (il giornale stampato deve essere autosufficiente, non solo link) ────
 
 def _clean_summary_text(raw: str) -> str:
@@ -1348,6 +1394,24 @@ def _frammento_attualita(attualita: list, ft_stampa: list) -> str:
     return f'<h2 class="sezione">Attualità</h2>{corpo}'
 
 
+def _frammento_linkedin(vetrina: list[dict]) -> str:
+    """Vetrina di post/spunti raccolti nell'ultimo giro supervisionato su LinkedIn
+    (richiesta di Niccolò, 2026-09-16). Non appare affatto se non c'è un giro abbastanza
+    recente (vedi _load_linkedin_vetrina_recente) — niente sezione vuota o con contenuto
+    stantio."""
+    if not vetrina:
+        return ""
+    righe = "".join(
+        "<li>"
+        + it["testo"]
+        + (f' — <span class="fonte">{it["autore"]}</span>' if it.get("autore") else "")
+        + (f' <a href="{it["url"]}">link</a>' if it.get("url") else "")
+        + "</li>"
+        for it in vetrina
+    )
+    return f'<h2 class="sezione">Dal mio giro su LinkedIn</h2><ul>{righe}</ul>'
+
+
 def _render_varie_block(label: str, dato: dict | None) -> str:
     if not dato or not dato.get("testo"):
         return ""
@@ -1457,17 +1521,19 @@ def _build_ultima_pagina(varie: dict, varie_viaggio: dict | None, meteo: list[di
     )
 
 
-def _build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa) -> str:
+def _build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa,
+                           linkedin_vetrina) -> str:
     contenuto = (
         _frammento_settori(settori, giustizia_amm)
         + _frammento_interessi(interessi)
         + _frammento_attualita(attualita, ft_stampa)
+        + _frammento_linkedin(linkedin_vetrina)
     )
     return f'<div class="page"><div class="corpo-continuo">{contenuto}</div></div>'
 
 
 def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
-                 todo, meteo, soluzioni_ieri, varie_viaggio) -> str:
+                 todo, meteo, soluzioni_ieri, varie_viaggio, linkedin_vetrina) -> str:
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -1476,7 +1542,7 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 </head>
 <body>
   {_build_front_page(settori, interessi, attualita, todo)}
-  {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa)}
+  {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa, linkedin_vetrina)}
   {_build_ultima_pagina(varie, varie_viaggio, meteo, cruciverba, soluzioni_ieri)}
 </body>
 </html>"""
@@ -1539,13 +1605,14 @@ async def genera_rassegna_html() -> str:
     varie = _genera_varie()
     varie_viaggio = _fetch_varie_viaggio(citta_viaggio)
     meteo = await _fetch_meteo(citta_viaggio)
+    linkedin_vetrina = _load_linkedin_vetrina_recente()
 
     # Il PDF va stampato: ogni voce deve avere un riassunto leggibile, non solo un link.
     settori_items = [it for items in settori.values() for it in items]
     await _arricchisci_con_riassunti(settori_items, interessi, attualita, giustizia_amm)
 
     return _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
-                        todo, meteo, soluzioni_ieri, varie_viaggio)
+                        todo, meteo, soluzioni_ieri, varie_viaggio, linkedin_vetrina)
 
 
 async def genera_rassegna_pdf() -> Path:

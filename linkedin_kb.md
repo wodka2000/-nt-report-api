@@ -30,6 +30,19 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
   consultazione ARERA (DCO 248/2026/R/COM); usa comunque "non si tratta semplicemente di...
   perché..." — esempio reale della costruzione avversativa che TONO.md vieta, anche in un
   post professionale del settore
+- Fabio Carnemolla — Avvocato (energia/tecnologia) — post del 15/09 su DL 21/2026 (data
+  center, PUCD, saturazione virtuale), decreti attuativi AI Act e LR Lombardia 11/2026 sui
+  data center: dati precisi (531 richieste Terna, 95,38 GW), struttura a paragrafi netti
+  con maiuscoletto tematico, chiusura con lettura personale ma senza domanda retorica al
+  pubblico. Il post più vicino a TONO.md visto finora su energia/tecnologia insieme.
+  https://www.linkedin.com/feed/ (trovato via ricerca contenuto "ARERA connessione data
+  center", non ha URL post diretto isolabile dal testo estratto)
+- Silvio Fontaneto — Senior Partner Beaumont Group, Executive Search C-Level Tech/AI
+  Governance (tecnologia) — post secco sui decreti attuativi L.132/2025 (assetto
+  AgID-ACN), chiude puntando su responsabilità individuale in azienda ("chi risponde nome e
+  cognome") invece della solita domanda-CTA generica. Registro adatto.
+- AGIPRO (organizzazione, gioco) — post datato (caso Pirlo, gioco illegale) ma con impianto
+  dati+regole+contesto coerente con TONO.md, nessuna CTA commerciale.
 
 ## Osservazioni
 
@@ -45,6 +58,18 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
   verticali. Trovati Andrea Tarsi e Giulio Grottoli (concessioni, altissima pertinenza).
   Anche account organizzativi (Watergas, ARTE, Energy Traders Europe) pubblicano contenuto
   denso su energia — utili più come fonti di segnale che come "profili" nel senso stretto.
+- **2026-09-15** — Ricerca mirata per contenuto sulle 4 aree (query: "ARERA connessione data
+  center", "concessioni demaniali balneari", "gioco pubblico ADM concessioni", "AI Act AGID
+  ACN intelligenza artificiale"), stesso metodo confermato efficace. La vera Bioedilizia è
+  ricomparsa con lo stesso schema di lead-gen commerciale visto il 14/09 (bandi demaniali
+  Liguria, "scrivi una parola nei commenti") — non più un caso isolato ma un pattern
+  ricorrente di quell'account, da trattare come rumore/esempio negativo stabile.
+- **2026-09-16** — Prima sessione a supportare la nuova rubrica "Dal mio giro su LinkedIn"
+  nella rassegna stampa (richiesta di Niccolò): 4 pick, uno per ambito, salvati nella
+  tabella `linkedin_vetrina` (non solo qui a testo libero). Query usate: "ARERA connessione
+  rete energia", "concessioni demaniali balneari", "Polymarket ADM TAR gioco" (la query
+  generica "gioco pubblico ADM concessioni" ha dato solo contenuto già noto), "AI Act AGID
+  ACN intelligenza artificiale".
 
 ## Post interessanti (non profili di riferimento fissi)
 
@@ -61,6 +86,38 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
   recente del profilo, gli altri post sono personali/generici — segnale incoerente, non lo
   classificherei come "profilo di riferimento" affidabile, solo il singolo post è di qualità.
   https://lnkd.in/p/dyd4MniQ
+- IDA - Italian Datacenter Association (energia/tecnologia) — comunicato su un incontro con
+  ARERA per proporre modifiche al Codice di Rete (trasparenza, queue cleansing,
+  responsabilizzazione dei richiedenti). Fonte istituzionale di parte ma con contenuto
+  tecnico verificabile, utile per il tema data center/rete elettrica. https://lnkd.in/d-c9fKkV
+- Mondo Balneare — post 15/09 su Rimini (38 domande per 27 concessioni a gara): conferma
+  che la fonte RSS già attivata (vedi sotto) pubblica anche su LinkedIn in parallelo, stesso
+  stile giornalistico denso già verificato. https://lnkd.in/eHe6AZfX
+- Gambling Insights (newsletter di "Bottadiculo", gioco) — analisi finanziaria sul bilancio
+  Evoke e segnali di continuità aziendale per gli affiliati; angolo dati-di-bilancio insolito
+  rispetto al solito taglio normativo/regolatorio del settore gioco, ma chiude con CTA
+  "Abbonati" — utile come spunto di tema, non come profilo/fonte da seguire direttamente.
+- **2026-09-16** — I 4 post scelti per la rubrica "Dal mio giro su LinkedIn" (vedi anche
+  tabella `linkedin_vetrina`):
+  - Silvio Olivetti (energia) — Business Development Consultant fotovoltaico/BESS: analisi
+    quantificata del decreto MASE su saturazione virtuale/TICA (connessioni flessibili, open
+    season), con impatto economico calcolato (curtailment 5% su un impianto da 1MW = -5.750
+    €/anno). Registro tecnico, niente CTA. Candidato profilo da valutare per energia.
+    https://lnkd.in/p/dt65Es_g
+  - Gianpaolo Caianiello (concessioni) — Avvocato: delibera di indirizzo del Comune di
+    Riccione sulle concessioni balneari (14 aree "solo arenile", durata 5 anni, contributo
+    annuo al Comune). Stile secco, cita atti con estremi precisi, zero fronzoli — molto
+    vicino a TONO.md. Candidato profilo da valutare per concessioni.
+    https://lnkd.in/p/dsNCPA-z
+  - Vincenzo Sapone (gioco) — Avvocato penale/Gaming ADM, 20 anni nel settore: chiarisce che
+    la rinuncia di Polymarket riguarda solo la sospensiva d'urgenza, non il ricorso nel
+    merito (TAR Lazio, con Sisal/Snaitech/Eurobet intervenute). Buon esempio di correzione di
+    una narrazione mediatica imprecisa con argomentazione tecnica. Candidato profilo per
+    gioco. https://lnkd.in/p/dBEk5mz9
+  - Silvio Fontaneto (tecnologia) — già in lista candidati (14/09): confermato di nuovo
+    buono, post sui decreti attuativi L.132/2025 (AgID-ACN) con chiusura su responsabilità
+    individuale ("chi risponde nome e cognome") invece della solita domanda-CTA.
+    https://lnkd.in/p/dePjan8U
 
 ## Condotte / pattern
 
@@ -101,6 +158,36 @@ non lettura del feed (il feed generico resta poco verticale, vedi Osservazioni s
 sessione, RSS verificato attivo. Colma un vuoto reale: concessioni demaniali non aveva
 NESSUNA rivista di settore dedicata (solo GU/AGCM/Corte Costituzionale). Aggiunta a
 `sources.md` e a `TOPICS_CONFIG["concessioni"]` in `monitor.py`.
+
+**2026-09-15** — Ricerca mirata sulle 4 aree, stesso metodo (search/content, non feed):
+
+- **Energia**: tema dominante è il pacchetto normativo data center: DL 21/2026 (conv. L.
+  49/2026) con due binari — art. 7 saturazione virtuale (rinnovabili/accumuli, ARERA deve
+  riscrivere condizioni di connessione entro 180gg, parere 300/2026/I/eel del 6/8 su schema
+  MASE) e art. 8 PUCD (procedimento unico VIA+AIA+paesaggistica, 10 mesi+3, filtro
+  anti-speculativo ancora da inserire nel TIC). **Scadenza rilevante**: consultazione ARERA
+  sul piano strategico 2026-2029 chiude il 15/09 (oggi) — fisserà il perimetro delle
+  delibere dei prossimi 4 anni. Lombardia prima regione con legge dedicata (LR 11/2026,
+  290 domande per 46 GW su Milano, oneri di costruzione maggiorati su suolo agricolo/aree
+  protette). Parallelo: aste FER-X aperte dal 25/08 (portale GSE), spostamento del mercato
+  da "potenza" a "flessibilità" (batterie, demand response, smart grid).
+- **Concessioni demaniali**: continua l'ondata bandi comune per comune (Rimini, 38 domande
+  per 27 lotti) — stesso fenomeno segnalato il 14/09 su Riccione, conferma di trend
+  strutturale non episodico.
+- **Gioco pubblico**: due filoni paralleli — casi di continuità aziendale degli operatori
+  (Evoke) osservati dal lato affiliazione/finanziario più che regolatorio; gioco illegale
+  online (caso Pirlo) come lente per raccontare il ruolo di controllo di ADM/AGCOM. Sogei
+  ha rafforzato nel 2024 il supporto tecnologico ad ADM su concessioni gioco online, Albo
+  Punti Vendita Ricariche, controlli apparecchi, Lotteria degli scontrini (rif. Corte dei
+  Conti, via Jamma).
+- **Tecnologia**: il nodo del giorno è la governance AI Act lato autorità: parere favorevole
+  del Garante Privacy sullo schema di decreto che designa AgID (notifica) e ACN (vigilanza
+  mercato) come autorità competenti, salve le competenze di Banca d'Italia/Consob/IVASS/
+  Garante stesso; CdM ha approvato in via definitiva i decreti il 4/8. Il Digital Omnibus
+  (Reg. UE 2026/1744) ha spostato gli obblighi sui sistemi ad alto rischio al 2/12/2027 e
+  2/8/2028 — dal 2/8/2026 restano in vigore solo trasparenza ex art. 50 e sanzioni per
+  pratiche vietate (35M€/7%). Continua a circolare molto anche il tema NIS2 (FAQ ACN su
+  vigilanza D.Lgs. 138/2024) e le sanzioni Garante Privacy (TIM 9,5M€, Uber 825M€ Olanda).
 
 **Altri spunti emersi, non ancora fonti attive**:
 - LEXIA (studio legale) — newsletter mensile "Data & Technology Innovation", stesso
