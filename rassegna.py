@@ -1117,12 +1117,13 @@ _CSS = """
      interne di un giornale vero. CSS `columns` nativo (non split Python: quel primo
      tentativo bilanciava per numero di voci, non per spazio reale, e produceva colonne
      con enormi vuoti quando una voce era più corta delle altre — vedi git history
-     2026-09-15). Tabelle e griglia del cruciverba usano column-span:all per interrompere
-     le colonne dove serve. */
+     2026-09-15). Niente column-span qui: meteo e cruciverba (che lo richiederebbero, per
+     occupare tutta la larghezza) stanno apposta fuori da questo contenitore, su una pagina
+     a sé (_build_pagina_meteo_cruciverba) — quella combinazione mandava in crash WeasyPrint
+     in modo intermittente, vedi nota nel codice Python del 2026-09-16. */
   .corpo-continuo { columns: 3; column-gap: 22px; column-rule: 1px solid #bbb;
                      text-align: justify; hyphens: auto; orphans: 3; widows: 3;
                      column-fill: auto; }
-  .corpo-continuo .full-width { column-span: all; margin: 4px 0 14px 0; }
   .corpo-continuo ul { list-style: none; margin: 0 0 14px 0; padding: 0; }
   .corpo-continuo li { margin: 0; padding: 7px 0; line-height: 1.35; border-top: 1px solid #ddd;
                       break-inside: avoid; }
@@ -1328,9 +1329,7 @@ def _render_meteo_blocco(m: dict) -> str:
     </div>"""
 
 
-def _frammento_varie(varie: dict, cruciverba: dict | None,
-                      meteo: list[dict], soluzioni_ieri: str | None,
-                      varie_viaggio: dict | None) -> str:
+def _frammento_varie(varie: dict, varie_viaggio: dict | None) -> str:
     # "A tavola" per ultimo tra gli spunti (richiesta di Niccolò, 2026-09-15).
     labels = {
         "mostra": "Da vedere", "attivita_bambini": "Con i bambini",
@@ -1339,8 +1338,6 @@ def _frammento_varie(varie: dict, cruciverba: dict | None,
     }
     varie_html = "".join(_render_varie_block(label, varie.get(key)) for key, label in labels.items())
 
-    meteo_html = "".join(_render_meteo_blocco(m) for m in meteo)
-
     viaggio_html = ""
     if varie_viaggio:
         labels_viaggio = {"fare": "Cosa fare", "vedere": "Cosa vedere", "mangiare": "Dove mangiare"}
@@ -1348,6 +1345,28 @@ def _frammento_varie(varie: dict, cruciverba: dict | None,
             _render_varie_block(label, varie_viaggio.get(key)) for key, label in labels_viaggio.items()
         )
         viaggio_html = f'<h3>In viaggio a {varie_viaggio["citta"]}</h3>{blocchi_viaggio}'
+
+    # Meteo e cruciverba NON entrano più in questo flusso (vedi _build_pagina_meteo_cruciverba):
+    # richiedevano "column-span: all" per occupare tutta la larghezza dentro un contenitore
+    # multi-colonna paginato su più pagine fisiche, combinazione che manda in crash WeasyPrint
+    # in modo intermittente e dipendente dal punto esatto in cui cade il salto di colonna/pagina
+    # (IndexError interno in skip_first_whitespace — bug del motore, non del nostro CSS;
+    # riprodotto in produzione il 2026-09-15 e di nuovo il 2026-09-16 nonostante un primo fix
+    # parziale sul solo contenuto vuoto). Restano qui solo header, viaggio e spunti, che sono
+    # normali blocchi di colonna senza column-span e non hanno mai causato il crash.
+    return (
+        '<h2 class="sezione">Varie</h2>'
+        + viaggio_html
+        + varie_html
+    )
+
+
+def _build_pagina_meteo_cruciverba(meteo: list[dict], cruciverba: dict | None,
+                                    soluzioni_ieri: str | None) -> str:
+    """Pagina dedicata a meteo e cruciverba, fuori dal flusso multi-colonna continuo
+    (vedi nota in _frammento_varie sul perché). Layout a blocco singolo, niente
+    column-span — nessuna delle due condizioni note per il crash WeasyPrint si applica qui."""
+    meteo_html = "".join(_render_meteo_blocco(m) for m in meteo).strip()
 
     cw_html = ""
     if cruciverba:
@@ -1358,40 +1377,36 @@ def _frammento_varie(varie: dict, cruciverba: dict | None,
             if soluzioni_ieri else
             '<div class="cw-answers">Soluzioni sul numero di domani.</div>'
         )
-        cw_html = f"""
-        <h3>Cruciverba</h3>
-        {cruciverba["grid_html"]}
-        <div class="cw-clues">
-          <div><strong>Orizzontali</strong><ul>{clues_a}</ul></div>
-          <div><strong>Verticali</strong><ul>{clues_d}</ul></div>
-        </div>
-        {soluzioni_html}"""
+        cw_html = (
+            "<h3>Cruciverba</h3>"
+            + cruciverba["grid_html"]
+            + '<div class="cw-clues">'
+            + f'<div><strong>Orizzontali</strong><ul>{clues_a}</ul></div>'
+            + f'<div><strong>Verticali</strong><ul>{clues_d}</ul></div>'
+            + "</div>"
+            + soluzioni_html
+        )
     elif soluzioni_ieri:
         cw_html = f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
-
-    # I wrapper "full-width" vanno emessi solo se c'è contenuto, e senza spazi bianchi
-    # iniziali dentro il div: un <div class="full-width"> vuoto O con solo whitespace prima
-    # del primo figlio manda in crash WeasyPrint (IndexError interno in
-    # skip_first_whitespace, verificato il 2026-09-15 — bug del motore, non del nostro CSS).
-    meteo_html = meteo_html.strip()
     cw_html = cw_html.strip()
-    meteo_wrap = f'<div class="full-width">{meteo_html}</div>' if meteo_html else ""
-    cw_wrap = f'<div class="full-width">{cw_html}</div>' if cw_html else ""
 
-    return f"""<h2 class="sezione">Varie</h2>
-    {meteo_wrap}
-    {viaggio_html}
-    {cw_wrap}
-    {varie_html}"""
+    if not meteo_html and not cw_html:
+        return ""
+    return (
+        '<div class="page"><h2 class="sezione">Meteo e cruciverba</h2>'
+        + meteo_html
+        + cw_html
+        + "</div>"
+    )
 
 
 def _build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa,
-                           varie, cruciverba, meteo, soluzioni_ieri, varie_viaggio) -> str:
+                           varie, varie_viaggio) -> str:
     contenuto = (
         _frammento_settori(settori, giustizia_amm)
         + _frammento_interessi(interessi)
         + _frammento_attualita(attualita, ft_stampa)
-        + _frammento_varie(varie, cruciverba, meteo, soluzioni_ieri, varie_viaggio)
+        + _frammento_varie(varie, varie_viaggio)
     )
     return f'<div class="page"><div class="corpo-continuo">{contenuto}</div></div>'
 
@@ -1406,7 +1421,8 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 </head>
 <body>
   {_build_front_page(settori, interessi, attualita, todo)}
-  {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa, varie, cruciverba, meteo, soluzioni_ieri, varie_viaggio)}
+  {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa, varie, varie_viaggio)}
+  {_build_pagina_meteo_cruciverba(meteo, cruciverba, soluzioni_ieri)}
 </body>
 </html>"""
 
