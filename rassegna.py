@@ -850,6 +850,48 @@ inventarla.""",
 
 # ── Sezione "Varie" (contenuti generati, non notizie) ─────────────────────────────
 
+def _save_varie_storico(dati: dict) -> None:
+    """Salva i testi di oggi per poterli escludere dai prossimi giorni (stesso pattern
+    di _save_cruciverba_soluzioni). Senza questo, il prompt di ricerca web non ha modo
+    di sapere cosa ha già proposto e tende a riconvergere sulle stesse opzioni "sicure"
+    (es. la stessa mostra permanente, lo stesso classico) — segnalato da Niccolò il
+    2026-09-16 ("le varie sono molte uguali a quelle di ieri")."""
+    from monitor import _db_connect
+    con = _db_connect()
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS varie_storico (data TEXT, chiave TEXT, testo TEXT, "
+        "PRIMARY KEY (data, chiave))"
+    )
+    oggi = datetime.now().strftime("%Y-%m-%d")
+    for chiave, dato in (dati or {}).items():
+        testo = (dato or {}).get("testo")
+        if testo:
+            con.execute(
+                "INSERT OR REPLACE INTO varie_storico (data, chiave, testo) VALUES (?, ?, ?)",
+                (oggi, chiave, testo),
+            )
+    con.commit()
+    con.close()
+
+
+def _load_varie_recenti(giorni: int = 14) -> dict[str, list[str]]:
+    from monitor import _db_connect
+    con = _db_connect()
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS varie_storico (data TEXT, chiave TEXT, testo TEXT, "
+        "PRIMARY KEY (data, chiave))"
+    )
+    soglia = (datetime.now() - timedelta(days=giorni)).strftime("%Y-%m-%d")
+    righe = con.execute(
+        "SELECT chiave, testo FROM varie_storico WHERE data >= ? ORDER BY data DESC", (soglia,)
+    ).fetchall()
+    con.close()
+    recenti: dict[str, list[str]] = {}
+    for chiave, testo in righe:
+        recenti.setdefault(chiave, []).append(testo)
+    return recenti
+
+
 def _genera_varie() -> dict[str, dict]:
     """Un blocco di spunti non-notiziosi: mostra, attività con bambini, libro, disco,
     film/serie, piatto/vino/ristorante (in quest'ordine — "a tavola" per ultimo su
@@ -857,14 +899,35 @@ def _genera_varie() -> dict[str, dict]:
     viene sempre con un link reale verificabile — per "con i bambini" può essere
     un'immagine invece che un link, se più adatta. La ricerca web riduce ma non azzera il
     rischio che un link non sia perfettamente accurato: vale la stessa cautela di
-    _claude_web_search_json."""
+    _claude_web_search_json. Tiene anche uno storico (_save_varie_storico/
+    _load_varie_recenti) per non riproporre le stesse cose — senza, il modello tende a
+    riconvergere sulle opzioni più "sicure"/note ogni volta (segnalato da Niccolò il
+    2026-09-16: "le varie sono molte uguali a quelle di ieri")."""
+    recenti = _load_varie_recenti()
+    label_recenti = {
+        "mostra": "mostre", "attivita_bambini": "attività con i bambini", "libro": "libri",
+        "disco": "dischi", "film_serie": "film/serie", "piatto_vino": "piatti/vini/ristoranti",
+    }
+    blocco_recenti = ""
+    if recenti:
+        righe = []
+        for chiave, nome in label_recenti.items():
+            testi = recenti.get(chiave)
+            if testi:
+                righe.append(f"- {nome}: " + "; ".join(testi[:10]))
+        if righe:
+            blocco_recenti = (
+                "\n\nGIÀ PROPOSTI negli ultimi giorni (NON ripeterli, scegli qualcosa di "
+                "diverso per ciascuna categoria):\n" + "\n".join(righe) + "\n"
+            )
+
     dati = _claude_web_search_json(
-        """\
+        f"""\
 Cerca sul web spunti REALI e verificabili per la rubrica "Varie" di una rassegna stampa
 personale per un avvocato italiano appassionato di cultura generale. Servono 6 elementi,
 ciascuno con un testo BREVE (max 2 frasi, in italiano, tono colloquiale ma non sciatto) e
 un link reale trovato con la ricerca (non inventato):
-
+{blocco_recenti}
 Per mostra, attivita_bambini e piatto_vino (se un ristorante): PREDILIGI opzioni a Roma o
 nel Lazio, dove vive l'avvocato — vanno bene opzioni altrove SOLO se eccezionalmente
 importanti/note (es. una mostra internazionale di grande rilievo), altrimenti scegli sempre
@@ -888,18 +951,21 @@ qualcosa di raggiungibile senza viaggiare.
    ristorante)
 
 Rispondi SOLO con un oggetto JSON valido, in questo ordine di chiavi:
-{"mostra": {"testo": "...", "link": "https://..."},
- "attivita_bambini": {"testo": "...", "link": "https://...", "immagine": "https://..." },
- "libro": {"testo": "...", "link": "https://..."},
- "disco": {"testo": "...", "link": "https://..."},
- "film_serie": {"testo": "...", "link": "https://..."},
- "piatto_vino": {"testo": "...", "link": "https://..."}}
+{{"mostra": {{"testo": "...", "link": "https://..."}},
+ "attivita_bambini": {{"testo": "...", "link": "https://...", "immagine": "https://..." }},
+ "libro": {{"testo": "...", "link": "https://..."}},
+ "disco": {{"testo": "...", "link": "https://..."}},
+ "film_serie": {{"testo": "...", "link": "https://..."}},
+ "piatto_vino": {{"testo": "...", "link": "https://..."}}}}
 Se per un campo non trovi un link reale affidabile, ometti quella chiave (link o immagine)
 piuttosto che inventarla.""",
         model="claude-sonnet-4-6",
         max_tokens=2000,
     )
-    return dati or {}
+    dati = dati or {}
+    if dati:
+        _save_varie_storico(dati)
+    return dati
 
 
 # ── Cruciverba ─────────────────────────────────────────────────────────────────────
@@ -1117,10 +1183,11 @@ _CSS = """
      interne di un giornale vero. CSS `columns` nativo (non split Python: quel primo
      tentativo bilanciava per numero di voci, non per spazio reale, e produceva colonne
      con enormi vuoti quando una voce era più corta delle altre — vedi git history
-     2026-09-15). Niente column-span qui: meteo e cruciverba (che lo richiederebbero, per
-     occupare tutta la larghezza) stanno apposta fuori da questo contenitore, su una pagina
-     a sé (_build_pagina_meteo_cruciverba) — quella combinazione mandava in crash WeasyPrint
-     in modo intermittente, vedi nota nel codice Python del 2026-09-16. */
+     2026-09-15). Niente column-span qui: varie/meteo/cruciverba (che lo richiederebbero
+     per meteo e cruciverba, per occupare tutta la larghezza) stanno apposta fuori da
+     questo contenitore, tutti insieme sull'ultima pagina (_build_ultima_pagina) — quella
+     combinazione mandava in crash WeasyPrint in modo intermittente, vedi nota nel codice
+     Python del 2026-09-16. */
   .corpo-continuo { columns: 3; column-gap: 22px; column-rule: 1px solid #bbb;
                      text-align: justify; hyphens: auto; orphans: 3; widows: 3;
                      column-fill: auto; }
@@ -1329,7 +1396,17 @@ def _render_meteo_blocco(m: dict) -> str:
     </div>"""
 
 
-def _frammento_varie(varie: dict, varie_viaggio: dict | None) -> str:
+def _build_ultima_pagina(varie: dict, varie_viaggio: dict | None, meteo: list[dict],
+                          cruciverba: dict | None, soluzioni_ieri: str | None) -> str:
+    """Ultima pagina del giornale: spunti di Varie, viaggio, meteo e cruciverba tutti
+    insieme (richiesta di Niccolò, 2026-09-16 — prima erano sparsi tra il flusso
+    continuo e una pagina a parte). Blocco singolo, niente colonne: meteo e cruciverba
+    richiederebbero "column-span: all" per occupare tutta la larghezza, che dentro un
+    contenitore multi-colonna paginato su più pagine fisiche manda in crash WeasyPrint
+    in modo intermittente (IndexError interno in skip_first_whitespace — bug del motore,
+    non del nostro CSS; riprodotto in produzione il 2026-09-15 e di nuovo il 2026-09-16).
+    Tenendo l'intera pagina fuori dal flusso a colonne, quella combinazione non si
+    presenta mai, per costruzione."""
     # "A tavola" per ultimo tra gli spunti (richiesta di Niccolò, 2026-09-15).
     labels = {
         "mostra": "Da vedere", "attivita_bambini": "Con i bambini",
@@ -1346,26 +1423,6 @@ def _frammento_varie(varie: dict, varie_viaggio: dict | None) -> str:
         )
         viaggio_html = f'<h3>In viaggio a {varie_viaggio["citta"]}</h3>{blocchi_viaggio}'
 
-    # Meteo e cruciverba NON entrano più in questo flusso (vedi _build_pagina_meteo_cruciverba):
-    # richiedevano "column-span: all" per occupare tutta la larghezza dentro un contenitore
-    # multi-colonna paginato su più pagine fisiche, combinazione che manda in crash WeasyPrint
-    # in modo intermittente e dipendente dal punto esatto in cui cade il salto di colonna/pagina
-    # (IndexError interno in skip_first_whitespace — bug del motore, non del nostro CSS;
-    # riprodotto in produzione il 2026-09-15 e di nuovo il 2026-09-16 nonostante un primo fix
-    # parziale sul solo contenuto vuoto). Restano qui solo header, viaggio e spunti, che sono
-    # normali blocchi di colonna senza column-span e non hanno mai causato il crash.
-    return (
-        '<h2 class="sezione">Varie</h2>'
-        + viaggio_html
-        + varie_html
-    )
-
-
-def _build_pagina_meteo_cruciverba(meteo: list[dict], cruciverba: dict | None,
-                                    soluzioni_ieri: str | None) -> str:
-    """Pagina dedicata a meteo e cruciverba, fuori dal flusso multi-colonna continuo
-    (vedi nota in _frammento_varie sul perché). Layout a blocco singolo, niente
-    column-span — nessuna delle due condizioni note per il crash WeasyPrint si applica qui."""
     meteo_html = "".join(_render_meteo_blocco(m) for m in meteo).strip()
 
     cw_html = ""
@@ -1390,23 +1447,21 @@ def _build_pagina_meteo_cruciverba(meteo: list[dict], cruciverba: dict | None,
         cw_html = f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
     cw_html = cw_html.strip()
 
-    if not meteo_html and not cw_html:
-        return ""
     return (
-        '<div class="page"><h2 class="sezione">Meteo e cruciverba</h2>'
+        '<div class="page"><h2 class="sezione">Varie</h2>'
+        + viaggio_html
+        + varie_html
         + meteo_html
         + cw_html
         + "</div>"
     )
 
 
-def _build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa,
-                           varie, varie_viaggio) -> str:
+def _build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa) -> str:
     contenuto = (
         _frammento_settori(settori, giustizia_amm)
         + _frammento_interessi(interessi)
         + _frammento_attualita(attualita, ft_stampa)
-        + _frammento_varie(varie, varie_viaggio)
     )
     return f'<div class="page"><div class="corpo-continuo">{contenuto}</div></div>'
 
@@ -1421,8 +1476,8 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 </head>
 <body>
   {_build_front_page(settori, interessi, attualita, todo)}
-  {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa, varie, varie_viaggio)}
-  {_build_pagina_meteo_cruciverba(meteo, cruciverba, soluzioni_ieri)}
+  {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa)}
+  {_build_ultima_pagina(varie, varie_viaggio, meteo, cruciverba, soluzioni_ieri)}
 </body>
 </html>"""
 
