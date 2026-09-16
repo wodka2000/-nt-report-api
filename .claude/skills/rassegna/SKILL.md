@@ -116,9 +116,21 @@ quella di produzione, quindi l'anteprima è fedele nei contenuti.
   pertinenti quel giorno), non il cap. Storia: alzati a 8/6 il 2026-09-15 per "riempire le
   pagine", poi ridotti a 6/5 lo stesso giorno perché avevano allungato troppo (10 pagine
   invece di 6-8) — usare l'anteprima per ritarare, non aumentare/diminuire alla cieca.
-- La sezione professionale usa `cols-3` (non `cols-2`) apposta per ridurre il rischio di
-  pagine quasi vuote quando una sotto-sezione (tipicamente Tecnologia, che ha solo 2 fonti
-  dedicate) è corta — mitiga ma non elimina il rischio, controllare visivamente.
+- **Pagine quasi vuote/isolate (risolto il 2026-09-15, non solo mitigato)**: la causa vera
+  non erano le colonne ma `.page { page-break-after: always; }` nel CSS, che forzava un
+  salto pagina netto dopo OGNI sezione (front/settori/interessi/attualità/varie)
+  indipendentemente da quanto restava pieno l'ultimo foglio fisico — da qui le pagine
+  isolate viste più volte (Tecnologia, "A tavola", ecc.), non un problema legato al numero
+  di colonne. Fix: solo il frontespizio (`.page-front`) forza il salto pagina; le altre
+  sezioni scorrono senza interruzione forzata, riempiendo lo spazio residuo lasciato dalla
+  sezione precedente. Serve anche `h2.sezione { page-break-after: avoid; page-break-inside:
+  avoid; }` (sintassi legacy, non la Fragmentation L4 `break-after: avoid-page` — Edge/
+  Chromium headless usato per i test locali non la rispetta) altrimenti il titolo di
+  sezione può restare isolato da solo su una pagina separata dal corpo che lo segue.
+  Verificato: 5 sezioni logiche → 7-8 pagine fisiche, nessuna pagina sotto ~2000 caratteri
+  di testo estratto (eccetto l'ultima, normale a fine documento). La sezione professionale
+  resta comunque su `cols-3` (non serve più come mitigazione principale, ma non c'è motivo
+  di tornare a `cols-2`).
 - Non riportare mai in produzione la mappatura dei codici icona `icon-awi-white-NN` di
   meteoam.it come sereno/nuvoloso/nebbia/neve: verificato il 2026-09-15 che non esiste una
   legenda pubblica recuperabile (controllati CSS e bundle JS del sito). `_fetch_meteo_playwright`
@@ -180,7 +192,7 @@ nomi esatti** nella cartella condivisa. Finché non lo fa, l'upload settimanale 
 silenzio (loggato come warning, non blocca il resto del job) — verificare con
 `_find_drive_file_id` prima di assumere che sia già a posto.
 
-## Stampa fisica — driver Windows, non raw socket (dal 2026-09-15)
+## Stampa fisica — driver Windows, non raw socket (risolto il 2026-09-15)
 
 La stampa via socket raw (porta 9100, JetDirect) NON applica fronte-retro/pinzatura ed è
 risultata inaffidabile (byte accettati dalla stampante ma stampa non sempre partita — la
@@ -192,14 +204,23 @@ driver Windows già installato ("SHARP BP-70M65 PCL6", porta TCP/IP 10.0.0.65):
   -DuplexingMode TwoSidedLongEdge -PrintTicketXml <ticket con Feature
   psk:JobStapleAllDocuments, Option psk:StapleTopLeft>` — verificato che il driver espone
   la pinzatura tramite Print Schema (non tutti i driver lo fanno).
-- L'invio effettivo del job NON è ancora risolto in modo affidabile: `Acrobat.exe /t` è
-  stato provato ma non ha funzionato in un caso con un'istanza di Acrobat già aperta con un
-  altro documento (probabile conflitto DDE) — non riutilizzare questo metodo senza
-  verificarlo di nuovo. La stampa manuale (Niccolò apre il PDF e lo stampa lui) funziona
-  correttamente con queste impostazioni. Se serve automatizzare di nuovo l'invio (per
-  `print_agent.py`), NON passare da Acrobat: valutare alternative che non aprano/riusino
-  un'istanza già in esecuzione.
-- `print_agent.py` in repo usa ancora il vecchio metodo raw socket — da aggiornare per
-  usare il driver quando si troverà un metodo di invio affidabile, altrimenti la stampa
-  automatica delle 17:00 rischia di non funzionare (nessuna conferma di stampa fisica
-  riuscita in automatico, solo test manuali finora).
+- **Invio automatico risolto**: `Acrobat.exe /t` e il verbo shell "PrintTo" si bloccano
+  indefinitamente (mai un job in coda). Il verbo shell **"print"** (tasto destro >
+  Stampa in Explorer — per Acrobat.Document.11 mappa su `Acrobat.exe /p /h "file"`,
+  diverso da "PrintTo") invece funziona: in Python, `os.startfile(path, "print")`.
+  Implementato in `print_agent._print_via_shell()`.
+- **Bug trovato e corretto lo stesso giorno**: un job compare in coda già mentre è ancora
+  in stato "Spooling". Se si chiude Acrobat con `taskkill` in quel momento (comportamento
+  iniziale, sbagliato), l'invio dei dati alla stampante viene troncato a metà e il job
+  resta bloccato per sempre in "Spooling" — visto in coda ma MAI stampato fisicamente,
+  esattamente il sintomo "job accettato ma non stampa" già visto col raw socket. Un job
+  bloccato così può anche incastrare lo spooler di Windows (stato "Deleting..." che non
+  si risolve mai, richiede `Restart-Service Spooler` con permessi admin per sbloccare).
+  Fix: aspettare che il job ESCA dallo stato Spooling (o dalla coda) prima di chiudere
+  Acrobat — vedi lo script PowerShell interno a `_print_via_shell()` che polla
+  `Get-PrintJob` ogni 300ms controllando `JobStatus`, non solo la presenza del job.
+- `print_agent.py` usa questo metodo (non più raw socket): scarica il PDF da Drive, lo
+  salva in locale (`rassegna-stampa-oggi.pdf`), stampa con `os.startfile(...,"print")`,
+  verifica che il job abbia finito lo spooling, poi chiude Acrobat. Se il job non esce
+  mai da "Spooling" entro il timeout, l'agente segnala il fallimento via Telegram invece
+  di assumere che sia andato tutto bene.

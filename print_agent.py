@@ -11,10 +11,15 @@ Cosa fa:
   2. Scarica il file placeholder "rassegna-oggi.pdf" dalla cartella Drive condivisa,
      riprovando ogni 2 minuti finché non è stato aggiornato OGGI (il job del bot lo
      aggiorna ogni pomeriggio alle 16:30) o finché non scade il tempo massimo di attesa.
-  3. Lo stampa inviandolo via socket grezzo (JetDirect) alla Sharp BP-70M65 sulla porta 9100
-     — verificato funzionante il 2026-09-14 con un PDF di prova.
-  4. Se qualcosa fallisce (nessun aggiornamento entro il timeout, stampante irraggiungibile),
-     manda un messaggio Telegram di avviso a Niccolò.
+  3. Lo stampa con `os.startfile(path, "print")` — lo stesso verbo di Explorer "tasto
+     destro > Stampa" (per Acrobat: `Acrobat.exe /p /h "file"`), che usa il printer
+     predefinito con le impostazioni driver già configurate (fronte-retro + pinzatura).
+     Verificato funzionante il 2026-09-15: a differenza di `/t` e del verbo "PrintTo"
+     (entrambi si bloccano indefinitamente senza mai mettere in coda il job — vedi la
+     skill rassegna per i dettagli), il verbo "print" mette in coda il job in ~2 secondi
+     e la stampa fisica esce corretta.
+  4. Se qualcosa fallisce (nessun aggiornamento entro il timeout, nessun job mai comparso
+     in coda di stampa), manda un messaggio Telegram di avviso a Niccolò.
 
 ## Setup one-time
   - Config: secrets/print_agent_config.json (gitignorato, stesso pattern di
@@ -27,11 +32,12 @@ Cosa fa:
 """
 
 import json
-import socket
+import os
+import subprocess
 import sys
 import time
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -41,11 +47,12 @@ _DRIVE_FOLDER_ID = "1KoZUSKO75QJsWJJqYJ_emT3qjEL07iM5"
 _DRIVE_RASSEGNA_NAME = "rassegna-oggi.pdf"
 _DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 
-PRINTER_HOST = "10.0.0.65"
-PRINTER_PORT = 9100
+PRINTER_NAME = "SHARP BP-70M65 PCL6"
+_LOCAL_PDF_PATH = BASE_DIR / "rassegna-stampa-oggi.pdf"
 
 POLL_INTERVAL_SECONDS = 120
 STOP_POLLING_AFTER = "17:30"
+_PRINT_QUEUE_TIMEOUT_SECONDS = 20
 
 
 def _load_config() -> dict:
@@ -92,10 +99,46 @@ def _download(drive, file_id: str) -> bytes:
     return buf.getvalue()
 
 
-def _print_raw(pdf_bytes: bytes) -> None:
-    with socket.create_connection((PRINTER_HOST, PRINTER_PORT), timeout=30) as s:
-        s.sendall(pdf_bytes)
-        s.shutdown(socket.SHUT_WR)
+def _print_via_shell(pdf_bytes: bytes) -> bool:
+    """Salva il PDF in locale e lo stampa con il verbo shell 'print' (equivalente a
+    tasto destro > Stampa in Explorer). Ritorna True se un job è comparso in coda entro
+    il timeout (segno che la stampa è partita), False altrimenti."""
+    _LOCAL_PDF_PATH.write_bytes(pdf_bytes)
+    os.startfile(str(_LOCAL_PDF_PATH), "print")
+
+    # IMPORTANTE (bug trovato il 2026-09-15): un job compare in coda già mentre è ancora
+    # "Spooling" — se si chiude Acrobat in quel momento (com'era prima), l'invio dei dati
+    # viene troncato e il job resta bloccato per sempre in Spooling senza mai stampare
+    # fisicamente, pur essendo "visto in coda". Bisogna aspettare che il job ESCA dallo
+    # stato Spooling (o dalla coda) prima di chiudere Acrobat.
+    ps_script = f"""
+$deadline = (Get-Date).AddSeconds({_PRINT_QUEUE_TIMEOUT_SECONDS})
+$seen = $false
+while ((Get-Date) -lt $deadline) {{
+    $jobs = Get-PrintJob -PrinterName '{PRINTER_NAME}' -ErrorAction SilentlyContinue
+    if ($jobs) {{
+        $seen = $true
+        if (($jobs | Where-Object {{ $_.JobStatus -match 'Spooling' }}).Count -eq 0) {{
+            Write-Output "JOB_DONE_SPOOLING"; exit
+        }}
+    }} elseif ($seen) {{
+        Write-Output "JOB_LEFT_QUEUE"; exit
+    }}
+    Start-Sleep -Milliseconds 300
+}}
+if ($seen) {{ Write-Output "JOB_SEEN_BUT_STILL_SPOOLING" }} else {{ Write-Output "NO_JOB" }}
+"""
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps_script],
+        capture_output=True, text=True, timeout=_PRINT_QUEUE_TIMEOUT_SECONDS + 15,
+    )
+    esito = result.stdout.strip()
+    job_seen = esito in ("JOB_DONE_SPOOLING", "JOB_LEFT_QUEUE")
+
+    # L'app di visualizzazione resta aperta con /h ma non si chiude da sola: la chiudiamo
+    # solo ORA che il job ha finito di essere spoolato (mai mentre è ancora Spooling).
+    subprocess.run(["taskkill", "/IM", "Acrobat.exe", "/F"], capture_output=True)
+    return job_seen
 
 
 def _send_telegram_alert(config: dict, text: str) -> None:
@@ -138,8 +181,14 @@ def main() -> None:
     file_id, _ = found
     try:
         pdf_bytes = _download(drive, file_id)
-        _print_raw(pdf_bytes)
-        print("Rassegna inviata alla stampante con successo.")
+        ok = _print_via_shell(pdf_bytes)
+        if ok:
+            print("Rassegna inviata alla stampante con successo (job visto in coda).")
+        else:
+            msg = "⚠️ Print agent: nessun job comparso in coda di stampa entro il timeout — stampa probabilmente NON partita."
+            print(msg)
+            _send_telegram_alert(config, msg)
+            sys.exit(1)
     except Exception as e:
         msg = f"⚠️ Print agent: errore durante download/stampa: {e}"
         print(msg)

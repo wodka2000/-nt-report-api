@@ -11,12 +11,13 @@ Struttura del giornale (richiesta da Niccolò il 2026-09-14):
   3. Interessi — geopolitica/guerra, difesa IT/UE, politica estera, cavidotti sottomarini,
      estrazione dai fondali marini, spazio, scienza (fisica/biologia/materiali) (~3 pagine,
      solo se c'è qualcosa di rilevante)
-  4. Attualità — cronaca, politica/economia generale, sport (~1 pagina)
+  4. Attualità — cronaca, politica/economia generale, sport, spettacolo (~1 pagina)
   5. Varie — meteo di domani (Roma + eventuali città di viaggio dalla ToDo list),
-     oroscopo, cruciverba giuridico (soluzioni pubblicate il giorno dopo, come sui
-     giornali), una mostra, un'attività coi bambini, un libro, un disco, un
+     cruciverba giuridico (soluzioni pubblicate il giorno dopo, come sui giornali), una
+     mostra, un'attività coi bambini, un libro, un disco, un film/serie da guardare, un
      piatto/vino/ristorante (per ultimo) — ciascuno con un link reale trovato via web
-     search, non inventato (~1 pagina)
+     search, non inventato (~1 pagina). Niente oroscopo (rimosso il 2026-09-15 su
+     richiesta esplicita).
 
 Il job in bot.py chiama genera_rassegna_pdf() ogni mattina, poi carica il risultato su
 Drive (monitor.py, _upload_rassegna_to_drive) sovrascrivendo un file placeholder già
@@ -43,6 +44,7 @@ _ATTUALITA_FEEDS = [
     ("Corriere — Politica", "https://www.corriere.it/dynamic-feed/rss/section/Politica.xml"),
     ("Corriere — Economia", "https://www.corriere.it/dynamic-feed/rss/section/Economia.xml"),
     ("Corriere — Cronache", "https://www.corriere.it/dynamic-feed/rss/section/Cronache.xml"),
+    ("Corriere — Spettacoli", "https://www.corriere.it/dynamic-feed/rss/section/Spettacoli.xml"),
     ("Il Foglio", "https://naxos.ilfoglio.it/api/v5/rss/stories/latest"),
     ("Dagospia", "https://raw.githubusercontent.com/this1-it/dagospia/main/rss.xml"),
 ]
@@ -75,7 +77,6 @@ _INTERESSI_TEMI = """
 """.strip()
 
 _GIUSTIZIA_AMMINISTRATIVA_URL = "https://www.giustizia-amministrativa.it/web/guest/echi-d-europa-ufficio-studi"
-_OROSCOPO_RSS = "https://www.ilsussidiario.net/feed/"
 
 _SETTORI_LABEL = {"energia": "Energia", "concessioni": "Concessioni demaniali", "giochi": "Giochi"}
 
@@ -394,34 +395,6 @@ Rispondi SOLO con un array JSON, senza testo aggiuntivo, con oggetti
         it["tema"] = sel.get("tema", "")
         out.append(it)
     return out
-
-
-async def _fetch_oroscopo() -> str | None:
-    """Best-effort: cerca nel feed RSS di ilsussidiario.net un articolo con 'oroscopo' e
-    'paolo fox' nel titolo, pubblicato di recente. Ritorna None se non trovato — la
-    sezione viene semplicemente omessa, nessun errore bloccante."""
-    from monitor import _fetch_rss
-
-    try:
-        items = await _fetch_rss(_OROSCOPO_RSS)
-    except Exception as e:
-        logger.warning(f"Rassegna: fetch oroscopo fallito: {e}")
-        return None
-    if not items:
-        return None
-    from bs4 import BeautifulSoup
-
-    for it in _recent(items, hours=48):
-        titolo = (it.get("title") or "").lower()
-        if "oroscopo" in titolo and "fox" in titolo:
-            raw = it.get("summary") or it.get("content") or ""
-            if not raw:
-                continue
-            testo = BeautifulSoup(raw, "html.parser").get_text(separator=" ", strip=True)
-            testo = re.sub(r"\s*The post.*?appeared first on.*$", "", testo, flags=re.IGNORECASE).strip()
-            if testo:
-                return testo[:2000]
-    return None
 
 
 _DRIVE_TODO_NAME = "ToDo"
@@ -879,15 +852,16 @@ inventarla.""",
 
 def _genera_varie() -> dict[str, dict]:
     """Un blocco di spunti non-notiziosi: mostra, attività con bambini, libro, disco,
-    piatto/vino/ristorante (in quest'ordine — "a tavola" per ultimo su richiesta di
-    Niccolò). Ogni spunto è cercato sul web (non inventato "a memoria") e viene sempre
-    con un link reale verificabile — per "con i bambini" può essere un'immagine invece
-    che un link, se più adatta. La ricerca web riduce ma non azzera il rischio che un
-    link non sia perfettamente accurato: vale la stessa cautela di _claude_web_search_json."""
+    film/serie, piatto/vino/ristorante (in quest'ordine — "a tavola" per ultimo su
+    richiesta di Niccolò). Ogni spunto è cercato sul web (non inventato "a memoria") e
+    viene sempre con un link reale verificabile — per "con i bambini" può essere
+    un'immagine invece che un link, se più adatta. La ricerca web riduce ma non azzera il
+    rischio che un link non sia perfettamente accurato: vale la stessa cautela di
+    _claude_web_search_json."""
     dati = _claude_web_search_json(
         """\
 Cerca sul web spunti REALI e verificabili per la rubrica "Varie" di una rassegna stampa
-personale per un avvocato italiano appassionato di cultura generale. Servono 5 elementi,
+personale per un avvocato italiano appassionato di cultura generale. Servono 6 elementi,
 ciascuno con un testo BREVE (max 2 frasi, in italiano, tono colloquiale ma non sciatto) e
 un link reale trovato con la ricerca (non inventato):
 
@@ -907,7 +881,9 @@ qualcosa di raggiungibile senza viaggiare.
    con link a una pagina reale (editore, libreria online, Wikipedia)
 4. disco: un disco/album da riascoltare, con link a una pagina reale (Wikipedia, servizio
    di streaming, etichetta)
-5. piatto_vino: una ricetta, una bottiglia o un ristorante reale — se un ristorante,
+5. film_serie: un film o una serie tv (al cinema ora, oppure in streaming/casa), con link
+   a una pagina reale (sito del cinema/programmazione, piattaforma di streaming, Wikipedia)
+6. piatto_vino: una ricetta, una bottiglia o un ristorante reale — se un ristorante,
    preferibilmente a Roma/Lazio — con link alla fonte trovata (sito della ricetta, cantina,
    ristorante)
 
@@ -916,6 +892,7 @@ Rispondi SOLO con un oggetto JSON valido, in questo ordine di chiavi:
  "attivita_bambini": {"testo": "...", "link": "https://...", "immagine": "https://..." },
  "libro": {"testo": "...", "link": "https://..."},
  "disco": {"testo": "...", "link": "https://..."},
+ "film_serie": {"testo": "...", "link": "https://..."},
  "piatto_vino": {"testo": "...", "link": "https://..."}}
 Se per un campo non trovi un link reale affidabile, ometti quella chiave (link o immagine)
 piuttosto che inventarla.""",
@@ -1119,35 +1096,41 @@ def _genera_cruciverba() -> dict | None:
 _CSS = """
   @page { size: A4; margin: 1.6cm; }
   body { font-family: Georgia, 'Times New Roman', serif; color: #111; font-size: 12px; }
-  .page { page-break-after: always; }
-  .page:last-child { page-break-after: auto; }
+  .page-front { page-break-after: always; }
   h1.masthead { font-size: 40px; text-align: center; border-top: 4px solid #111;
                 border-bottom: 4px solid #111; padding: 10px 0; margin-bottom: 2px;
                 letter-spacing: 2px; font-variant: small-caps; }
   .data { text-align: center; font-style: italic; color: #555; margin-bottom: 16px;
           border-bottom: 1px solid #ccc; padding-bottom: 10px; }
   h2.sezione { font-size: 22px; margin: 0 0 10px 0; border-bottom: 3px solid #111;
-               padding-bottom: 4px; font-variant: small-caps; }
+               padding-bottom: 4px; font-variant: small-caps; page-break-after: avoid;
+               page-break-inside: avoid; }
   h3 { font-size: 13.5px; margin: 0 0 4px 0; text-transform: uppercase;
        letter-spacing: 0.4px; border-bottom: 1px solid #111; padding-bottom: 2px;
        break-after: avoid; break-inside: avoid; }
   a { color: #111; text-decoration: none; font-weight: bold; }
   .fonte { color: #777; font-size: 10px; font-style: italic; }
 
-  /* Corpo delle sezioni a colonne, come le pagine interne di un giornale */
-  .section-body { column-gap: 22px; column-rule: 1px solid #bbb; text-align: justify;
-                   hyphens: auto; orphans: 3; widows: 3; }
-  .section-body.cols-2 { columns: 2; }
-  .section-body.cols-3 { columns: 3; }
-  .section-body ul { list-style: none; margin: 0 0 14px 0; padding: 0; }
-  .section-body li { margin: 0; padding: 7px 0; line-height: 1.35; border-top: 1px solid #ddd;
+  /* Un unico flusso continuo a colonne per tutte le sezioni interne (non un blocco per
+     sezione): quando una lista finisce a metà pagina, la sezione dopo continua a
+     riempire lo spazio invece di saltare a una colonna/pagina nuova — come le pagine
+     interne di un giornale vero. CSS `columns` nativo (non split Python: quel primo
+     tentativo bilanciava per numero di voci, non per spazio reale, e produceva colonne
+     con enormi vuoti quando una voce era più corta delle altre — vedi git history
+     2026-09-15). Tabelle e griglia del cruciverba usano column-span:all per interrompere
+     le colonne dove serve. */
+  .corpo-continuo { columns: 3; column-gap: 22px; column-rule: 1px solid #bbb;
+                     text-align: justify; hyphens: auto; orphans: 3; widows: 3;
+                     column-fill: auto; }
+  .corpo-continuo .full-width { column-span: all; margin: 4px 0 14px 0; }
+  .corpo-continuo ul { list-style: none; margin: 0 0 14px 0; padding: 0; }
+  .corpo-continuo li { margin: 0; padding: 7px 0; line-height: 1.35; border-top: 1px solid #ddd;
                       break-inside: avoid; }
-  .section-body li:first-child { border-top: none; }
-  .settore-blocco { break-inside: avoid-column; }
-  .section-body li a { display: block; font-size: 11.5px; margin-bottom: 3px; }
-  .section-body li .riassunto { display: block; font-size: 11px; font-weight: normal;
+  .corpo-continuo li:first-child { border-top: none; }
+  .corpo-continuo li a { display: block; font-size: 11.5px; margin-bottom: 3px; }
+  .corpo-continuo li .riassunto { display: block; font-size: 11px; font-weight: normal;
                                   color: #333; margin-bottom: 3px; }
-  .section-body .fonte { display: block; margin-top: 2px; }
+  .corpo-continuo .fonte { display: block; margin-top: 2px; }
 
   /* Prima pagina: titolo di apertura a piena larghezza, poi colonne per il resto */
   .lead { border-bottom: 2px solid #111; padding-bottom: 14px; margin-bottom: 16px; }
@@ -1209,9 +1192,9 @@ def _build_todo_checklist(todo: list[str]) -> str:
 
 
 def _build_front_page(settori: dict, interessi: list, attualita: list, todo: list[str]) -> str:
-    top_settori = [it for items in settori.values() for it in items][:4]
-    top_interessi = interessi[:5]
-    top_attualita = attualita[:5]
+    top_settori = [it for items in settori.values() for it in items][:6]
+    top_interessi = interessi[:7]
+    top_attualita = attualita[:7]
 
     tutti = top_settori + top_interessi + top_attualita
     lead_html = ""
@@ -1227,7 +1210,7 @@ def _build_front_page(settori: dict, interessi: list, attualita: list, todo: lis
         top_attualita = [it for it in top_attualita if it is not lead]
 
     return f"""
-<div class="page">
+<div class="page page-front">
   <h1 class="masthead">NT REPORT</h1>
   <div class="data">{datetime.now().strftime("%A %d %B %Y")}</div>
   {lead_html}
@@ -1251,7 +1234,7 @@ def _render_item_li(it: dict) -> str:
     )
 
 
-def _build_settori_page(settori: dict, giustizia_amm: list) -> str:
+def _frammento_settori(settori: dict, giustizia_amm: list) -> str:
     blocchi = []
     for label, items in settori.items():
         if not items:
@@ -1264,14 +1247,10 @@ def _build_settori_page(settori: dict, giustizia_amm: list) -> str:
         righe = "".join(_render_item_li(it) for it in giustizia_amm)
         corpo += f'<div class="settore-blocco"><h3>Giustizia Amministrativa — Ufficio Studi</h3><ul>{righe}</ul></div>'
 
-    return f"""
-<div class="page">
-  <h2 class="sezione">Professionale — Energia, Giochi, Concessioni, Tecnologia</h2>
-  <div class="section-body cols-3">{corpo}</div>
-</div>"""
+    return f'<h2 class="sezione">Professionale — Energia, Giochi, Concessioni, Tecnologia</h2>{corpo}'
 
 
-def _build_interessi_page(interessi: list) -> str:
+def _frammento_interessi(interessi: list) -> str:
     if not interessi:
         corpo = "<p><em>Nessuna notizia particolarmente rilevante oggi su questi temi.</em></p>"
     else:
@@ -1281,17 +1260,13 @@ def _build_interessi_page(interessi: list) -> str:
         blocchi = []
         for tema, items in by_tema.items():
             righe = "".join(_render_item_li(it) for it in items)
-            blocchi.append(f"<h3>{tema.capitalize()}</h3><ul>{righe}</ul>")
+            blocchi.append(f'<div class="settore-blocco"><h3>{tema.capitalize()}</h3><ul>{righe}</ul></div>')
         corpo = "".join(blocchi)
 
-    return f"""
-<div class="page">
-  <h2 class="sezione">Interessi — Geopolitica, Difesa, Spazio, Scienza</h2>
-  <div class="section-body cols-2">{corpo}</div>
-</div>"""
+    return f'<h2 class="sezione">Interessi — Geopolitica, Difesa, Spazio, Scienza</h2>{corpo}'
 
 
-def _build_attualita_page(attualita: list, ft_stampa: list) -> str:
+def _frammento_attualita(attualita: list, ft_stampa: list) -> str:
     righe = "".join(_render_item_li(it) for it in attualita)
     corpo = f"<ul>{righe}</ul>" if attualita else "<p><em>Nessuna notizia trovata oggi.</em></p>"
 
@@ -1300,13 +1275,9 @@ def _build_attualita_page(attualita: list, ft_stampa: list) -> str:
             f'<li>{it["testo"]}' + (f' — <a href="{it["url"]}">link</a>' if it.get("url") else "") + "</li>"
             for it in ft_stampa
         )
-        corpo += f'<h3>Dal Financial Times e La Stampa (segnalati a mano)</h3><ul>{righe_ft}</ul>'
+        corpo += f'<div class="settore-blocco"><h3>Dal Financial Times e La Stampa (segnalati a mano)</h3><ul>{righe_ft}</ul></div>'
 
-    return f"""
-<div class="page">
-  <h2 class="sezione">Attualità</h2>
-  <div class="section-body cols-3">{corpo}</div>
-</div>"""
+    return f'<h2 class="sezione">Attualità</h2>{corpo}'
 
 
 def _render_varie_block(label: str, dato: dict | None) -> str:
@@ -1357,13 +1328,14 @@ def _render_meteo_blocco(m: dict) -> str:
     </div>"""
 
 
-def _build_varie_page(varie: dict, cruciverba: dict | None, oroscopo: str | None,
-                       meteo: list[dict], soluzioni_ieri: str | None,
-                       varie_viaggio: dict | None) -> str:
+def _frammento_varie(varie: dict, cruciverba: dict | None,
+                      meteo: list[dict], soluzioni_ieri: str | None,
+                      varie_viaggio: dict | None) -> str:
     # "A tavola" per ultimo tra gli spunti (richiesta di Niccolò, 2026-09-15).
     labels = {
         "mostra": "Da vedere", "attivita_bambini": "Con i bambini",
-        "libro": "Da leggere", "disco": "Da ascoltare", "piatto_vino": "A tavola",
+        "libro": "Da leggere", "disco": "Da ascoltare", "film_serie": "Da guardare",
+        "piatto_vino": "A tavola",
     }
     varie_html = "".join(_render_varie_block(label, varie.get(key)) for key, label in labels.items())
 
@@ -1397,21 +1369,35 @@ def _build_varie_page(varie: dict, cruciverba: dict | None, oroscopo: str | None
     elif soluzioni_ieri:
         cw_html = f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
 
-    oro_html = f'<div class="varie-block"><span class="label">Oroscopo (Paolo Fox):</span> {oroscopo}</div>' if oroscopo else ""
+    # I wrapper "full-width" vanno emessi solo se c'è contenuto, e senza spazi bianchi
+    # iniziali dentro il div: un <div class="full-width"> vuoto O con solo whitespace prima
+    # del primo figlio manda in crash WeasyPrint (IndexError interno in
+    # skip_first_whitespace, verificato il 2026-09-15 — bug del motore, non del nostro CSS).
+    meteo_html = meteo_html.strip()
+    cw_html = cw_html.strip()
+    meteo_wrap = f'<div class="full-width">{meteo_html}</div>' if meteo_html else ""
+    cw_wrap = f'<div class="full-width">{cw_html}</div>' if cw_html else ""
 
-    return f"""
-<div class="page">
-  <h2 class="sezione">Varie</h2>
-  {meteo_html}
-  {viaggio_html}
-  {oro_html}
-  {cw_html}
-  {varie_html}
-</div>"""
+    return f"""<h2 class="sezione">Varie</h2>
+    {meteo_wrap}
+    {viaggio_html}
+    {cw_wrap}
+    {varie_html}"""
+
+
+def _build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa,
+                           varie, cruciverba, meteo, soluzioni_ieri, varie_viaggio) -> str:
+    contenuto = (
+        _frammento_settori(settori, giustizia_amm)
+        + _frammento_interessi(interessi)
+        + _frammento_attualita(attualita, ft_stampa)
+        + _frammento_varie(varie, cruciverba, meteo, soluzioni_ieri, varie_viaggio)
+    )
+    return f'<div class="page"><div class="corpo-continuo">{contenuto}</div></div>'
 
 
 def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
-                 oroscopo, todo, meteo, soluzioni_ieri, varie_viaggio) -> str:
+                 todo, meteo, soluzioni_ieri, varie_viaggio) -> str:
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -1420,10 +1406,7 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 </head>
 <body>
   {_build_front_page(settori, interessi, attualita, todo)}
-  {_build_settori_page(settori, giustizia_amm)}
-  {_build_interessi_page(interessi)}
-  {_build_attualita_page(attualita, ft_stampa)}
-  {_build_varie_page(varie, cruciverba, oroscopo, meteo, soluzioni_ieri, varie_viaggio)}
+  {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa, varie, cruciverba, meteo, soluzioni_ieri, varie_viaggio)}
 </body>
 </html>"""
 
@@ -1477,7 +1460,6 @@ async def genera_rassegna_html() -> str:
     interessi = await _fetch_interessi()
     attualita = await _fetch_attualita()
     giustizia_amm = await _fetch_giustizia_amministrativa()
-    oroscopo = await _fetch_oroscopo()
     ft_stampa = _get_ft_stampa_queue()
     cruciverba = _genera_cruciverba()
     soluzioni_ieri = _load_cruciverba_soluzioni_ieri()
@@ -1492,7 +1474,7 @@ async def genera_rassegna_html() -> str:
     await _arricchisci_con_riassunti(settori_items, interessi, attualita, giustizia_amm)
 
     return _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
-                        oroscopo, todo, meteo, soluzioni_ieri, varie_viaggio)
+                        todo, meteo, soluzioni_ieri, varie_viaggio)
 
 
 async def genera_rassegna_pdf() -> Path:
