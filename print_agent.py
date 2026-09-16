@@ -40,6 +40,13 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
+# Task Scheduler esegue questo script con la codepage console di sistema (cp1252 su
+# questo PC), che non sa rappresentare le emoji usate nei messaggi di alert — senza
+# questo reconfigure, un print(msg) con "⚠️" crasha PRIMA di mandare l'alert Telegram
+# (bug reale, visto il 2026-09-16: l'eccezione da segnalare non veniva mai segnalata).
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
 BASE_DIR = Path(__file__).parent
 _DRIVE_SA_FILE = BASE_DIR / "secrets" / "google-drive-sa.json"
 _CONFIG_FILE = BASE_DIR / "secrets" / "print_agent_config.json"
