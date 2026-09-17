@@ -70,6 +70,15 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
   rete energia", "concessioni demaniali balneari", "Polymarket ADM TAR gioco" (la query
   generica "gioco pubblico ADM concessioni" ha dato solo contenuto già noto), "AI Act AGID
   ACN intelligenza artificiale".
+- **2026-09-17** — Seconda sessione per la rubrica "Dal mio giro su LinkedIn", 4 pick nuovi
+  (nessuna ripetizione con quelli del 16/09) salvati in `linkedin_vetrina`. Query usate:
+  "aste FER X GSE rinnovabili" (energia — "comunità energetiche rinnovabili incentivi" ha
+  dato solo repost di testate, niente di individuale/tecnico), "concessioni demaniali
+  marittime Bolkestein 2027" (concessioni), "riordino rete fisica gioco distanziometri
+  2026" (gioco — "riordino gioco pubblico decreto ADM concessioni" e "Consiglio di Stato
+  concessioni gioco pubblico sentenza" hanno dato solo repost di testate o post di 3 anni
+  fa), "sanzione Garante privacy milioni euro 2026" (tecnologia — "NIS2 sanzioni
+  cybersecurity aziende" ha dato solo contenuto marketing/retail poco tecnico).
 
 ## Post interessanti (non profili di riferimento fissi)
 
@@ -118,6 +127,31 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
     buono, post sui decreti attuativi L.132/2025 (AgID-ACN) con chiusura su responsabilità
     individuale ("chi risponde nome e cognome") invece della solita domanda-CTA.
     https://lnkd.in/p/dePjan8U
+- **2026-09-17** — I 4 post scelti per la rubrica "Dal mio giro su LinkedIn" (vedi anche
+  tabella `linkedin_vetrina`):
+  - Energy Law Italy - ADVANT Nctm (energia) — pagina studio legale: sintesi tecnica del
+    Decreto FER-X firmato il 18/06/2026 (accesso diretto ≤1MW a prezzo ARERA, aste GSE oltre
+    la soglia, CfD bidirezionali per impianti ≥200kW, dotazione 23 miliardi di euro).
+    Struttura a bullet, dati precisi, nessuna CTA. https://lnkd.in/p/djxcTbb5
+  - Giuseppe Loffreda, PhD (concessioni) — Avvocato, Managing Partner: sulla sentenza
+    Consiglio di Stato n. 6539/2026, sostiene (in controtendenza rispetto alla lettura più
+    enfatica di altre fonti come LCA Studio Legale sullo stesso caso) che non c'è nulla di
+    realmente nuovo sul piano giuridico — solo un punto fermo pratico sui tempi delle gare.
+    Buon esempio di correzione di una narrazione mediatica enfatizzata con argomentazione
+    tecnica, stile molto vicino a TONO.md. Candidato profilo per concessioni.
+    https://lnkd.in/p/dpfusRhq
+  - Agostino Romano (gioco) — Consulente indipendente: numeri dettagliati del bando 2026 per
+    concessioni Betting/ADI (oltre 1,5 miliardi di euro, lotti, distanziometri, tetti di
+    concentrazione MEF). Contenuto molto denso e tecnico, MA chiude con una domanda aperta
+    di engagement ("Cosa ne pensate?") — non riportata nel riassunto per la rassegna, coerente
+    col divieto CTA di TONO.md. Usa parecchie emoji come marcatori di sezione (più della media
+    dei post buoni già censiti) — da tenere d'occhio se si ripete in futuro.
+    https://lnkd.in/p/dvEZmFAP
+  - Garante per la protezione dei dati personali (tecnologia) — fonte istituzionale diretta,
+    non un profilo personale: newsletter n. 551 dell'11/09/2026 con sanzioni Garante privacy
+    (BBVA Italia 5,5M€ per marketing dopo rifiuto esplicito del cliente, più due sanzioni
+    minori). Stesso registro denso/fattuale di Legal Tech BDM già censita, ma qui è la fonte
+    primaria stessa. https://lnkd.in/p/dbZB5hHv
 
 ## Condotte / pattern
 
