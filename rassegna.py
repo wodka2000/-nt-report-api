@@ -670,10 +670,8 @@ spostamento per domani è menzionato."""
 
 # Condizioni riconosciute: mappate su un'icona SVG disegnata a mano (vedi _METEO_ICONE) —
 # niente immagini scaricate da siti meteo (fragili, spesso sprite/JS, difficili da isolare
-# come URL singolo affidabile). Claude sceglie la condizione più vicina tra queste, il
-# rendering dell'icona è deterministico lato nostro.
-_METEO_CONDIZIONI = ["sereno", "nuvoloso", "pioggia", "neve", "nebbia", "caldo", "freddo"]
-
+# come URL singolo affidabile). _condizione_da_dati_verificati sceglie la condizione tra
+# queste chiavi in base a dati reali del DOM, il rendering dell'icona è deterministico.
 _METEO_ICONE = {
     "sereno": '<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="5" fill="none" stroke="#111" stroke-width="1.5"/><g stroke="#111" stroke-width="1.5"><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/></g></svg>',
     "nuvoloso": '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 17a4 4 0 0 1-.5-7.97A5 5 0 0 1 15 8.5 4 4 0 0 1 18 17H6z" fill="none" stroke="#111" stroke-width="1.5"/></svg>',
@@ -724,7 +722,12 @@ def _fetch_meteo_playwright(citta: str) -> dict | None:
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page()
+            # Il server gira in UTC (Etc/UTC): senza forzare il fuso qui, meteoam.it
+            # calcola alba/tramonto/etichette orarie in base al fuso del browser e li
+            # mostra sfasati di ~2 ore rispetto all'ora reale di Roma (verificato il
+            # 2026-09-17 confrontando con il sito: alba vera 06:51, estratta 04:49).
+            context = browser.new_context(timezone_id="Europe/Rome", locale="it-IT")
+            page = context.new_page()
             page.goto(f"https://www.meteoam.it/it/meteo-citta/{slug}", wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(1500)
             html = page.content()
@@ -810,48 +813,14 @@ def _fetch_meteo_playwright(citta: str) -> dict | None:
 
 async def _fetch_meteo_dettagliato(citta: str) -> dict | None:
     """Previsioni di domani per una città: condizione, temperatura e vento per mattina/
-    pomeriggio/sera, condizione+temperatura per la notte, alba/tramonto, umidità. Fonte
-    primaria: rendering diretto di meteoam.it via Playwright (dati reali, non riassunti da
-    un modello — vedi _fetch_meteo_playwright). Se il sito cambia layout o il rendering
-    fallisce, ripiega sulla web search di Claude (meno affidabile ma non dipende dalla
-    struttura HTML del sito)."""
+    pomeriggio/sera, condizione+temperatura per la notte, alba/tramonto, umidità. Unica
+    fonte: rendering diretto di meteoam.it (Aeronautica Militare) via Playwright (dati
+    reali, non riassunti da un modello — vedi _fetch_meteo_playwright). Niente fallback su
+    altre fonti (richiesta esplicita di Niccolò, 2026-09-17, dopo aver visto dati meteo
+    inattendibili): se il rendering fallisce, la sezione meteo semplicemente non compare
+    quel giorno — meglio assente che imprecisa/da fonte diversa."""
     loop = asyncio.get_event_loop()
-    dati = await loop.run_in_executor(None, _fetch_meteo_playwright, citta)
-    if dati:
-        return dati
-
-    logger.info(f"Rassegna meteo: fallback su web search per {citta} (Playwright non ha trovato dati)")
-    import functools
-
-    condizioni_str = "/".join(_METEO_CONDIZIONI)
-    dati = await loop.run_in_executor(
-        None,
-        functools.partial(
-            _claude_web_search_json,
-            f"""Cerca le previsioni meteo di DOMANI per {citta}, Italia su una fonte meteo
-affidabile (3bmeteo.com, ilmeteo.it, ilmeteo.com). Usa solo dati realmente trovati, non
-inventare temperature o condizioni.
-
-Per "condizione" scegli SEMPRE uno di questi valori esatti: {condizioni_str}
-("caldo"/"freddo" solo se la temperatura è l'aspetto dominante della giornata, altrimenti
-usa sereno/nuvoloso/pioggia/neve/nebbia in base al cielo).
-
-IMPORTANTE: il tuo messaggio finale deve contenere SOLO l'oggetto JSON seguente, nessun
-testo prima o dopo, anche se hai dovuto cambiare fonte o non hai trovato tutti i campi
-(ometti un campo se davvero non lo trovi, ma non inventarlo):
-{{"citta": "{citta}", "alba": "06:45", "tramonto": "19:20", "umidita": "60%",
-  "mattina": {{"condizione": "sereno", "temperatura": "18°C", "vento_intensita": "debole", "vento_direzione": "NE"}},
-  "pomeriggio": {{"condizione": "sereno", "temperatura": "27°C", "vento_intensita": "moderato", "vento_direzione": "O"}},
-  "sera": {{"condizione": "nuvoloso", "temperatura": "21°C", "vento_intensita": "debole", "vento_direzione": "O"}},
-  "notte": {{"condizione": "sereno", "temperatura": "16°C"}}}}
-Se non trovi alcun dato affidabile su nessuna fonte, rispondi SOLO con
-{{"citta": "{citta}", "alba": null}}.""",
-            max_tokens=2000,
-        ),
-    )
-    if not dati or not dati.get("alba"):
-        return None
-    return dati
+    return await loop.run_in_executor(None, _fetch_meteo_playwright, citta)
 
 
 async def _fetch_meteo(citta_viaggio: str | None) -> list[dict]:
@@ -1277,7 +1246,8 @@ _CSS = """
   .meteo-icona svg { display: block; margin: 0 auto; }
   .meteo-temp { font-weight: bold; font-size: 13px; margin-top: 4px; }
   .meteo-vento { font-size: 9px; color: #555; margin-top: 3px; }
-  table.cw-grid { border-collapse: collapse; margin: 10px 0; }
+  table.cw-grid { border-collapse: collapse; margin: 10px 0; break-inside: avoid;
+                   page-break-inside: avoid; }
   table.cw-grid td { width: 26px; height: 26px; text-align: center; vertical-align: top;
                       position: relative; }
   td.cw-cell { border: 1px solid #111; }
