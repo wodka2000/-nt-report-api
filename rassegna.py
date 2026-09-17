@@ -707,14 +707,30 @@ def _condizione_da_dati_verificati(rain_class: str, rain_pct: int, temp_c: int) 
     return "sereno"
 
 
+# La classe CSS dell'icona vento (es. 'd-ne') seleziona un'immagine SVG con una freccia che
+# punta nella direzione VERSO CUI soffia il vento, non da dove viene — verificato il
+# 2026-09-18 ingrandendo l'SVG di 'd-ne' (freccia verso NE, coda verso SW) e confrontandolo
+# con il riquadro principale della stessa pagina, che nello stesso momento indicava "Vento:
+# 4 Km/h da 55°" (NE) mentre la griglia oraria aveva classe 'd-sw' per quell'ora — i due
+# valori sono opposti di ~180° (55° vs SW≈225°), confermando che la classe è la direzione
+# "verso" e va invertita per ottenere la convenzione meteorologica "vento DA" (es. libeccio
+# = vento da SW). Prima di questo fix riportavamo sempre l'esatto opposto del vento reale.
+_INVERTI_DIREZIONE_VENTO = {
+    "N": "S", "S": "N", "E": "W", "W": "E",
+    "NE": "SW", "SW": "NE", "NW": "SE", "SE": "NW",
+    "NNE": "SSW", "SSW": "NNE", "ENE": "WSW", "WSW": "ENE",
+    "ESE": "WNW", "WNW": "ESE", "SSE": "NNW", "NNW": "SSE",
+}
+
+
 def _fetch_meteo_playwright(citta: str) -> dict | None:
     """Legge le previsioni reali da meteoam.it renderizzando la pagina con un browser
     headless (Playwright/Chromium): è una SPA JS, l'HTML statico non contiene i dati
     (verificato 2026-09-15). Estrae dal DOM renderizzato: alba/tramonto/umidità dal pannello
     principale, temperatura/vento/probabilità di pioggia orari da '.weather-info-container'
     (che copre abbondantemente anche il giorno dopo). La direzione del vento è codificata
-    direttamente nel nome classe CSS (es. 'd-e-se' = Est-Sudest, verificato campionando più
-    orari) — niente inferenza, solo parsing di un valore già presente nel markup."""
+    nel nome classe CSS dell'icona (es. 'd-e-se' = Est-Sudest) ma va invertita di 180° per
+    ottenere la direzione "da" — vedi _INVERTI_DIREZIONE_VENTO."""
     from bs4 import BeautifulSoup
     from playwright.sync_api import sync_playwright
 
@@ -783,7 +799,8 @@ def _fetch_meteo_playwright(citta: str) -> dict | None:
         if wind_icon_el:
             classi = [cl for cl in wind_icon_el.get("class", []) if cl.startswith("d-")]
             if classi:
-                direzione = classi[0][2:].upper().replace("-", "")
+                direzione_verso = classi[0][2:].upper().replace("-", "")
+                direzione = _INVERTI_DIREZIONE_VENTO.get(direzione_verso, direzione_verso)
         velocita = wind_val_el.get_text(strip=True) if wind_val_el else ""
         orari[(data_corrente, ora)] = {
             "condizione": _condizione_da_dati_verificati(rain_class, rain_pct, temp_c),
