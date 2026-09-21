@@ -1537,6 +1537,51 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 
 # ── Orchestrazione ───────────────────────────────────────────────────────────────
 
+def _versione_pubblica_pdf(pdf_path: Path) -> bytes:
+    """Rimuove la prima pagina del PDF (contiene la ToDo list privata di Niccolò, letta
+    da Drive) e restituisce i bytes della versione pubblicabile su nt-report.com. La
+    copia stampata/su Drive resta invariata: questa funzione non tocca pdf_path."""
+    import io
+    from pypdf import PdfReader, PdfWriter
+
+    reader = PdfReader(str(pdf_path))
+    writer = PdfWriter()
+    for page in reader.pages[1:]:
+        writer.add_page(page)
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def _pubblica_rassegna_sul_sito(pdf_path: Path) -> bool:
+    """Carica la versione pubblica (senza prima pagina) su nt-report.com via l'endpoint
+    admin del sito. Richiede ADMIN_TOKEN nell'ambiente, condiviso con il servizio Render
+    nt-report-api. Non blocca il resto del job se fallisce."""
+    import os
+    import httpx
+
+    token = os.environ.get("ADMIN_TOKEN", "")
+    if not token:
+        logger.warning("Rassegna: ADMIN_TOKEN non configurato — salto pubblicazione sul sito")
+        return False
+
+    data_str = pdf_path.stem
+    try:
+        pdf_bytes = _versione_pubblica_pdf(pdf_path)
+        resp = httpx.post(
+            "https://nt-report-api.onrender.com/api/admin/rassegne",
+            headers={"X-Admin-Token": token},
+            data={"data": data_str},
+            files={"file": (f"{data_str}.pdf", pdf_bytes, "application/pdf")},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return True
+    except Exception as e:
+        logger.warning(f"Rassegna: pubblicazione sul sito fallita: {e}")
+        return False
+
+
 async def run_rassegna_job(context) -> None:
     """Job giornaliero: genera il PDF, lo carica su Drive (per il print agent locale) e lo
     invia come documento Telegram all'owner. Solo per l'owner, non blocca in caso di errori
@@ -1571,6 +1616,15 @@ async def run_rassegna_job(context) -> None:
         await context.bot.send_message(
             chat_id=chat_id,
             text="⚠️ Archivio settimanale su Drive saltato o fallito (vedi log).",
+        )
+
+    pubblicata = await loop.run_in_executor(None, _pubblica_rassegna_sul_sito, pdf_path)
+    if pubblicata:
+        await context.bot.send_message(chat_id=chat_id, text="🌐 Rassegna pubblicata su nt-report.com.")
+    else:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="⚠️ Pubblicazione su nt-report.com saltata o fallita (vedi log).",
         )
 
     with open(pdf_path, "rb") as f:

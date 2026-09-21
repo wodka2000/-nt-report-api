@@ -17,6 +17,7 @@ else:
     BASE_DIR = Path(__file__).parent.parent.parent
 
 PDF_BYTES_DIR = BASE_DIR / "data" / "pdf_bytes"
+RASSEGNE_DIR = BASE_DIR / "rassegne"
 
 TOPICS: dict[str, str] = {
     "energia":     "⚡ Energia",

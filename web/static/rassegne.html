@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rassegna quotidiana — NT Report</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { max-width: 800px; margin: 0 auto; padding: 1rem 1.5rem; }
+    header { border-bottom: 1px solid var(--pico-muted-border-color); margin-bottom: 2rem; padding-bottom: 1rem; }
+    header nav { display: flex; gap: 1.5rem; align-items: center; }
+    header nav a { text-decoration: none; color: var(--pico-muted-color); font-size: .9rem; }
+    header nav a:hover { color: var(--pico-primary); }
+    article { border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    article .data { font-weight: 600; }
+    article .pagine { font-size: .85rem; color: var(--pico-muted-color); }
+    #status { text-align: center; color: var(--pico-muted-color); padding: 2rem; }
+  </style>
+</head>
+<body>
+<header>
+  <nav>
+    <strong>NT Report</strong>
+    <a href="index.html">Home</a>
+    <a href="archive.html">Archivio post</a>
+    <a href="rassegne.html" aria-current="page">Rassegna quotidiana</a>
+  </nav>
+</header>
+
+<main>
+  <h2>Rassegna quotidiana</h2>
+  <p>Edizione giornaliera con energia, concessioni, gioco, tecnologia, geopolitica e i post
+  scelti dal giro su LinkedIn. Versione web, senza la prima pagina stampata (indice/ToDo).</p>
+
+  <div id="results"><p id="status">Caricamento…</p></div>
+</main>
+
+<script>
+const API = '/api';
+
+async function load() {
+  const results = document.getElementById('results');
+  let items;
+  try {
+    const resp = await fetch(`${API}/rassegne`);
+    if (!resp.ok) throw new Error(`API ${resp.status}`);
+    items = await resp.json();
+  } catch (e) {
+    results.innerHTML = `<p style="color:var(--pico-del-color)">Errore: ${escHtml(String(e))}</p>`;
+    return;
+  }
+  if (!items.length) {
+    results.innerHTML = '<p>Nessuna rassegna pubblicata ancora.</p>';
+    return;
+  }
+  results.innerHTML = items.map(r => `
+    <article>
+      <div>
+        <div class="data">${formatData(r.data)}</div>
+        <div class="pagine">${r.pagine} pagine</div>
+      </div>
+      <a role="button" href="${API}/rassegne/${r.data}/pdf" target="_blank">Apri PDF</a>
+    </article>
+  `).join('');
+}
+
+function formatData(d) {
+  const [y, m, day] = d.split('-');
+  return new Date(y, m - 1, day).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+load();
+</script>
+</body>
+</html>

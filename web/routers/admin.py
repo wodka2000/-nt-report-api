@@ -3,11 +3,12 @@ admin.py — Endpoint protetti per modifica/archiviazione/cancellazione post.
 Richiedono header: X-Admin-Token: {ADMIN_TOKEN}
 """
 import os
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 import aiosqlite
 
-from web.core.db import get_db
+from web.core.db import get_db, upsert_rassegna
+from web.core.constants import RASSEGNE_DIR
 
 router = APIRouter(prefix="/api/admin")
 
@@ -79,6 +80,31 @@ async def admin_delete_post(
     await db.execute("UPDATE posts SET status = 'deleted' WHERE id = ?", (post_id,))
     await db.commit()
     return {"status": "ok", "id": post_id}
+
+
+@router.post("/rassegne", dependencies=[Depends(_check_auth)])
+async def admin_upload_rassegna(
+    data: str = Form(...),
+    file: UploadFile = File(...),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Riceve dal server della rassegna (Oracle Cloud) il PDF già senza la pagina con
+    la ToDo list privata e lo pubblica sul sito."""
+    from pypdf import PdfReader
+    import io
+
+    content = await file.read()
+    try:
+        pagine = len(PdfReader(io.BytesIO(content)).pages)
+    except Exception:
+        raise HTTPException(400, "PDF non leggibile")
+
+    RASSEGNE_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{data}.pdf"
+    (RASSEGNE_DIR / filename).write_bytes(content)
+    await upsert_rassegna(db, data, filename, pagine)
+    await db.commit()
+    return {"status": "ok", "data": data, "pagine": pagine}
 
 
 @router.get("/posts", dependencies=[Depends(_check_auth)])

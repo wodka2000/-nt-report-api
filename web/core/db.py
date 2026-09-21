@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS posts (
     author      TEXT DEFAULT 'owner'    -- username Telegram
 );
 
+CREATE TABLE IF NOT EXISTS rassegne (
+    data        TEXT PRIMARY KEY,   -- YYYY-MM-DD
+    pdf_path    TEXT,               -- percorso relativo dentro BASE_DIR
+    pagine      INTEGER,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS payments (
     id          TEXT PRIMARY KEY,
     action      TEXT,
@@ -216,6 +223,33 @@ async def list_authors(db: aiosqlite.Connection) -> list[str]:
     ) as cur:
         rows = await cur.fetchall()
     return [r[0] for r in rows]
+
+
+# ── Helpers rassegne ────────────────────────────────────────────────────────────
+
+async def upsert_rassegna(db: aiosqlite.Connection, data: str, pdf_path: str, pagine: int) -> None:
+    await db.execute("""
+        INSERT INTO rassegne (data, pdf_path, pagine)
+        VALUES (?, ?, ?)
+        ON CONFLICT(data) DO UPDATE SET
+            pdf_path=excluded.pdf_path, pagine=excluded.pagine
+    """, (data, pdf_path, pagine))
+
+
+async def list_rassegne(db: aiosqlite.Connection) -> list[dict]:
+    async with db.execute(
+        "SELECT data, pagine, created_at FROM rassegne ORDER BY data DESC"
+    ) as cur:
+        rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_rassegna(db: aiosqlite.Connection, data: str) -> dict | None:
+    async with db.execute(
+        "SELECT * FROM rassegne WHERE data = ?", (data,)
+    ) as cur:
+        row = await cur.fetchone()
+    return dict(row) if row else None
 
 
 async def insert_post(db: aiosqlite.Connection, post: dict) -> int:
