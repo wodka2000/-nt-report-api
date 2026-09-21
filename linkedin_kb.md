@@ -80,6 +80,12 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
   fa), "sanzione Garante privacy milioni euro 2026" (tecnologia — "NIS2 sanzioni
   cybersecurity aziende" ha dato solo contenuto marketing/retail poco tecnico).
 
+- **2026-09-18** — Terza sessione per la rubrica "Dal mio giro su LinkedIn", 4 pick nuovi
+  salvati in `linkedin_vetrina`. Query usate: ricerca mirata per ambito su energia,
+  concessioni e gioco (stesso metodo delle sessioni precedenti); per tecnologia query "AI Act
+  obblighi conformita imprese 2026" — il primo risultato utile era un evento (non un post),
+  il secondo la fonte istituzionale scelta (Fondazione ENIA).
+
 ## Post interessanti (non profili di riferimento fissi)
 
 - La vera Bioedilizia — post su concessioni balneari Liguria con tattica di lead-gen
@@ -152,6 +158,21 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
     (BBVA Italia 5,5M€ per marketing dopo rifiuto esplicito del cliente, più due sanzioni
     minori). Stesso registro denso/fattuale di Legal Tech BDM già censita, ma qui è la fonte
     primaria stessa. https://lnkd.in/p/dbZB5hHv
+
+- **2026-09-18** — I 4 post scelti per la rubrica "Dal mio giro su LinkedIn" (vedi anche
+  tabella `linkedin_vetrina`):
+  - Enrico Rainero (energia) — post su tematiche energetiche.
+    https://lnkd.in/p/dzqmfPQ9
+  - Vincenzo Laudani (concessioni) — consulente appalti pubblici, autore
+    appaltiecontratti.it, già in lista candidati dal 15/09: post tecnico su concessioni
+    demaniali, registro vicino a TONO.md. https://lnkd.in/p/du_ZWKSj
+  - Agenzia delle Dogane e dei Monopoli (gioco) — fonte istituzionale diretta, non un
+    profilo personale. https://lnkd.in/p/dNpSQEwC
+  - Fondazione ENIA - Ente Nazionale per l'Intelligenza Artificiale (tecnologia) — pagina
+    istituzionale verificata: "Breaking News" sulla pubblicazione in Gazzetta Ufficiale UE
+    del Regolamento (UE) 2026/1744 ("Digital Omnibus on AI"), che introduce misure di
+    semplificazione per l'attuazione delle regole armonizzate dell'AI Act. Registro
+    fattuale, nessuna CTA/emoji. https://lnkd.in/p/dKS38DYq
 
 ## Condotte / pattern
 
