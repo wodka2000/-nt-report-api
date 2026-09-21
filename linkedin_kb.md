@@ -84,7 +84,27 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
   salvati in `linkedin_vetrina`. Query usate: ricerca mirata per ambito su energia,
   concessioni e gioco (stesso metodo delle sessioni precedenti); per tecnologia query "AI Act
   obblighi conformita imprese 2026" — il primo risultato utile era un evento (non un post),
-  il secondo la fonte istituzionale scelta (Fondazione ENIA).
+  il secondo la fonte istituzionale scelta (Fondazione ENIA). **Nota:** per un salto di più
+  giorni nella sessione, questo giro è stato salvato materialmente sul server il 21/09 (data
+  di sistema in quel momento) e sovrascritto poche ore dopo dalla sessione del 21/09 vera e
+  propria — questi 4 pick non sono quindi mai comparsi in un'edizione stampata. Vedi sotto.
+- **2026-09-21** — Quarta sessione (rassegna odierna, dopo aver saltato domenica 20/09 per
+  assenza dell'utente). 4 pick nuovi salvati in `linkedin_vetrina`, sovrascrivendo quelli
+  dell'entry precedente. Query usate: "Terna piano di sviluppo rete 2026" (energia — la prima
+  query generica "ARERA delibera rete elettrica settembre 2026" ha dato solo post
+  commerciali/promozionali di consulenti energetici, es. "PAWA energia e ambiente"),
+  "concessioni demaniali marittime sentenza settembre 2026" (concessioni), "Consiglio di
+  Stato gioco pubblico concessioni ADM" poi "Polymarket TAR ADM gioco sentenza" (gioco — la
+  prima query ha dato solo contenuto di affiliazione commerciale, es. Michele Martinelli
+  "esperti di affiliazioni casinò e scommesse"), "NIS2 ACN cybersecurity aziende sanzioni
+  2026" (tecnologia). **Tecnica di recupero link cambiata**: il copia-incolla da appunti
+  (clipboard) si è rotto durante questa sessione (verificato anche su Google, non solo
+  LinkedIn — probabile permesso di sistema revocato, non un problema del sito). Nuova tecnica
+  più affidabile e senza clipboard: cliccare "···" sul post → "Copia link al post" → cliccare
+  sul link "Visualizza post" nel toast di conferma che appare in basso a sinistra → leggere
+  l'URL della tab con `tabs_context_mcp` (LinkedIn naviga al permalink completo
+  `/posts/<slug>-<id>/`, più stabile del link corto lnkd.in). Aggiornare
+  [[feedback_linkedin_post_links]] con questa tecnica.
 
 ## Post interessanti (non profili di riferimento fissi)
 
@@ -173,6 +193,30 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
     del Regolamento (UE) 2026/1744 ("Digital Omnibus on AI"), che introduce misure di
     semplificazione per l'attuazione delle regole armonizzate dell'AI Act. Registro
     fattuale, nessuna CTA/emoji. https://lnkd.in/p/dKS38DYq
+
+- **2026-09-21** — I 4 post scelti per la rubrica "Dal mio giro su LinkedIn" (vedi anche
+  tabella `linkedin_vetrina`, sovrascrive i pick del 18/09 mai andati in stampa):
+  - Pantaleone Turco (energia) — Project Manager & HSE Specialist, Energy Infrastructure:
+    79 GW di richieste di connessione data center in Italia a gennaio 2026, riflessione
+    tecnica su "ready to build" vs "ready to execute" con fonti citate (Terna, Piano di
+    Sviluppo 2026; Google, investimento Finlandia 9/09/2026). Dati precisi, nessuna CTA.
+    Candidato profilo da valutare per energia. https://www.linkedin.com/posts/pantaleone-turco_projectmanagement-energyinfrastructure-projectexecution-share-7504990749030141952-6oyu/
+  - Lorenzo Cupaioli, Studio Legale Cupaioli (concessioni) — bollettino sentenze Consiglio di
+    Stato del 17/09/2026: sentenza n. 6932/2026 su concessioni demaniali marittime (ricorso
+    cumulativo AGCM contro quattro procedure comparative comunali). Molto fresco (2 giorni),
+    citazione precisa del numero di sentenza. https://www.linkedin.com/posts/lorenzo-cupaioli-b49209235_consigliodistato-dirittoamministrativo-concessionidemaniali-ugcPost-7506715945084702721-olif/
+  - Marco Mariani, giornalista (gioco) — collega il caso Polymarket/Kalshi negli USA (la Corte
+    Suprema valuta se regolare i "prediction markets" come mercati finanziari o scommesse)
+    all'oscuramento ADM in Italia e alla rescissione dello sponsorship Lazio-Polymarket.
+    Angolo insolito (comparazione internazionale) rispetto al solito taglio locale del
+    settore gioco. Chiude con "Leggi l'articolo completo" (rimando al proprio sito, non CTA
+    di engagement). https://www.linkedin.com/posts/marco-mariani-a999b4b_i-prediction-markets-stanno-ridefinendo-ugcPost-7502362424474329088-aiKt/
+  - Andrea Forcina (tecnologia) — sintesi delle nuove FAQ ACN (MVE.1-MVE.5) dell'11/08/2026
+    su NIS2: monitoraggio, ispezioni, misure di esecuzione, sanzioni. Fonti citate (ACN,
+    D.Lgs. 138/2024). Usa molte emoji come marcatori di sezione (🔒🔍👥⚠️📊✅) — più della
+    media dei post buoni già censiti, da tenere d'occhio come Agostino Romano (17/09) se il
+    pattern si ripete in futuro. Nessuna CTA, chiusura con fonti normative.
+    https://www.linkedin.com/posts/andrea-forcina-9a02633b_nis2-acn-pa-share-7498116036076998656-Hmop/
 
 ## Condotte / pattern
 
