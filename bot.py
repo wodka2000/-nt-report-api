@@ -2359,6 +2359,7 @@ async def cmd_rassegna_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return
     context.bot_data["owner_chat_id"] = update.effective_chat.id
+    await update.message.reply_text("🔄 Comando ricevuto, genero la rassegna di oggi — ci vogliono un paio di minuti...")
     from rassegna import run_rassegna_job
     await run_rassegna_job(context)
 
