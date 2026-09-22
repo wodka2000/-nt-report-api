@@ -218,6 +218,39 @@ Candidati aggiuntivi emersi ma non ancora confermati da Niccolò:
     pattern si ripete in futuro. Nessuna CTA, chiusura con fonti normative.
     https://www.linkedin.com/posts/andrea-forcina-9a02633b_nis2-acn-pa-share-7498116036076998656-Hmop/
 
+- **2026-09-22** — I 4 post scelti per la rubrica "Dal mio giro su LinkedIn" (vedi anche
+  tabella `linkedin_vetrina`):
+  - Fabio Carnemolla (energia) — Avvocato: analisi tecnica su data center e AI Act, con
+    dati Terna aggiornati (531 richieste di connessione per 95,38 GW al 21/08/2026, solo
+    15 richieste per 1,88 GW a stadio di maturità avanzato — meno del 3%), DL 21/2026
+    (art. 7 saturazione virtuale, art. 8 PUCD), LR 11/2026 Lombardia (290 domande per 46
+    GW su Milano) e decreti attuativi AI Act. Stesso impianto normativo già coperto più
+    volte nella settimana, ma dati e lettura aggiornati, nessuna CTA/emoji.
+    https://www.linkedin.com/posts/fabio-carnemolla-b81271147_data-center-e-ai-act-cosa-dice-la-norma-share-7501371468140691456-7uRL/
+  - Salvatore Nanè (concessioni) — Avvocato: corregge un equivoco diffuso citando la
+    sentenza del Consiglio di Stato del 18 agosto 2026 (Comune di Zoagli) — il termine
+    30/09/2027 non è la nuova scadenza delle concessioni (già scadute il 31/12/2023) ma
+    il termine ultimo "acceleratorio" per completare le gare. Buon esempio di correzione
+    di una narrazione mediatica imprecisa con argomentazione tecnica, stile vicino a
+    TONO.md. Candidato profilo da valutare per concessioni.
+    https://www.linkedin.com/posts/salvatore-nan%C3%A8-14b5132b5_concessionibalneari-consigliodistato-gare-share-7499460956993839104-hvzi/
+  - AttivazioniGratuite.it / Andrea Ventre (gioco) — consulente PVR: angolo insolito
+    rispetto al solito taglio normativo, mappa il consolidamento del mercato del gioco
+    pubblico via M&A (Cirsa dentro Lottomatica dal 2/09/2026, quota Lottomatica nelle
+    scommesse online dal 24,98% al 31,73%; storico Sisal-Flutter 2021, Betflag-Lottomatica
+    2022, SKS365-Lottomatica 2023, Snaitech-Flutter 2024). Dati precisi, fonti citate
+    (Bloomberg, Reuters, AGIMEG). Chiude con un CTA commerciale soft ("scrivimi") —
+    coerente con TONO.md, il CTA non è stato riportato nel riassunto per la rassegna.
+    https://www.linkedin.com/posts/puntovenditaricarica-mercatodelgioco-giocopubblico-share-7501920406434459648-xQ-1/
+  - Nicola Sandon (tecnologia) — IT, Data Protection & AI Lawyer, Deloitte Legal: sintesi
+    del D.Lgs. 9 settembre 2026 n. 160 (G.U. n. 214/2026) — nuovo art. 437-bis c.p. (omessa
+    adozione di misure di sicurezza sui sistemi IA ad alto rischio, fino a 8-10 anni di
+    reclusione) e nuovo art. 25-vicies nel D.Lgs. 231/2001 (reati presupposto IA e
+    deepfake, sanzioni interdittive), in vigore dal 30/09/2026. Tema fresco, non ancora
+    coperto nelle sessioni precedenti (distinto dai decreti AgID/ACN già censiti il
+    15/09 e 17/09). Registro molto denso, nessuna emoji, nessuna CTA.
+    https://www.linkedin.com/posts/nicolasandon_decreto-legislativo-9-settembre-2026-n-ugcPost-7506745190213169153-7G1P/
+
 ## Condotte / pattern
 
 *(sezione da popolare nel tempo — al momento nessun pattern statisticamente solido: serve
