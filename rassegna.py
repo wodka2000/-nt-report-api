@@ -1538,15 +1538,43 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 # ── Orchestrazione ───────────────────────────────────────────────────────────────
 
 def _versione_pubblica_pdf(pdf_path: Path) -> bytes:
-    """Rimuove la prima pagina del PDF (contiene la ToDo list privata di Niccolò, letta
-    da Drive) e restituisce i bytes della versione pubblicabile su nt-report.com. La
-    copia stampata/su Drive resta invariata: questa funzione non tocca pdf_path."""
+    """Restituisce i bytes di una versione pubblicabile su nt-report.com, rigenerata
+    dall'HTML sorgente (salvato accanto al PDF da genera_rassegna_pdf) rimuovendo il
+    blocco con la ToDo list privata di Niccolò PRIMA di renderizzare il PDF. Non si basa
+    sul conteggio delle pagine: se rimuovessimo solo "la prima pagina" del PDF finale,
+    un'edizione con più notizie del solito potrebbe far sconfinare l'indice/ToDo sulla
+    pagina 2, lasciando la ToDo list visibile pubblicamente (bug corretto il 22/09/2026,
+    vedi feedback_privacy_rassegna in memoria). La copia stampata/su Drive (pdf_path)
+    resta invariata: questa funzione non la tocca."""
+    import re
+    from weasyprint import HTML
+
+    html_path = pdf_path.with_suffix(".html")
+    if html_path.exists():
+        html = html_path.read_text(encoding="utf-8")
+        html_pubblico = re.sub(r'<div class="todo">.*?</div>', "", html, flags=re.DOTALL)
+        if '<div class="todo">' in html_pubblico:
+            # Il regex non l'ha rimosso del tutto (es. markup cambiato) — meglio fallire
+            # rumorosamente che pubblicare per errore un HTML ancora privato.
+            raise ValueError("Rimozione ToDo list fallita — controllare _build_todo_checklist")
+        return HTML(string=html_pubblico).write_pdf()
+
+    # Fallback per PDF generati prima che genera_rassegna_pdf salvasse anche l'HTML
+    # sorgente (edizioni del 14-21/09/2026): cerca ed esclude qualsiasi pagina il cui
+    # testo contenga il marcatore "DA FARE", invece di assumere sia sempre la pagina 1.
+    return _versione_pubblica_pdf_fallback_pypdf(pdf_path)
+
+
+def _versione_pubblica_pdf_fallback_pypdf(pdf_path: Path) -> bytes:
     import io
     from pypdf import PdfReader, PdfWriter
 
     reader = PdfReader(str(pdf_path))
     writer = PdfWriter()
-    for page in reader.pages[1:]:
+    for page in reader.pages:
+        testo = (page.extract_text() or "").upper()
+        if "DA FARE" in testo:
+            continue
         writer.add_page(page)
     buf = io.BytesIO()
     writer.write(buf)
@@ -1658,12 +1686,16 @@ async def genera_rassegna_html() -> str:
 
 async def genera_rassegna_pdf() -> Path:
     """Genera il PDF del giorno e lo salva in rassegna/YYYY-MM-DD.pdf. Non committato su
-    git (artefatto binario giornaliero, escluso via .gitignore)."""
+    git (artefatto binario giornaliero, escluso via .gitignore). Salva anche l'HTML
+    sorgente accanto al PDF (stesso nome, .html): serve a _versione_pubblica_pdf per
+    ricostruire una copia senza la ToDo list privata, senza dover contare le pagine."""
     from weasyprint import HTML
 
     html = await genera_rassegna_html()
 
     RASSEGNA_DIR.mkdir(exist_ok=True)
-    out_path = RASSEGNA_DIR / f"{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    out_path = RASSEGNA_DIR / f"{date_str}.pdf"
     HTML(string=html).write_pdf(str(out_path))
+    (RASSEGNA_DIR / f"{date_str}.html").write_text(html, encoding="utf-8")
     return out_path
