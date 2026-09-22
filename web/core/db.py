@@ -252,6 +252,10 @@ async def get_rassegna(db: aiosqlite.Connection, data: str) -> dict | None:
     return dict(row) if row else None
 
 
+async def delete_rassegna(db: aiosqlite.Connection, data: str) -> None:
+    await db.execute("DELETE FROM rassegne WHERE data = ?", (data,))
+
+
 async def insert_post(db: aiosqlite.Connection, post: dict) -> int:
     async with db.execute("""
         INSERT INTO posts (doc_id, post_date, post_time, post_num,

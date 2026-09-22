@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File,
 from pydantic import BaseModel
 import aiosqlite
 
-from web.core.db import get_db, upsert_rassegna
+from web.core.db import get_db, upsert_rassegna, delete_rassegna
 from web.core.constants import RASSEGNE_DIR
 
 router = APIRouter(prefix="/api/admin")
@@ -105,6 +105,20 @@ async def admin_upload_rassegna(
     await upsert_rassegna(db, data, filename, pagine)
     await db.commit()
     return {"status": "ok", "data": data, "pagine": pagine}
+
+
+@router.delete("/rassegne/{data}", dependencies=[Depends(_check_auth)])
+async def admin_delete_rassegna(
+    data: str,
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Rimuove una rassegna dal sito (DB + file su disco)."""
+    path = RASSEGNE_DIR / f"{data}.pdf"
+    if path.exists():
+        path.unlink()
+    await delete_rassegna(db, data)
+    await db.commit()
+    return {"status": "ok", "data": data}
 
 
 @router.get("/posts", dependencies=[Depends(_check_auth)])
