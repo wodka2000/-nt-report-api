@@ -1569,7 +1569,7 @@ def _pubblica_rassegna_sul_sito(pdf_path: Path) -> bool:
     try:
         pdf_bytes = _versione_pubblica_pdf(pdf_path)
         resp = httpx.post(
-            "https://nt-report-api.onrender.com/api/admin/rassegne",
+            "https://nt-report-api-kojk.onrender.com/api/admin/rassegne",
             headers={"X-Admin-Token": token},
             data={"data": data_str},
             files={"file": (f"{data_str}.pdf", pdf_bytes, "application/pdf")},

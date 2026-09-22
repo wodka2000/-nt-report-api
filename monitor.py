@@ -1647,7 +1647,7 @@ async def _save_post_to_report(context, draft: dict, reply_target, notify_errors
             f"report: monitor post {date_str} ({source_name})",
         )
         async with httpx.AsyncClient(timeout=10) as client:
-            await client.post("https://nt-report-api.onrender.com/api/refresh")
+            await client.post("https://nt-report-api-kojk.onrender.com/api/refresh")
         await reply_target.reply_text(_t("site_updated", lang))
     except Exception as e:
         logger.warning(f"Monitor git push fallito: {e}")
