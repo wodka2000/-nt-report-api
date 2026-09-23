@@ -1263,6 +1263,7 @@ _CSS = """
   .meteo-icona svg { display: block; margin: 0 auto; }
   .meteo-temp { font-weight: bold; font-size: 13px; margin-top: 4px; }
   .meteo-vento { font-size: 9px; color: #555; margin-top: 3px; }
+  .cw-block { break-inside: avoid; page-break-inside: avoid; }
   table.cw-grid { border-collapse: collapse; margin: 10px 0; break-inside: avoid;
                    page-break-inside: avoid; }
   table.cw-grid td { width: 26px; height: 26px; text-align: center; vertical-align: top;
@@ -1486,13 +1487,15 @@ def _build_ultima_pagina(varie: dict, varie_viaggio: dict | None, meteo: list[di
             '<div class="cw-answers">Soluzioni sul numero di domani.</div>'
         )
         cw_html = (
-            "<h3>Cruciverba</h3>"
+            '<div class="cw-block">'
+            + "<h3>Cruciverba</h3>"
             + cruciverba["grid_html"]
             + '<div class="cw-clues">'
             + f'<div><strong>Orizzontali</strong><ul>{clues_a}</ul></div>'
             + f'<div><strong>Verticali</strong><ul>{clues_d}</ul></div>'
             + "</div>"
             + soluzioni_html
+            + "</div>"
         )
     elif soluzioni_ieri:
         cw_html = f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
