@@ -106,11 +106,36 @@ def _download(drive, file_id: str) -> bytes:
     return buf.getvalue()
 
 
+def _ensure_default_printer() -> bool:
+    """Il verbo shell 'print' usato sotto stampa sempre sulla stampante PREDEFINITA di
+    Windows, non su PRINTER_NAME esplicitamente — se qualcos'altro (Windows Update,
+    un'altra app, un cambio manuale) sposta il default su "Microsoft Print to PDF" o
+    "OneNote", la stampa fisica non parte più: appare una finestra di salvataggio (o
+    non succede nulla) e nessun errore Python viene sollevato (bug reale, trovato il
+    2026-09-23 — la stampa manuale delle 16:xx è finita silenziosamente su "Microsoft
+    Print to PDF"). Impostare sempre esplicitamente PRINTER_NAME come default prima di
+    stampare, invece di fidarsi dello stato del sistema. Ritorna False se PRINTER_NAME
+    non esiste tra le stampanti installate (setup rotto, da segnalare)."""
+    ps_script = f"""
+$p = Get-CimInstance Win32_Printer -Filter "Name='{PRINTER_NAME}'" -ErrorAction SilentlyContinue
+if (-not $p) {{ Write-Output "PRINTER_NOT_FOUND"; exit }}
+if (-not $p.Default) {{ Invoke-CimMethod -InputObject $p -MethodName SetDefaultPrinter | Out-Null }}
+Write-Output "OK"
+"""
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps_script],
+        capture_output=True, text=True, timeout=20,
+    )
+    return result.stdout.strip() == "OK"
+
+
 def _print_via_shell(pdf_bytes: bytes) -> bool:
     """Salva il PDF in locale e lo stampa con il verbo shell 'print' (equivalente a
     tasto destro > Stampa in Explorer). Ritorna True se un job è comparso in coda entro
     il timeout (segno che la stampa è partita), False altrimenti."""
     _LOCAL_PDF_PATH.write_bytes(pdf_bytes)
+    if not _ensure_default_printer():
+        return False
     os.startfile(str(_LOCAL_PDF_PATH), "print")
 
     # IMPORTANTE (bug trovato il 2026-09-15): un job compare in coda già mentre è ancora
