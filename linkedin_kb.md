@@ -332,3 +332,61 @@ NESSUNA rivista di settore dedicata (solo GU/AGCM/Corte Costituzionale). Aggiunt
   tecnici su giurisprudenza concessioni balneari con citazione precisa di sentenze,
   registro molto vicino a TONO.md, engagement discreto (36/4 su un post). Candidato
   profilo di riferimento per concessioni, da confermare con Niccolò.
+
+**2026-09-23** — Quinta sessione per la rubrica "Dal mio giro su LinkedIn". 4 pick nuovi
+salvati in `linkedin_vetrina` (via script diretto sul server, sessione supervisionata
+in chat, non tramite il flusso locale di test). Query usate: "PUCD procedimento unico
+data center energia" (energia — primo risultato utile), "Consiglio di Stato concessioni
+demaniali marittime settembre 2026" poi altre 4 varianti quasi tutte a vuoto o
+duplicate delle sentenze n. 6539/6932 già coperte il 21-22/09 (concessioni — tema
+sostanzialmente esaurito questa settimana, vedi nota sotto), "gioco pubblico decreto
+legge settembre 2026" (query generica, risultati fuori tema ma ha fatto emergere per
+caso il pick tecnologia), profilo diretto di Luca Giacobbe (gioco — la ricerca per
+contenuto non ha dato nulla di nuovo su Polymarket, già molto battuto).
+
+- **Nota metodologica**: su concessioni, dopo 5 query mirate, quasi tutti i risultati
+  freschi ricadevano sulle stesse due sentenze CdS (n. 6539/2026 Zoagli, n. 6932/2026
+  Imperia) già usate il 21/09 e 22/09 — segnale che il ciclo di notizie su quel fronte
+  si è temporaneamente esaurito. Scelto comunque un pick (Metodo Giuridico) perché
+  offre un'analisi a punti più sistematica della sentenza Zoagli rispetto al post di
+  Salvatore Nanè del 22/09, ma va segnalato che l'argomento di fondo si ripete.
+- I 4 pick di oggi:
+  - Luigi Giuri, Studio Legale Energia & Ambiente (energia) — sintesi dei primi
+    indirizzi operativi MASE (21/07/2026) sul PUCD (art. 8 DL 21/2026): elenco titoli
+    da acquisire, decorrenza termine 10 mesi, conformità urbanistica, connessione
+    temporanea in media tensione (comma 1-bis). Registro a punti, tecnico, zero CTA.
+    Candidato profilo da valutare per energia.
+    https://www.linkedin.com/posts/luigi-giuri-mi_data-center-primi-indirizzi-operativi-mase-ugcPost-7503084520565514241-5baD/
+  - Metodo Giuridico (concessioni) — sentenza CdS n. 6539/2026 (Zoagli): il termine
+    30/09/2027 è acceleratorio non dilatorio, i Comuni possono bandire prima. Analisi
+    a punti, fonti citate, nessun CTA. Stesso tema di fondo del pick di Salvatore Nanè
+    (22/09) — vedi nota metodologica sopra.
+    https://www.linkedin.com/posts/concessioni-demaniali-le-gare-comunali-non-share-7508101931416973313-SAGd/
+  - Luca Giacobbe (gioco) — intervento su Agimeg (ripreso da La Repubblica) sul DL
+    153/2026 (26/08/2026): proroga sconto accise gioco ma anche cambio regole a meno
+    di un anno dal rilascio licenze, violazione principio di affidamento. 30 reazioni,
+    5 repost — miglior engagement osservato finora sul profilo, conferma la nota già
+    in tabella "Profili di riferimento".
+    https://www.linkedin.com/posts/luca-giacobbe-b4829aa_nuove-misure-fiscali-gioco-legale-avv-giacobbe-share-7499396393543827456-EUEe/
+  - Angelo Tuzza, Avvocato (tecnologia) — NIS2/governance: FAQ ACN luglio 2026 (serie
+    ODA su approvazione non delegabile dei documenti strategici dall'organo di
+    amministrazione, serie MSB sulla gestione del rischio in filiera a 4 fasi).
+    Conferma il modello di responsabilità diretta dei board. Registro denso, fonti
+    normative precise, nessuna emoji/CTA — trovato per caso con una query gioco che
+    non ha dato risultati pertinenti, buon esempio di quanto il search LinkedIn sia
+    rumoroso anche con keyword mirate.
+    https://www.linkedin.com/posts/angelo-tuzza-b0430a38a_cybersecurity-nis2-cybergovernance-ugcPost-7500579316699750400-UHw8/
+
+**Altri trovati oggi, non ancora confermati:**
+- Giuseppe De Carlo — Avvocato, contratti pubblici e infrastrutture, blog su
+  ilgiornale.it e SmartTecnici24, VicePresidente Giovani Imprenditori Confcommercio
+  Lombardia (concessioni) — post (1 mese fa, quindi non scelto come pick di oggi) molto
+  ben scritto sull'ordinanza CGUE C-574/25 ("Rimini II"): conferma niente proroghe
+  automatiche, efficacia diretta art. 12 direttiva servizi, irrilevanza della data di
+  primo rilascio della concessione. Angolo europeo/CGUE, distinto dalle sentenze CdS
+  già molto battute questa settimana — candidato profilo di riferimento da confermare,
+  e tema (ordinanza Rimini II) da tenere d'occhio per un pick futuro se esce contenuto
+  più fresco su questo fronte.
+- Metodo Giuridico — testata/blog giuridico (metodogiuridico.it), non un profilo
+  personale: analisi tecniche dense su sentenze amministrative, stile da manuale più
+  che da post LinkedIn tipico. Fonte potenziale più che profilo da seguire.
