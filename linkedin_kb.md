@@ -390,3 +390,70 @@ contenuto non ha dato nulla di nuovo su Polymarket, già molto battuto).
 - Metodo Giuridico — testata/blog giuridico (metodogiuridico.it), non un profilo
   personale: analisi tecniche dense su sentenze amministrative, stile da manuale più
   che da post LinkedIn tipico. Fonte potenziale più che profilo da seguire.
+
+**2026-09-29** — Sesta sessione per la rubrica "Dal mio giro su LinkedIn", anticipata al
+mattino su richiesta di Niccolò (di solito alle 16, prima della rassegna delle 16:30). 4
+pick nuovi salvati in `linkedin_vetrina` via script diretto sul server. Tutte le ricerche
+con filtro "Ultima settimana" (`datePosted="past-week"` nell'URL), che ha funzionato bene
+per tagliare i contenuti già battuti. Query usate: "ARERA delibera" (energia, pick al
+primo colpo), "data center connessione rete Terna" (energia, solo contenuti commerciali
+o già visti — il filone data center è saturo), "concessioni demaniali sentenza" e
+"concessioni balneari indennizzo decreto" (concessioni), "gioco pubblico ADM concessioni"
+(zero risultati: troppe keyword in AND) poi "gioco pubblico" (gioco), "AI Act decreto
+legislativo" (tecnologia).
+
+- **Nota metodologica**: su concessioni la sentenza CdS n. 6539/2026 (Zoagli) domina
+  ancora quasi tutti i risultati freschi (terza settimana consecutiva). Scelto un post che
+  la usa come appoggio per un tema distinto (canone vs affidamento) invece dell'ennesima
+  sintesi della sentenza.
+- **Tecnica link**: il link "Visualizza post" nel toast dopo "Copia link al post" si legge
+  direttamente con `find`/`read_page` (attributo href, short link `lnkd.in/p/...` dentro
+  `linkedin.com/safety/go/?url=`), senza cliccarlo; poi basta navigare lo short link per
+  avere il permalink. Il click via `ref` sul bottone "···" a volte non apre il menu dopo
+  uno scroll: in quel caso cliccare per coordinate dallo screenshot.
+- I 4 pick di oggi:
+  - Raffaele Santone, Direttore Operativo Aura Gas & Power (energia) — voicebot nel
+    servizio clienti con due regolatori: nuovo TIQV (delibera ARERA 399/2025/R/com), che
+    per la prima volta disciplina gli assistenti vocali (avviso preventivo, diritto a un
+    operatore, passaggio a un umano se il bot non capisce), e AI Act artt. 5 e 50.
+    Incrocio energia/tecnologia raro. Carosello di 4 pagine, engagement minimo (post di
+    23h). Candidato profilo per il lato retail/regolazione commerciale ARERA.
+    https://www.linkedin.com/posts/raffaele-santone_voicebot-e-servizio-clienti-le-regole-di-ugcPost-7510325931962634240-GgO1/
+  - Stefania Pensa, Ufficio Affari legali Federazione Italiana Pesistica (concessioni) —
+    canone e affidamento come questioni distinte: il canone remunera l'uso, non fonda un
+    diritto alla prosecuzione; AP 17-18/2021 e CdS 6539/2026, con passaggio sulla tutela
+    degli investimenti del concessionario uscente. Articolo esteso su
+    consulentidellosport.info. 8 reazioni.
+    https://www.linkedin.com/posts/stefania-pensa-2940685b_concessionidemaniali-dirittoamministrativo-share-7508973975805431811-twW0/
+  - Chiara Sambaldi, Avvocato (gioco) — con Andrea Strata su PressGiochi MAG, "Il gioco
+    legale oltre l'Erario": serve una politica pubblica dei giochi che tenga insieme
+    salute, consumatori, legalità, rete legale ed Erario, oltre la lettura solo fiscale.
+    Collegamento di 1° grado di Niccolò. 6 reazioni, 3 repost.
+    https://www.linkedin.com/posts/chiara-sambaldi-387807100_gioco-legale-oltre-lerario-una-nuova-politica-ugcPost-7508795095052120065-q4Yp/
+  - Deloitte Legal (tecnologia) — D.Lgs. 160/2026, in vigore dal 30/09: nuovo art.
+    25-vicies D.Lgs. 231/2001 (reati commessi con sistemi di IA), collegato al nuovo art.
+    437-bis c.p. Angolo 231 distinto dal pick Nicola Sandon (Deloitte Legal) del 22/09,
+    che sintetizzava il decreto in generale. 50 reazioni, 5 repost.
+    https://www.linkedin.com/posts/alert-compliancedlgs-n1602026ia-ugcPost-7510246971803074560-BVvY/
+
+**Altri trovati oggi, non ancora confermati:**
+- **Notizia gioco (PressGiochi)**: la delega al Governo per il riordino della rete fisica
+  del gioco pubblico è scaduta il 29/08/2026 senza che la riforma arrivasse; la FIT
+  (Federazione Italiana Tabaccai) esprime delusione e lancia l'iniziativa "Win for Italia
+  Team". Tema potenzialmente grosso per le prossime settimane (cosa succede alle
+  concessioni della rete fisica senza riordino).
+- **Notizia gioco (Jamma Magazine)**: il Brasile ha adottato un'ordinanza esecutiva
+  provvisoria che vieta scommesse e gioco online; Play'n GO avverte del rischio di
+  spostamento verso operatori non autorizzati. Utile come caso comparato sul rapporto tra
+  divieto e mercato illegale.
+- Fabrizio Cirilli — docente AI governance, Lead Auditor ISO/IEC 42001, CEO PDCA Srl:
+  post sul D.Lgs. 160/2026 letto dal lato ISO 42001 ("sorveglianza umana" come attività
+  documentata, non clausola di policy), con guida di 39 pagine scritta con Massimiliano
+  Perrone che collega ISO 42001, AI Act, L. 132/2025, D.Lgs. 160/2026 ed EN 18286. 126
+  reazioni, 17 repost: miglior engagement visto oggi. Dichiaratamente non giuridico, ma
+  fonte utile per il lato tecnico-organizzativo della compliance IA.
+- BSD Consulting — carosello sullo schema di decreto A.G. 418 (IA e 231), stesso tema
+  del pick Deloitte; da tenere presente solo come conferma che il filone 231/IA è caldo.
+- TTEP Energia Italia — "Pillole regolatorie" sulla delibera ARERA 223/2026 (contratti
+  multi-punto e multi-vendor, condivisione dell'energia nell'autoconsumo diffuso). Formato
+  ricorrente ma con molte CTA commerciali: fonte per seguire le delibere, non profilo.
