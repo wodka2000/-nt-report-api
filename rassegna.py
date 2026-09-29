@@ -877,42 +877,57 @@ Se per un campo non trovi un link reale affidabile, ometti quella chiave piuttos
 inventarla.""",
         max_tokens=2000,
     )
-    return dati if dati and dati.get("citta") else None
+    if not dati or not dati.get("citta"):
+        return None
+    _save_varie_storico(dati, prefisso="viaggio_", citta=dati["citta"])
+    return dati
 
 
 # ── Sezione "Varie" (contenuti generati, non notizie) ─────────────────────────────
 
-def _save_varie_storico(dati: dict) -> None:
-    """Salva i testi di oggi per poterli escludere dai prossimi giorni (stesso pattern
-    di _save_cruciverba_soluzioni). Senza questo, il prompt di ricerca web non ha modo
-    di sapere cosa ha già proposto e tende a riconvergere sulle stesse opzioni "sicure"
-    (es. la stessa mostra permanente, lo stesso classico) — segnalato da Niccolò il
-    2026-09-16 ("le varie sono molte uguali a quelle di ieri")."""
+def _varie_storico_connect():
+    """Connessione con la tabella varie_storico garantita, incluse le colonne link/
+    immagine/citta aggiunte il 2026-09-29 per la webapp delle varie (spunte, stelle,
+    commenti su nt-report.com/varie.html) — prima si salvava solo il testo."""
     from monitor import _db_connect
     con = _db_connect()
     con.execute(
         "CREATE TABLE IF NOT EXISTS varie_storico (data TEXT, chiave TEXT, testo TEXT, "
         "PRIMARY KEY (data, chiave))"
     )
+    colonne = {r[1] for r in con.execute("PRAGMA table_info(varie_storico)")}
+    for col in ("link", "immagine", "citta"):
+        if col not in colonne:
+            con.execute(f"ALTER TABLE varie_storico ADD COLUMN {col} TEXT")
+    return con
+
+
+def _save_varie_storico(dati: dict, prefisso: str = "", citta: str | None = None) -> None:
+    """Salva i testi di oggi per poterli escludere dai prossimi giorni (stesso pattern
+    di _save_cruciverba_soluzioni). Senza questo, il prompt di ricerca web non ha modo
+    di sapere cosa ha già proposto e tende a riconvergere sulle stesse opzioni "sicure"
+    (es. la stessa mostra permanente, lo stesso classico) — segnalato da Niccolò il
+    2026-09-16 ("le varie sono molte uguali a quelle di ieri"). Usato anche per le varie
+    di viaggio (prefisso "viaggio_"), che servono solo alla webapp: _load_varie_recenti
+    le ignora perché non sono tra le chiavi di label_recenti."""
+    con = _varie_storico_connect()
     oggi = datetime.now().strftime("%Y-%m-%d")
     for chiave, dato in (dati or {}).items():
-        testo = (dato or {}).get("testo")
+        if not isinstance(dato, dict):
+            continue  # es. "citta" nelle varie di viaggio
+        testo = dato.get("testo")
         if testo:
             con.execute(
-                "INSERT OR REPLACE INTO varie_storico (data, chiave, testo) VALUES (?, ?, ?)",
-                (oggi, chiave, testo),
+                "INSERT OR REPLACE INTO varie_storico (data, chiave, testo, link, immagine, citta) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (oggi, prefisso + chiave, testo, dato.get("link"), dato.get("immagine"), citta),
             )
     con.commit()
     con.close()
 
 
 def _load_varie_recenti(giorni: int = 14) -> dict[str, list[str]]:
-    from monitor import _db_connect
-    con = _db_connect()
-    con.execute(
-        "CREATE TABLE IF NOT EXISTS varie_storico (data TEXT, chiave TEXT, testo TEXT, "
-        "PRIMARY KEY (data, chiave))"
-    )
+    con = _varie_storico_connect()
     soglia = (datetime.now() - timedelta(days=giorni)).strftime("%Y-%m-%d")
     righe = con.execute(
         "SELECT chiave, testo FROM varie_storico WHERE data >= ? ORDER BY data DESC", (soglia,)
@@ -1613,6 +1628,55 @@ def _pubblica_rassegna_sul_sito(pdf_path: Path) -> bool:
         return False
 
 
+def _pubblica_varie_sul_sito(data: str | None = None, tutte: bool = False) -> bool:
+    """Invia le varie del giorno (o, con tutte=True, l'intero varie_storico — recupero
+    una tantum) alla webapp nt-report.com/varie.html, dove Niccolò le spunta, le vota da
+    1 a 3 stelle e le commenta dal cellulare (richiesta del 2026-09-29). Legge da
+    varie_storico, non dai dict in memoria, così giorno corrente e recupero storico
+    passano dallo stesso percorso. Il sito fa upsert senza toccare spunte/stelle/commenti,
+    quindi rilanciarla è innocuo. Non blocca il resto del job se fallisce."""
+    import os
+    import httpx
+
+    token = os.environ.get("ADMIN_TOKEN", "")
+    if not token:
+        logger.warning("Varie: ADMIN_TOKEN non configurato — salto pubblicazione sul sito")
+        return False
+
+    con = _varie_storico_connect()
+    if tutte:
+        righe = con.execute(
+            "SELECT data, chiave, testo, link, immagine, citta FROM varie_storico"
+        ).fetchall()
+    else:
+        data = data or datetime.now().strftime("%Y-%m-%d")
+        righe = con.execute(
+            "SELECT data, chiave, testo, link, immagine, citta FROM varie_storico WHERE data = ?",
+            (data,),
+        ).fetchall()
+    con.close()
+    if not righe:
+        logger.warning("Varie: nessuna voce da pubblicare")
+        return False
+
+    voci = [
+        {"data": d, "categoria": k, "testo": t, "link": l, "immagine": i, "citta": c}
+        for d, k, t, l, i, c in righe
+    ]
+    try:
+        resp = httpx.post(
+            "https://nt-report-api-kojk.onrender.com/api/admin/varie",
+            headers={"X-Admin-Token": token},
+            json={"voci": voci},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return True
+    except Exception as e:
+        logger.warning(f"Varie: pubblicazione sul sito fallita: {e}")
+        return False
+
+
 async def run_rassegna_job(context) -> None:
     """Job giornaliero: genera il PDF, lo carica su Drive (per il print agent locale) e lo
     invia come documento Telegram all'owner. Solo per l'owner, non blocca in caso di errori
@@ -1656,6 +1720,13 @@ async def run_rassegna_job(context) -> None:
         await context.bot.send_message(
             chat_id=chat_id,
             text="⚠️ Pubblicazione su nt-report.com saltata o fallita (vedi log).",
+        )
+
+    varie_ok = await loop.run_in_executor(None, _pubblica_varie_sul_sito)
+    if not varie_ok:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="⚠️ Pubblicazione delle varie su nt-report.com/varie.html saltata o fallita (vedi log).",
         )
 
     with open(pdf_path, "rb") as f:

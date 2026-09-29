@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from web.core.db import init_db
-from web.routers import posts, admin, rassegne
+from web.routers import posts, admin, rassegne, varie
 
 _STATIC = Path(__file__).parent / "static"
 
@@ -39,6 +39,7 @@ app.add_middleware(
 
 app.include_router(posts.router, prefix="/api")
 app.include_router(rassegne.router, prefix="/api")
+app.include_router(varie.router, prefix="/api")
 app.include_router(admin.router)
 
 # Static files — deve stare dopo i router per non intercettare /api/*

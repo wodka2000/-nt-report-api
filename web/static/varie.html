@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Varie — NT Report</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { max-width: 800px; margin: 0 auto; padding: 1rem; }
+    header { border-bottom: 1px solid var(--pico-muted-border-color); margin-bottom: 1rem; padding-bottom: .75rem; }
+    header nav { display: flex; gap: .4rem 1rem; align-items: center; flex-wrap: wrap; justify-content: flex-start; }
+    header nav a { text-decoration: none; color: var(--pico-muted-color); font-size: .9rem; }
+    .barra { position: sticky; top: 0; z-index: 5; background: var(--pico-background-color); padding: .5rem 0; margin-bottom: .5rem; }
+    .griglia { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+    .griglia a { display: flex; flex-direction: column; gap: .35rem; padding: 1rem .9rem; border: 1px solid var(--pico-muted-border-color); border-radius: 10px; text-decoration: none; color: var(--pico-color); min-height: 6.5rem; }
+    .griglia a:active { background: var(--pico-secondary-background); }
+    .griglia .icona { font-size: 1.6rem; line-height: 1; }
+    .griglia .titolo { font-weight: 600; font-size: 1rem; }
+    .griglia .conteggio { font-size: .78rem; color: var(--pico-muted-color); margin-top: auto; }
+    .griglia a.vuota { opacity: .45; }
+    .intro { font-size: .85rem; color: var(--pico-muted-color); margin-bottom: 1rem; }
+    .testata { display: flex; align-items: center; gap: .6rem; margin-bottom: .25rem; }
+    .testata a { text-decoration: none; font-size: 1.4rem; line-height: 1; padding: .2rem .4rem .2rem 0; }
+    .testata h2 { margin: 0; font-size: 1.25rem; }
+    .opzioni { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .85rem; }
+    .opzioni label { margin: 0; }
+    .opzioni button { width: auto; padding: .25rem .7rem; font-size: .8rem; margin: 0; }
+    .voce { border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: .8rem .9rem; margin-bottom: .7rem; }
+    .voce.fatto { opacity: .6; }
+    .voce.fatto .testo { text-decoration: line-through; text-decoration-color: var(--pico-muted-color); }
+    .meta { font-size: .78rem; color: var(--pico-muted-color); margin-bottom: .3rem; }
+    .testo { font-size: .95rem; line-height: 1.45; }
+    .testo a { font-size: .85rem; word-break: break-all; }
+    .voce img { max-width: 100%; max-height: 180px; border-radius: 6px; margin-top: .5rem; display: block; }
+    .azioni { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .6rem; }
+    .azioni label { margin: 0; font-size: .9rem; display: flex; align-items: center; gap: .35rem; }
+    .azioni input[type=checkbox] { margin: 0; width: 1.4rem; height: 1.4rem; }
+    .stelle { display: flex; }
+    .stelle button { background: none; border: none; padding: .1rem .2rem; margin: 0; width: auto; font-size: 1.5rem; line-height: 1; color: var(--pico-muted-border-color); cursor: pointer; box-shadow: none; }
+    .stelle button.on { color: #e0a800; }
+    textarea.commento { margin: .6rem 0 0; font-size: .88rem; min-height: 2.6rem; padding: .45rem .6rem; resize: vertical; }
+    .salvato { font-size: .72rem; color: var(--pico-muted-color); height: .9rem; text-align: right; }
+    .sola-lettura .azioni input, .sola-lettura .stelle button { pointer-events: none; }
+    #status { text-align: center; color: var(--pico-muted-color); padding: 2rem; }
+    dialog article { max-width: 22rem; }
+  </style>
+</head>
+<body>
+<header>
+  <nav>
+    <strong>NT Report</strong>
+    <a href="index.html">Home</a>
+    <a href="archive.html">Archivio post</a>
+    <a href="rassegne.html">Rassegna quotidiana</a>
+    <a href="varie.html" aria-current="page">Varie</a>
+  </nav>
+</header>
+
+<div class="barra">
+  <div class="opzioni">
+    <label id="lblNascondi"><input type="checkbox" role="switch" id="nascondiFatti"> Nascondi fatti</label>
+    <button class="outline secondary" id="btnPin">Sblocca</button>
+  </div>
+</div>
+
+<main id="results"><p id="status">Caricamento…</p></main>
+
+<dialog id="dlgPin">
+  <article>
+    <h3>PIN</h3>
+    <p style="font-size:.9rem">Serve per spuntare, votare e commentare. Resta memorizzato su questo dispositivo.</p>
+    <form id="formPin">
+      <input type="password" inputmode="numeric" id="inputPin" autocomplete="current-password" required>
+      <small id="errPin" style="color:var(--pico-del-color)"></small>
+      <div style="display:flex;gap:.5rem">
+        <button type="button" class="secondary" id="annullaPin">Annulla</button>
+        <button type="submit">Conferma</button>
+      </div>
+    </form>
+  </article>
+</dialog>
+
+<script>
+const API = '/api';
+
+// Ordine e titoli come nell'ultima pagina della rassegna ("A tavola" per ultimo).
+const SEZIONI = [
+  { id: 'mostra',           titolo: 'Da vedere',     icona: '🖼️', match: c => c === 'mostra' },
+  { id: 'attivita_bambini', titolo: 'Con i bambini', icona: '🧸', match: c => c === 'attivita_bambini' },
+  { id: 'libro',            titolo: 'Da leggere',    icona: '📚', match: c => c === 'libro' },
+  { id: 'disco',            titolo: 'Da ascoltare',  icona: '🎧', match: c => c === 'disco' },
+  { id: 'film_serie',       titolo: 'Da guardare',   icona: '🎬', match: c => c === 'film_serie' },
+  { id: 'piatto_vino',      titolo: 'A tavola',      icona: '🍷', match: c => c === 'piatto_vino' },
+  { id: 'viaggio',          titolo: 'In viaggio',    icona: '🧳', match: c => c.startsWith('viaggio_') },
+];
+const VIAGGIO = { viaggio_fare: 'Cosa fare', viaggio_vedere: 'Cosa vedere', viaggio_mangiare: 'Dove mangiare' };
+
+let voci = [];
+let pin = leggi('varie_pin') || '';
+let nascondiFatti = leggi('varie_nascondi') === '1';
+
+function leggi(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function scrivi(k, v) { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+
+async function load() {
+  try {
+    const resp = await fetch(`${API}/varie`);
+    if (!resp.ok) throw new Error(`API ${resp.status}`);
+    voci = await resp.json();
+  } catch (e) {
+    document.getElementById('results').innerHTML = `<p style="color:var(--pico-del-color)">Errore: ${esc(String(e))}</p>`;
+    return;
+  }
+  render();
+}
+
+function render() {
+  document.body.classList.toggle('sola-lettura', !pin);
+  document.getElementById('btnPin').textContent = pin ? 'Blocca' : 'Sblocca';
+  document.getElementById('nascondiFatti').checked = nascondiFatti;
+  const sezione = SEZIONI.find(s => s.id === location.hash.slice(1));
+  document.getElementById('lblNascondi').style.visibility = sezione ? 'visible' : 'hidden';
+  if (sezione) renderSezione(sezione); else renderLanding();
+}
+
+function renderLanding() {
+  const card = SEZIONI.map(s => {
+    const tutte = voci.filter(v => s.match(v.categoria));
+    if (s.id === 'viaggio' && !tutte.length) return '';  // compare solo dopo il primo viaggio
+    const daFare = tutte.filter(v => !v.fatto).length;
+    const conteggio = tutte.length ? `${tutte.length} ${tutte.length === 1 ? 'proposta' : 'proposte'} · ${daFare} da fare` : 'Nessuna proposta';
+    return `<a href="#${s.id}" class="${tutte.length ? '' : 'vuota'}">
+      <span class="icona">${s.icona}</span>
+      <span class="titolo">${s.titolo}</span>
+      <span class="conteggio">${conteggio}</span>
+    </a>`;
+  }).join('');
+  document.getElementById('results').innerHTML =
+    `<p class="intro">Tutte le proposte della rubrica Varie, aggiornate a ogni nuova rassegna.</p><div class="griglia">${card}</div>`;
+}
+
+function renderSezione(s) {
+  const tutte = voci.filter(v => s.match(v.categoria));
+  const daFare = tutte.filter(v => !v.fatto).length;
+  const visibili = nascondiFatti ? tutte.filter(v => !v.fatto) : tutte;
+  let lista;
+  if (!tutte.length) lista = '<p class="meta">Nessuna proposta.</p>';
+  else lista = visibili.map(renderVoce).join('') || '<p class="meta">Tutto fatto.</p>';
+  document.getElementById('results').innerHTML = `
+    <div class="testata"><a href="#" aria-label="Torna alle sezioni">←</a><h2>${s.icona} ${s.titolo}</h2></div>
+    <p class="intro">${tutte.length} ${tutte.length === 1 ? 'proposta' : 'proposte'} · ${daFare} da fare</p>
+    ${lista}`;
+}
+
+window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+
+function renderVoce(v) {
+  const etichetta = VIAGGIO[v.categoria] ? `${VIAGGIO[v.categoria]}${v.citta ? ' · ' + esc(v.citta) : ''} · ` : '';
+  const stelle = [1, 2, 3].map(n =>
+    `<button type="button" class="${n <= v.stelle ? 'on' : ''}" aria-label="${n} stelle" onclick="setStelle(${v.id}, ${n})">★</button>`
+  ).join('');
+  return `<div class="voce${v.fatto ? ' fatto' : ''}" id="v${v.id}">
+    <div class="meta">${etichetta}${formatData(v.data)}</div>
+    <div class="testo">${esc(v.testo)}${v.link ? ` <a href="${attr(v.link)}" target="_blank" rel="noopener">${esc(dominio(v.link))}</a>` : ''}</div>
+    ${v.immagine ? `<img src="${attr(v.immagine)}" loading="lazy" alt="">` : ''}
+    <div class="azioni">
+      <label><input type="checkbox" ${v.fatto ? 'checked' : ''} onchange="setFatto(${v.id}, this.checked)"> Fatto</label>
+      <div class="stelle">${stelle}</div>
+    </div>
+    ${pin || v.commento ? `<textarea class="commento" placeholder="Commento…" ${pin ? '' : 'readonly'}
+      oninput="commentoCambiato(${v.id}, this.value)" onblur="salvaCommento(${v.id})">${esc(v.commento || '')}</textarea>
+    <div class="salvato" id="s${v.id}"></div>` : ''}
+  </div>`;
+}
+
+async function patch(id, body) {
+  const resp = await fetch(`${API}/varie/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-Varie-Pin': pin },
+    body: JSON.stringify(body),
+  });
+  if (resp.status === 401) { pin = ''; scrivi('varie_pin', null); render(); apriPin(); throw new Error('PIN'); }
+  if (!resp.ok) { alertSoft(id, 'Errore nel salvataggio'); throw new Error(resp.status); }
+}
+
+function voce(id) { return voci.find(v => v.id === id); }
+
+async function setFatto(id, val) {
+  if (!pin) return apriPin();
+  const v = voce(id); v.fatto = val ? 1 : 0;
+  render();
+  try { await patch(id, { fatto: val }); } catch (e) { v.fatto = val ? 0 : 1; render(); }
+}
+
+async function setStelle(id, n) {
+  if (!pin) return apriPin();
+  const v = voce(id); const prima = v.stelle;
+  v.stelle = v.stelle === n ? 0 : n;  // ritoccare la stessa stella azzera il voto
+  render();
+  try { await patch(id, { stelle: v.stelle }); } catch (e) { v.stelle = prima; render(); }
+}
+
+const timers = {};
+function commentoCambiato(id, val) {
+  voce(id).commento = val;
+  clearTimeout(timers[id]);
+  timers[id] = setTimeout(() => salvaCommento(id), 1200);
+}
+async function salvaCommento(id) {
+  clearTimeout(timers[id]);
+  const v = voce(id);
+  if (v._salvato === v.commento) return;
+  try { await patch(id, { commento: v.commento }); v._salvato = v.commento; alertSoft(id, 'Salvato'); } catch (e) {}
+}
+function alertSoft(id, msg) {
+  const el = document.getElementById('s' + id);
+  if (el) { el.textContent = msg; setTimeout(() => { el.textContent = ''; }, 2000); }
+}
+
+// ── PIN ──
+const dlg = document.getElementById('dlgPin');
+function apriPin() { document.getElementById('errPin').textContent = ''; dlg.showModal(); document.getElementById('inputPin').focus(); }
+document.getElementById('annullaPin').onclick = () => dlg.close();
+document.getElementById('btnPin').onclick = () => {
+  if (pin) { pin = ''; scrivi('varie_pin', null); render(); } else apriPin();
+};
+document.getElementById('formPin').onsubmit = async (e) => {
+  e.preventDefault();
+  const tentativo = document.getElementById('inputPin').value.trim();
+  const resp = await fetch(`${API}/varie/pin`, { headers: { 'X-Varie-Pin': tentativo } });
+  if (!resp.ok) { document.getElementById('errPin').textContent = resp.status === 401 ? 'PIN errato' : `Errore ${resp.status}`; return; }
+  pin = tentativo; scrivi('varie_pin', pin); dlg.close(); render();
+};
+document.getElementById('nascondiFatti').onchange = (e) => {
+  nascondiFatti = e.target.checked; scrivi('varie_nascondi', nascondiFatti ? '1' : '0'); render();
+};
+
+function formatData(d) {
+  const [y, m, day] = d.split('-');
+  return new Date(y, m - 1, day).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function dominio(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } }
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function attr(u) { return /^https?:\/\//i.test(u) ? esc(u) : '#'; }
+
+load();
+</script>
+</body>
+</html>

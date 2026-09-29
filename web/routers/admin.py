@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File,
 from pydantic import BaseModel
 import aiosqlite
 
-from web.core.db import get_db, upsert_rassegna, delete_rassegna
+from web.core.db import get_db, upsert_rassegna, delete_rassegna, upsert_varie
 from web.core.constants import RASSEGNE_DIR
 
 router = APIRouter(prefix="/api/admin")
@@ -105,6 +105,31 @@ async def admin_upload_rassegna(
     await upsert_rassegna(db, data, filename, pagine)
     await db.commit()
     return {"status": "ok", "data": data, "pagine": pagine}
+
+
+class VoceVarie(BaseModel):
+    data:      str
+    categoria: str
+    testo:     str
+    link:      str | None = None
+    immagine:  str | None = None
+    citta:     str | None = None
+
+
+class VarieUpload(BaseModel):
+    voci: list[VoceVarie]
+
+
+@router.post("/varie", dependencies=[Depends(_check_auth)])
+async def admin_upload_varie(
+    payload: VarieUpload,
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Riceve dal server della rassegna (Oracle Cloud) le varie del giorno, o l'intero
+    storico per il recupero iniziale. Upsert: spunte/stelle/commenti restano intatti."""
+    await upsert_varie(db, [v.model_dump() for v in payload.voci])
+    await db.commit()
+    return {"status": "ok", "voci": len(payload.voci)}
 
 
 @router.delete("/rassegne/{data}", dependencies=[Depends(_check_auth)])

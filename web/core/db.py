@@ -58,6 +58,23 @@ CREATE TABLE IF NOT EXISTS payments (
     expires_at  TEXT
 );
 
+-- Spunti della rubrica "Varie" della rassegna, con lo stato personale di Niccolò
+-- (spunta, stelle 0-3, commento). Il testo arriva dal bot; lo stato lo scrive la
+-- pagina varie.html e non viene mai sovrascritto dagli upsert del bot.
+CREATE TABLE IF NOT EXISTS varie (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    data        TEXT NOT NULL,      -- YYYY-MM-DD
+    categoria   TEXT NOT NULL,      -- mostra, libro, ..., viaggio_fare, ...
+    testo       TEXT,
+    link        TEXT,
+    immagine    TEXT,
+    citta       TEXT,               -- solo per le varie di viaggio
+    fatto       INTEGER DEFAULT 0,
+    stelle      INTEGER DEFAULT 0,  -- 0 = nessun voto
+    commento    TEXT DEFAULT '',
+    UNIQUE (data, categoria)
+);
+
 CREATE INDEX IF NOT EXISTS idx_posts_topic  ON posts(topic);
 CREATE INDEX IF NOT EXISTS idx_posts_date   ON posts(post_date);
 CREATE INDEX IF NOT EXISTS idx_posts_angolo ON posts(angolo);
@@ -264,3 +281,25 @@ async def insert_post(db: aiosqlite.Connection, post: dict) -> int:
                 :focus, :angolo, :topic, :normas, :body, :source_file)
     """, post) as cur:
         return cur.lastrowid
+
+
+# ── Helpers varie ───────────────────────────────────────────────────────────────
+
+async def upsert_varie(db: aiosqlite.Connection, voci: list[dict]) -> None:
+    """Inserisce/aggiorna il contenuto delle voci senza toccare fatto/stelle/commento."""
+    for v in voci:
+        await db.execute("""
+            INSERT INTO varie (data, categoria, testo, link, immagine, citta)
+            VALUES (:data, :categoria, :testo, :link, :immagine, :citta)
+            ON CONFLICT(data, categoria) DO UPDATE SET
+                testo=excluded.testo,
+                link=COALESCE(excluded.link, varie.link),
+                immagine=COALESCE(excluded.immagine, varie.immagine),
+                citta=COALESCE(excluded.citta, varie.citta)
+        """, v)
+
+
+async def list_varie(db: aiosqlite.Connection) -> list[dict]:
+    async with db.execute("SELECT * FROM varie ORDER BY data DESC, id") as cur:
+        rows = await cur.fetchall()
+    return [dict(r) for r in rows]
