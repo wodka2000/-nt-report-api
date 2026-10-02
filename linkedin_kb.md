@@ -457,3 +457,64 @@ legislativo" (tecnologia).
 - TTEP Energia Italia — "Pillole regolatorie" sulla delibera ARERA 223/2026 (contratti
   multi-punto e multi-vendor, condivisione dell'energia nell'autoconsumo diffuso). Formato
   ricorrente ma con molte CTA commerciali: fonte per seguire le delibere, non profilo.
+
+**2026-10-02** — Settima sessione per la rubrica "Dal mio giro su LinkedIn". 4 pick nuovi
+salvati in `linkedin_vetrina` via script diretto sul server. Ricerche con filtro "Ultima
+settimana", in due casi anche ordinate per data (`sortBy="date_posted"`): utile per
+intercettare notizie fresche (aumento tutela vulnerabili, sanzione Garante IQVIA uscita
+in giornata). Query usate: "ARERA" (energia, ha fatto emergere la notizia del +37,3%) poi
+"clienti vulnerabili tutela aumento ottobre" (energia), "concessioni balneari"
+(concessioni, pick al primo colpo), "riordino gioco fisico" (gioco), "Garante privacy
+provvedimento" (tecnologia).
+
+- **Nota redazionale**: i testi in `linkedin_vetrina` devono riportare solo quello che dice
+  il post scelto. Al primo salvataggio avevo aggiunto contesto preso da altri post (dato
+  +63,4% di Desimine nel pick Adiconsum, procedura di infrazione UE di Mondo Balneare nel
+  pick Loffreda, scadenza della delega del 29/08 di PressGiochi nel pick Cardia): corretti
+  subito sul DB. Il contesto da altri post va in KB, non nella vetrina, dove apparirebbe
+  attribuito all'autore.
+- I 4 pick di oggi:
+  - Adiconsum Nazionale (energia) — dal 1° ottobre +37,3% per i clienti vulnerabili in
+    Maggior Tutela nel IV trimestre 2026; riguarda solo i circa 3 milioni di vulnerabili
+    ancora in tutela. Post istituzionale e fattuale; il tema è ovunque (Lamescolanza,
+    operatori commerciali), scelto il post più pulito.
+    https://www.linkedin.com/posts/adiconsum_prosegue-landamento-altalenante-dei-prezzi-share-7511328134030405632-EOT2/
+  - Giuseppe Loffreda, PhD, Avvocato, fondatore Legal4Transport (concessioni) — "la
+    scarsità della risorsa non esaurisce le ragioni dell'obbligo di gara", rimando ad
+    analisi su Altalex. Primo angolo nuovo sulle concessioni dopo tre settimane di
+    sentenza Zoagli. Collegamento di 1° grado di Niccolò; avvocato navigazionista,
+    candidato profilo di riferimento per concessioni (lato demanio marittimo/porti).
+    https://www.linkedin.com/posts/giuseppe-loffreda-phd-89812818_concessioni-balneari-perch%C3%A9-la-non-scarsit%C3%A0-share-7511798671508774913-qUW3/
+  - Geronimo Cardia, fondatore Studio Cardia (gioco) — intervista su Global Gaming Insider
+    sulla "regulatory paralysis" del riordino del gioco fisico: cause, impatto su
+    operatori/occupazione/gettito, condizioni per sbloccare il mercato. 35 reazioni, 4
+    repost. Hashtag #Acadi (associazione concessionari): voce di peso del settore,
+    candidato profilo di riferimento per gioco accanto a Giacobbe.
+    https://www.linkedin.com/posts/geronimo-cardia_giocopubblico-policymaking-acadi-share-7510680632155480064-124e/
+  - Garante per la protezione dei dati personali (tecnologia) — sanzione 7M€ a IQVIA
+    Solutions Italy (provv. n. 710 del 23/09/2026): dati sanitari di un milione di pazienti
+    ritenuti pseudonimi e non anonimi (codice paziente + dettaglio informativo =
+    reidentificabilità), IQVIA titolare fin dalla raccolta presso i medici, niente base
+    giuridica/informativa/DPIA, dati conservati dal 2001. 55 reazioni, 10 repost.
+    https://www.linkedin.com/posts/garanteprivacy-privacy-protezionedati-share-7511715864711323648-KteD/
+
+**Altri trovati oggi, non ancora confermati:**
+- **Notizia concessioni (Mondo Balneare)**: l'UE avverte l'Italia che la procedura di
+  infrazione sulle concessioni balneari è ancora in corso, nonostante le indiscrezioni
+  sulla bozza del bando-tipo nazionale (previsto dal DL 32/2026, fermo da aprile).
+- Michele Desimine (Miogas & Luce) — dato puntuale sull'aumento tutela vulnerabili: la
+  componente di approvvigionamento dell'energia cresce del 63,4%. Operatore commerciale,
+  non profilo da seguire, ma il dato è utile.
+- Vincenzo Sapone — Avvocato penale, gaming ADM, Studio Legale BCS Cantù: carosello di 9
+  pagine sul riordino partito solo dal canale a distanza e sui livelli di regolazione del
+  canale fisico (concessione statale + leggi regionali + regolamenti comunali su distanze
+  e orari); errore tipico davanti al giudice amministrativo: applicare al fisico la logica
+  dell'online. Registro tecnico, vicino a TONO.md: candidato profilo per gioco.
+- Monica Bombelli — Avvocato cassazionista, lavoro/privacy/231: analisi del provv.
+  Garante n. 585/2026 (6/8/2026) su privacy sul lavoro, accesso ai dati, GPS e
+  trasparenza dell'informativa.
+- Alberto Mocchi (LCA Studio Legale, life sciences) — newsletter "Life Sciences in
+  pillole", copre anche il provvedimento IQVIA e il Pharma Package: fonte ricorrente per
+  l'incrocio privacy/sanità.
+- STEMi Srl — delibera ARERA 346/2026/R/com: azzerata dal 2027 la componente perequativa
+  UR2 nel settore rifiuti urbani (ARERA lato rifiuti, fuori dal perimetro energia stretto).
