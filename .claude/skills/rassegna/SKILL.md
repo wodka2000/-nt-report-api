@@ -138,9 +138,30 @@ quella di produzione, quindi l'anteprima è fedele nei contenuti.
   si trova un modo per verificare la legenda reale, si può estendere a nuvoloso/nebbia/neve,
   ma non prima.
 
-## Sezione Varie — meteo, link reali, cruciverba giuridico (dal 2026-09-15)
+## Prima pagina — titolo, meteo, adempimenti (dal 2026-10-08)
 
-- **Meteo**: `_fetch_meteo_playwright()` renderizza meteoam.it con un browser headless
+- Contiene solo testata, UN titolo di apertura, meteo di domani e la ToDo "Da fare". Le tre
+  colonne di titoli sono state tolte su richiesta di Niccolò: non rimetterle.
+- **Adempimenti** (`_fetch_todo_list`): due fonti nella cartella Drive "Aptus Daily"
+  (`_APTUS_FOLDER_ID`, condivisa in lettura con il Service Account):
+  - il PDF più recente con "scadenze" nel nome (agenda del gestionale), letto da Claude
+    come documento perché pypdf mescola le colonne della tabella;
+  - la checklist `ToDo_checklist_mobile` (foglio "Task aperti", colonne cercate per
+    intestazione).
+  Finestra: da domani a 7 giorni, più i task della checklist ancora aperti e scaduti da
+  non più di 7 giorni (in rosso, "scad."). `_unisci_e_accorcia` toglie i doppioni tra le
+  due fonti e riduce ogni voce a una riga: senza, la ToDo sfora su pagina 2.
+- **Privacy**: meteo e ToDo stanno tra `<!--PRIVATO-INIZIO-->` e `<!--PRIVATO-FINE-->`.
+  `_versione_pubblica_pdf` sostituisce quel blocco con l'immagine del giorno
+  (`_blocco_arte_html`): a giorni alterni un quadro famoso di pubblico dominio (Wikidata
+  via QLever + Wikimedia Commons, elenco in cache in `data/quadri_famosi.json` per 30
+  giorni) e un'immagine AI (prompt di Claude, generata da Pollinations, logo tagliato),
+  con il Cleveland Museum come riserva. Il servizio SPARQL ufficiale di Wikidata va in
+  timeout su queste query: non tornarci.
+
+## Sezione Varie — link reali (dal 2026-09-15)
+
+- **Meteo** (dal 2026-10-08 in prima pagina, non più in Varie): `_fetch_meteo_playwright()` renderizza meteoam.it con un browser headless
   (Playwright/Chromium, installato sia in locale sia sul server in `venv` come utente
   `ntbot` — vedi sotto) ed estrae dati REALI dal DOM: alba/tramonto/umidità dal pannello
   principale (selettori `.meteogram-info-list-parameter-*`), temperatura/vento/probabilità
@@ -166,13 +187,8 @@ quella di produzione, quindi l'anteprima è fedele nei contenuti.
   aggiunge cosa fare/vedere/mangiare nella città di destinazione (stesso principio, link
   reali). Condivide la rilevazione città con `_fetch_meteo` (`_rileva_citta_viaggio`,
   chiamata una sola volta in `genera_rassegna_html`, non duplicarla).
-- **Cruciverba**: tema sempre giuridico (`_CRUCIVERBA_TEMI`, rotazione tra sotto-aree del
-  diritto), parole 6-10 lettere, definizioni tecniche — deliberatamente difficile. Le
-  soluzioni di oggi NON vengono stampate lo stesso giorno: si salvano in una tabella SQLite
-  dedicata (`cruciverba_soluzioni`, creata da `rassegna.py` stesso, non in `monitor.py`) e
-  compaiono nell'edizione del giorno successivo, come nei cruciverba dei giornali veri. Se si
-  rigenera la rassegna dello stesso giorno più volte per test, questo sovrascrive la riga di
-  oggi (comportamento voluto, `INSERT OR REPLACE`).
+- **Cruciverba**: rimosso il 2026-10-08 su richiesta di Niccolò (la tabella
+  `cruciverba_soluzioni` resta nel DB ma non è più usata).
 - **Fallback "mai vuoto" nel professionale**: `_select_with_fallback` ripesca item vecchi
   SOLO se hanno un `published` verificato (RSS). Le pagine ADM sono HTML senza data reale:
   prima del 2026-09-15 il fallback le riproponeva come notizie del giorno anche se vecchie

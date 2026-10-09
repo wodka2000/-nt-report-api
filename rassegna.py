@@ -6,18 +6,21 @@ approfondimenti personali NON passano per lo scoring di rilevanza legale di Haik
 generano bozze LinkedIn — sono solo selezionati/riassunti e impaginati in un PDF.
 
 Struttura del giornale (richiesta da Niccolò il 2026-09-14):
-  1. Prima pagina — sintesi dei titoli principali di tutte le sezioni
+  1. Prima pagina — titolo di apertura, meteo di domani (Roma + eventuale città di
+     viaggio) e adempimenti dello studio dei prossimi 7 giorni, letti dalla cartella Drive
+     "Aptus Daily" (dal 2026-10-08; prima c'erano i titoli di tutte le sezioni). Nella
+     copia pubblica su nt-report.com meteo e adempimenti sono sostituiti da un quadro
+     famoso o da un'immagine AI, a giorni alterni
   2. Professionale — energia, giochi, concessioni, tecnologia (~2 pagine)
   3. Interessi — geopolitica/guerra, difesa IT/UE, politica estera, cavidotti sottomarini,
      estrazione dai fondali marini, spazio, scienza (fisica/biologia/materiali) (~3 pagine,
      solo se c'è qualcosa di rilevante)
   4. Attualità — cronaca, politica/economia generale, sport, spettacolo (~1 pagina)
-  5. Varie — meteo di domani (Roma + eventuali città di viaggio dalla ToDo list),
-     cruciverba giuridico (soluzioni pubblicate il giorno dopo, come sui giornali), una
-     mostra, un'attività coi bambini, un libro, un disco, un film/serie da guardare, un
-     piatto/vino/ristorante (per ultimo) — ciascuno con un link reale trovato via web
+  5. Varie — eventuali suggerimenti per la città di viaggio, una mostra, un'attività coi
+     bambini, un libro, un disco, un film/serie da guardare, un piatto/vino/ristorante
+     (per ultimo) — ciascuno con un link reale trovato via web
      search, non inventato (~1 pagina). Niente oroscopo (rimosso il 2026-09-15 su
-     richiesta esplicita).
+     richiesta esplicita, cruciverba rimosso il 2026-10-08).
 
 Il job in bot.py chiama genera_rassegna_pdf() ogni mattina, poi carica il risultato su
 Drive (monitor.py, _upload_rassegna_to_drive) sovrascrivendo un file placeholder già
@@ -397,30 +400,271 @@ Rispondi SOLO con un array JSON, senza testo aggiuntivo, con oggetti
     return out
 
 
-_DRIVE_TODO_NAME = "ToDo"
+def _estrai_json(testo: str):
+    """Primo valore JSON (array o oggetto) nella risposta del modello, ignorando i
+    blocchi ``` e qualsiasi frase prima o dopo: capita che Claude aggiunga una riga di
+    commento, e un json.loads sull'intera risposta fallisce."""
+    import json
+
+    decoder = json.JSONDecoder()
+    for i, c in enumerate(testo):
+        if c in "[{":
+            try:
+                return decoder.raw_decode(testo, i)[0]
+            except json.JSONDecodeError:
+                continue
+    raise ValueError(f"nessun JSON nella risposta: {testo[:200]!r}")
 
 
-def _fetch_todo_list() -> list[str]:
-    """Legge la lista ToDo di Niccolò (Google Doc nella cartella Drive condivisa) e la
-    restituisce come lista di voci, una per riga non vuota. Non solleva mai: ritorna []
-    se il file manca o Drive non è raggiungibile, così la rassegna non si blocca."""
-    from monitor import _get_google_creds, _find_drive_file_id, _DRIVE_SA_FILE
+# Adempimenti in prima pagina (richiesta di Niccolò, 2026-10-08): non più il Google Doc
+# "ToDo" della cartella rassegna, ma le due fonti operative dello studio:
+#  - il PDF "scadenze dal X al Y" esportato ogni settimana dal gestionale nella cartella
+#    Drive "Aptus Daily" (il nome cambia ogni volta: si prende il più recente);
+#  - la checklist mobile "ToDo_checklist_mobile" (foglio "Task aperti"), ovunque si trovi
+#    tra i file condivisi con il Service Account.
+# Solo adempimenti ravvicinati: da domani a 7 giorni, più i task della checklist ancora
+# aperti con data passata da non più di 7 giorni (segnalati come scaduti).
+_APTUS_FOLDER_ID = "1lEVZGLkr5JyNvpKaVu1rZI_6EBb3YshQ"
+_CHECKLIST_NAME = "ToDo_checklist_mobile"
+_TODO_GIORNI = 7
+# Nomi con cui Niccolò e la segreteria compaiono tra gli assegnatari: in stampa non
+# servono (è la sua ToDo), restano solo i collaboratori.
+_ASSEGNATARI_DA_OMETTERE = ("travia", "segreteria", "scadenze", "contabile", "studio",
+                            "non specificato")
+
+
+def _scarica_da_drive(drive, file: dict) -> bytes:
+    """Scarica un file da Drive; i formati nativi Google vanno esportati, non scaricati."""
+    if file["mimeType"] == "application/vnd.google-apps.spreadsheet":
+        return drive.files().export(
+            fileId=file["id"],
+            mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ).execute()
+    return drive.files().get_media(fileId=file["id"]).execute()
+
+
+def _solo_collaboratori(assegnatari: str) -> str:
+    nomi = [n.strip() for n in re.split(r"[,/;]", assegnatari or "") if n.strip()]
+    nomi = [n for n in nomi if n.lower() != "altro"
+            and not any(x in n.lower() for x in _ASSEGNATARI_DA_OMETTERE)]
+    return _nomi_unici(" ".join(n.split()) for n in nomi)
+
+
+def _nomi_unici(nomi) -> str:
+    """Il gestionale scrive "Morelli Michele", la checklist "Michele Morelli": stessa
+    persona se le parole coincidono a prescindere dall'ordine. Resta la prima grafia."""
+    visti = {}
+    for n in nomi:
+        visti.setdefault(frozenset(n.lower().split()), n)
+    return ", ".join(visti.values())
+
+
+def _fetch_scadenze_studio(drive, da, a) -> list[dict]:
+    """Legge le scadenze 'da fare' tra le date da e a (incluse) dal PDF più recente del
+    gestionale. Il PDF è una tabella larga con celle su più righe: l'estrazione testuale
+    di pypdf mescola le colonne, quindi lo si passa direttamente a Claude come documento
+    e si chiede un JSON. Lo stesso adempimento compare spesso due volte (riga di agenda e
+    riga di scadenza della stessa pratica): la deduplica la fa il modello."""
+    import base64
+    from bot import call_claude
+
+    res = drive.files().list(
+        q=(f"'{_APTUS_FOLDER_ID}' in parents and mimeType='application/pdf' "
+           f"and name contains 'scadenze' and trashed=false"),
+        orderBy="modifiedTime desc", fields="files(id,name,mimeType)", pageSize=1,
+    ).execute()
+    files = res.get("files", [])
+    if not files:
+        logger.warning(f"Rassegna: nessun PDF 'scadenze' nella cartella {_APTUS_FOLDER_ID}")
+        return []
+    pdf = _scarica_da_drive(drive, files[0])
+
+    prompt = f"""\
+Questo PDF è l'agenda delle scadenze di uno studio legale. Estrai le righe con data
+tra il {da.isoformat()} e il {a.isoformat()} (incluse) la cui colonna "Fatto" NON indica
+che sono già state fatte.
+
+Aggiungi anche, come voci a sé, le udienze della colonna "Data Prossima Udienza" che
+cadono in quello stesso intervallo (testo: "Udienza" + pratica + foro).
+
+Se lo stesso adempimento della stessa pratica nella stessa data compare più volte (es.
+una riga con la sola descrizione e una con la descrizione estesa), tienilo UNA volta.
+
+Per ogni adempimento:
+- "data": AAAA-MM-GG
+- "testo": codice pratica + cliente in breve, poi l'adempimento, in massimo 15 parole
+  (es. "B061 Gridspertise — richiesta di chiarimenti gara IRETI")
+- "assegnatari": la colonna Assegnatari così com'è
+- "trasferta": la città in cui bisogna andare di persona, SOLO se la voce è un'udienza,
+  un appuntamento o un sopralluogo in una città diversa da Roma (la città del foro o
+  quella indicata nella descrizione); null per depositi, memorie, note scritte, esami di
+  pratica e tutto ciò che si fa dallo studio, e null per tutto ciò che è a Roma.
+
+Rispondi SOLO con un array JSON:
+[{{"data": "...", "testo": "...", "assegnatari": "...", "trasferta": null}}]"""
+    try:
+        msg = call_claude(
+            model="claude-sonnet-4-6", max_tokens=3000,
+            messages=[{"role": "user", "content": [
+                {"type": "document", "source": {
+                    "type": "base64", "media_type": "application/pdf",
+                    "data": base64.b64encode(pdf).decode(),
+                }},
+                {"type": "text", "text": prompt},
+            ]}],
+        )
+        righe = _estrai_json(msg.content[0].text)
+    except Exception as e:
+        logger.warning(f"Rassegna: lettura scadenze da {files[0]['name']} fallita: {e}")
+        return []
+
+    out = []
+    for r in righe:
+        try:
+            d = datetime.strptime(r["data"], "%Y-%m-%d").date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if da <= d <= a and r.get("testo"):
+            out.append({"data": d, "testo": r["testo"],
+                        "chi": _solo_collaboratori(r.get("assegnatari", "")),
+                        "trasferta": r.get("trasferta") or None})
+    return out
+
+
+def _fetch_checklist_task(drive, da, a) -> list[dict]:
+    """Task aperti della checklist mobile con data entro a e non più vecchia di
+    _TODO_GIORNI giorni prima di da. I task senza data restano fuori: senza una data non
+    si può dire che siano ravvicinati. Le colonne si cercano per intestazione e non per
+    posizione, perché il file viene rigenerato da un altro agente e l'ordine può cambiare;
+    l'unica eccezione è la casella "completata", la cui cella d'intestazione è a sua volta
+    una casella di controllo (False) e non un testo."""
+    import io
+    import openpyxl
+
+    res = drive.files().list(
+        q=f"name contains '{_CHECKLIST_NAME}' and trashed=false",
+        orderBy="modifiedTime desc", fields="files(id,name,mimeType)", pageSize=1,
+    ).execute()
+    files = res.get("files", [])
+    if not files:
+        logger.warning(f"Rassegna: '{_CHECKLIST_NAME}' non condiviso con il Service Account")
+        return []
+
+    wb = openpyxl.load_workbook(io.BytesIO(_scarica_da_drive(drive, files[0])), data_only=True)
+    ws = wb["Task aperti"] if "Task aperti" in wb.sheetnames else wb.worksheets[0]
+    righe = ws.iter_rows(values_only=True)
+    intestazione = [c.strip().lower() if isinstance(c, str) else c for c in next(righe, ())]
+
+    def col(*nomi):
+        for i, h in enumerate(intestazione):
+            if isinstance(h, str) and any(h.startswith(n) for n in nomi):
+                return i
+        return None
+
+    i_fatto = next((i for i, h in enumerate(intestazione)
+                    if isinstance(h, bool) or (isinstance(h, str) and h.startswith("completat"))), None)
+    i_data, i_pratica, i_task = col("data"), col("pratica"), col("task")
+    i_stato, i_resp = col("stato"), col("collaboratore")
+    if i_data is None or i_task is None:
+        logger.warning(f"Rassegna: intestazioni inattese in {files[0]['name']}: {intestazione}")
+        return []
+
+    limite_ritardo = da - timedelta(days=_TODO_GIORNI)
+    out = []
+    for r in righe:
+        if i_fatto is not None and r[i_fatto] is True:
+            continue
+        if i_stato is not None and "completat" in str(r[i_stato] or "").lower():
+            continue
+        d = r[i_data]
+        if not isinstance(d, datetime) or not r[i_task]:
+            continue
+        d = d.date()
+        if not (limite_ritardo <= d <= a):
+            continue
+        pratica = str(r[i_pratica]).strip() if i_pratica is not None and r[i_pratica] else ""
+        testo = f"{pratica} — {r[i_task]}" if pratica else str(r[i_task])
+        chi = _solo_collaboratori(str(r[i_resp] or "")) if i_resp is not None else ""
+        out.append({"data": d, "testo": testo, "chi": chi})
+    return out
+
+
+def _unisci_e_accorcia(voci: list[dict]) -> list[dict]:
+    """Le due fonti si sovrappongono (la stessa scadenza è spesso sia nell'agenda del
+    gestionale sia nella checklist, scritta in modo diverso) e i task della checklist sono
+    paragrafi interi: senza questo passaggio la ToDo sfora su pagina 2 con metà voci
+    doppie (anteprima del 2026-10-09). Claude raggruppa i doppioni e riscrive ogni voce in
+    una riga; date e collaboratori li ricompone Python dai dati originali, così il modello
+    non può spostare una scadenza. Se un indice manca dalla risposta la voce resta com'era:
+    meglio una riga lunga che un adempimento perso."""
+    from bot import call_claude
+
+    if len(voci) < 2:
+        return voci
+    elenco = "\n".join(f"{i}. [{v['data'].isoformat()}] {v['testo']}" for i, v in enumerate(voci))
+    prompt = f"""\
+Ecco gli adempimenti di uno studio legale per i prossimi giorni, presi da due elenchi
+diversi che si sovrappongono.
+
+{elenco}
+
+1. Raggruppa le voci che riguardano lo STESSO adempimento della STESSA pratica (stesso
+   codice o stesso cliente, stessa cosa da fare), anche se scritte in modo diverso o con
+   date diverse. Voci su adempimenti diversi della stessa pratica restano separate.
+2. Per ogni gruppo scrivi UNA riga di massimo 14 parole: codice pratica e cliente in breve,
+   poi cosa fare. Niente date, niente nomi dei collaboratori, niente numeri di R.G. se
+   c'è già il codice pratica.
+
+Ogni indice deve comparire in esattamente un gruppo.
+Rispondi SOLO con un array JSON: [{{"indici": [0, 7], "testo": "..."}}]"""
+    try:
+        msg = call_claude(model="claude-sonnet-4-6", max_tokens=4000,
+                          messages=[{"role": "user", "content": prompt}])
+        gruppi = _estrai_json(msg.content[0].text)
+    except Exception as e:
+        logger.warning(f"Rassegna: unione degli adempimenti fallita, uso l'elenco grezzo: {e}")
+        return voci
+
+    out, usati = [], set()
+    for g in gruppi:
+        indici = [i for i in g.get("indici", []) if isinstance(i, int) and 0 <= i < len(voci)
+                  and i not in usati]
+        if not indici or not g.get("testo"):
+            continue
+        usati.update(indici)
+        chi = _nomi_unici(n for i in indici for n in voci[i]["chi"].split(", ") if n)
+        out.append({"data": min(voci[i]["data"] for i in indici), "testo": g["testo"], "chi": chi})
+    out += [v for i, v in enumerate(voci) if i not in usati]
+    return out
+
+
+def _fetch_todo_list() -> list[dict]:
+    """Adempimenti ravvicinati da scadenze del gestionale + checklist mobile, ordinati
+    per data e non ancora uniti (vedi _unisci_e_accorcia, chiamata dopo
+    _rileva_citta_viaggio perché l'unione perde il campo "trasferta"). Ogni voce:
+    {"data": date, "testo": str, "chi": str, "trasferta": str | None — solo dal PDF}.
+    Non solleva mai: se una fonte manca o Drive non risponde, la prima pagina esce con
+    quello che c'è."""
+    from monitor import _get_google_creds, _DRIVE_SA_FILE
 
     if not _DRIVE_SA_FILE.exists():
         return []
     try:
         from googleapiclient.discovery import build
-        creds = _get_google_creds()
-        file_id = _find_drive_file_id(creds, _DRIVE_TODO_NAME)
-        if not file_id:
-            return []
-        drive = build("drive", "v3", credentials=creds)
-        content = drive.files().export(fileId=file_id, mimeType="text/plain").execute()
-        testo = content.decode("utf-8-sig")
-        return [riga.strip() for riga in testo.splitlines() if riga.strip()]
+        drive = build("drive", "v3", credentials=_get_google_creds())
     except Exception as e:
-        logger.warning(f"Rassegna: lettura ToDo da Drive fallita: {e}")
+        logger.warning(f"Rassegna: connessione a Drive per la ToDo fallita: {e}")
         return []
+
+    da = (datetime.now() + timedelta(days=1)).date()
+    a = da + timedelta(days=_TODO_GIORNI - 1)
+    voci = []
+    for fonte in (_fetch_scadenze_studio, _fetch_checklist_task):
+        try:
+            voci += fonte(drive, da, a)
+        except Exception as e:
+            logger.warning(f"Rassegna: {fonte.__name__} fallita: {e}")
+    return sorted(voci, key=lambda v: v["data"])
 
 
 def _get_ft_stampa_queue() -> list[dict]:
@@ -629,44 +873,15 @@ def _claude_web_search_json(prompt: str, model: str = "claude-sonnet-4-6", max_t
             return None
 
 
-def _rileva_citta_viaggio(todo: list[str]) -> str | None:
-    """Individua nella ToDo list un eventuale spostamento (treno/aereo/auto/trasferta)
-    programmato per DOMANI (rispetto alla data di generazione) e ritorna la città di
-    destinazione, o None. Una sola città: il caso d'uso è 'domani sono in viaggio', non un
-    itinerario multi-tappa. Voci con una data esplicita diversa da domani (es. 'il 22 vado a
-    Milano' scritto quando domani è il 16) vanno ignorate finché non è effettivamente la
-    vigilia — altrimenti il meteo di viaggio comparirebbe ogni giorno a partire da quando la
-    voce è stata aggiunta, molto prima che sia utile."""
-    from bot import call_claude
-    import json
-
-    todo_text = "\n".join(todo)
-    if not todo_text:
-        return None
-    domani = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    prompt = f"""\
-Oggi è {datetime.now().strftime("%Y-%m-%d")}, quindi domani è {domani}.
-
-Nella lista di cose da fare qui sotto, individua un eventuale spostamento (treno, aereo,
-auto, viaggio, trasferta) verso un'altra città PROGRAMMATO PROPRIO PER DOMANI ({domani}).
-Se una voce ha una data esplicita diversa da domani (passata, odierna o più lontana nel
-futuro), ignorala: conta solo se lo spostamento è domani. Se una voce non ha una data
-esplicita, ignorala (non presumere che sia domani). Ignora città citate per altri motivi
-(non spostamenti).
-
-{todo_text}
-
-Rispondi SOLO con un oggetto JSON: {{"citta": "Milano"}} oppure {{"citta": null}} se nessuno
-spostamento per domani è menzionato."""
-    try:
-        msg = call_claude(model="claude-haiku-4-5", max_tokens=100,
-                           messages=[{"role": "user", "content": prompt}])
-        raw = re.sub(r"^```(?:json)?|```$", "", msg.content[0].text.strip(), flags=re.MULTILINE).strip()
-        return json.loads(raw).get("citta") or None
-    except Exception as e:
-        logger.warning(f"Rassegna: individuazione città di viaggio fallita: {e}")
-        return None
-
+def _rileva_citta_viaggio(todo: list[dict]) -> str | None:
+    """Città in cui Niccolò deve essere di persona DOMANI, o None. Dal 2026-10-08 la si
+    ricava dal PDF delle scadenze dello studio (campo "trasferta", che Claude compila
+    leggendo il PDF solo per udienze/appuntamenti fuori Roma) e non più da un Google Doc
+    di appunti personali — richiesta di Niccolò. Una sola città: il caso d'uso è 'domani
+    sono in trasferta', non un itinerario multi-tappa. Solo domani, non i giorni dopo:
+    altrimenti meteo e consigli di viaggio comparirebbero con giorni di anticipo."""
+    domani = (datetime.now() + timedelta(days=1)).date()
+    return next((v["trasferta"] for v in todo if v.get("trasferta") and v["data"] == domani), None)
 
 # Condizioni riconosciute: mappate su un'icona SVG disegnata a mano (vedi _METEO_ICONE) —
 # niente immagini scaricate da siti meteo (fragili, spesso sprite/JS, difficili da isolare
@@ -904,7 +1119,7 @@ def _varie_storico_connect():
 
 def _save_varie_storico(dati: dict, prefisso: str = "", citta: str | None = None) -> None:
     """Salva i testi di oggi per poterli escludere dai prossimi giorni (stesso pattern
-    di _save_cruciverba_soluzioni). Senza questo, il prompt di ricerca web non ha modo
+    del vecchio cruciverba, rimosso il 2026-10-08). Senza questo, il prompt di ricerca web non ha modo
     di sapere cosa ha già proposto e tende a riconvergere sulle stesse opzioni "sicure"
     (es. la stessa mostra permanente, lo stesso classico) — segnalato da Niccolò il
     2026-09-16 ("le varie sono molte uguali a quelle di ieri"). Usato anche per le varie
@@ -1015,195 +1230,6 @@ piuttosto che inventarla.""",
     return dati
 
 
-# ── Cruciverba ─────────────────────────────────────────────────────────────────────
-
-_CRUCIVERBA_TEMI = [
-    "diritto amministrativo italiano", "diritto costituzionale italiano",
-    "diritto civile italiano", "diritto dell'energia e regolazione ARERA",
-    "diritto del gioco pubblico e concessioni demaniali", "diritto dell'Unione Europea",
-    "procedura civile e amministrativa", "diritto internazionale del mare",
-]
-
-
-def _genera_parole_cruciverba() -> list[tuple[str, str]]:
-    """Chiede a Claude 7 parole italiane (6-10 lettere, senza spazi né accenti) con
-    definizione in stile cruciverba DIFFICILE — istituti, brocardi, principi e organi
-    giuridici, non lessico generico — su un tema giuridico a rotazione giornaliera
-    (richiesta di Niccolò, 2026-09-15: cruciverba orientato al diritto, non a cultura
-    generale)."""
-    from bot import call_claude
-    import json
-
-    tema = _CRUCIVERBA_TEMI[datetime.now().toordinal() % len(_CRUCIVERBA_TEMI)]
-    prompt = f"""\
-Genera 7 parole italiane per un mini cruciverba DIFFICILE per un avvocato esperto,
-tema: {tema}.
-Regole per ogni parola: 6-10 lettere, UNA sola parola (no spazi, no trattini, no accenti,
-tutto maiuscolo), niente nomi propri. Preferisci termini tecnici, istituti giuridici,
-principi, organi o nozioni processuali specifiche (non lessico comune/generico) — deve
-essere impegnativo anche per chi mastica diritto.
-Per ognuna scrivi anche la definizione in stile cruciverba (breve, max 10 parole),
-tecnica e precisa, non generica.
-
-Rispondi SOLO con un array JSON: [{{"parola": "ESEMPIO", "definizione": "..."}}, ...]
-"""
-    try:
-        msg = call_claude(
-            model="claude-sonnet-4-6",
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = msg.content[0].text.strip()
-        raw = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
-        data = json.loads(raw)
-        out = []
-        for d in data:
-            parola = re.sub(r"[^A-Za-zÀ-ÿ]", "", d.get("parola", "")).upper()
-            parola = (parola.replace("À", "A").replace("È", "E").replace("É", "E")
-                      .replace("Ì", "I").replace("Ò", "O").replace("Ù", "U"))
-            if 5 <= len(parola) <= 11:
-                out.append((parola, d.get("definizione", "")))
-        return out
-    except Exception as e:
-        logger.warning(f"Cruciverba: generazione parole fallita: {e}")
-        return []
-
-
-def _crossword_place(words_clues: list[tuple[str, str]]) -> dict:
-    """Algoritmo greedy: piazza la prima parola in orizzontale, poi incastra ogni parola
-    successiva in un punto di incrocio con una lettera comune a una parola già piazzata.
-    Le parole che non trovano un incrocio vengono scartate (meglio un cruciverba piccolo
-    ma coerente che forzare un piazzamento scollegato)."""
-    words_clues = sorted(set(words_clues), key=lambda wc: -len(wc[0]))
-    if not words_clues:
-        return {"grid": {}, "placed": []}
-
-    grid: dict[tuple[int, int], str] = {}
-    placed: list[dict] = []
-
-    def can_place(word, row, col, direction) -> bool:
-        for i, ch in enumerate(word):
-            r, c = (row + i, col) if direction == "D" else (row, col + i)
-            if grid.get((r, c), ch) != ch:
-                return False
-        return True
-
-    def do_place(word, row, col, direction) -> None:
-        for i, ch in enumerate(word):
-            r, c = (row + i, col) if direction == "D" else (row, col + i)
-            grid[(r, c)] = ch
-
-    first_word, first_clue = words_clues[0]
-    do_place(first_word, 0, 0, "A")
-    placed.append({"word": first_word, "clue": first_clue, "row": 0, "col": 0, "dir": "A"})
-
-    for word, clue in words_clues[1:]:
-        best = None
-        for p in placed:
-            for i, ch in enumerate(word):
-                for j, pch in enumerate(p["word"]):
-                    if ch != pch:
-                        continue
-                    new_dir = "D" if p["dir"] == "A" else "A"
-                    cross_r = p["row"] + (j if p["dir"] == "D" else 0)
-                    cross_c = p["col"] + (j if p["dir"] == "A" else 0)
-                    row, col = (cross_r - i, cross_c) if new_dir == "D" else (cross_r, cross_c - i)
-                    if can_place(word, row, col, new_dir):
-                        best = (word, row, col, new_dir)
-                        break
-                if best:
-                    break
-            if best:
-                break
-        if best:
-            w, row, col, direction = best
-            do_place(w, row, col, direction)
-            placed.append({"word": w, "clue": clue, "row": row, "col": col, "dir": direction})
-
-    return {"grid": grid, "placed": placed}
-
-
-def _crossword_render(result: dict) -> dict | None:
-    grid, placed = result["grid"], result["placed"]
-    if len(placed) < 2:
-        return None
-
-    rows = [r for r, _ in grid]
-    cols = [c for _, c in grid]
-    min_r, min_c = min(rows), min(cols)
-    height, width = max(rows) - min_r + 1, max(cols) - min_c + 1
-
-    norm = [{**p, "row": p["row"] - min_r, "col": p["col"] - min_c} for p in placed]
-    starts: dict[tuple[int, int], int] = {}
-    for p in sorted(norm, key=lambda p: (p["row"], p["col"])):
-        key = (p["row"], p["col"])
-        if key not in starts:
-            starts[key] = len(starts) + 1
-
-    filled = set()
-    for p in norm:
-        for i in range(len(p["word"])):
-            r, c = (p["row"] + i, p["col"]) if p["dir"] == "D" else (p["row"], p["col"] + i)
-            filled.add((r, c))
-
-    rows_html = []
-    for r in range(height):
-        cells = []
-        for c in range(width):
-            if (r, c) in filled:
-                n = starts.get((r, c), "")
-                cells.append(f'<td class="cw-cell"><span class="cw-num">{n}</span></td>')
-            else:
-                cells.append('<td class="cw-blank"></td>')
-        rows_html.append(f"<tr>{''.join(cells)}</tr>")
-    grid_html = f'<table class="cw-grid">{"".join(rows_html)}</table>'
-
-    across = sorted((starts[(p["row"], p["col"])], p["clue"]) for p in norm if p["dir"] == "A")
-    down = sorted((starts[(p["row"], p["col"])], p["clue"]) for p in norm if p["dir"] == "D")
-    answers = ", ".join(
-        f'{starts[(p["row"], p["col"])]}. {p["word"]}'
-        for p in sorted(norm, key=lambda p: (p["row"], p["col"]))
-    )
-    return {"grid_html": grid_html, "across": across, "down": down, "answers": answers}
-
-
-def _save_cruciverba_soluzioni(soluzioni: str) -> None:
-    """Salva le soluzioni di oggi per pubblicarle nell'edizione di domani (come nei
-    cruciverba dei giornali veri, non svelate lo stesso giorno — richiesta di Niccolò,
-    2026-09-15). Tabella dedicata, separata dallo schema di monitor.py."""
-    from monitor import _db_connect
-    con = _db_connect()
-    con.execute("CREATE TABLE IF NOT EXISTS cruciverba_soluzioni (data TEXT PRIMARY KEY, soluzioni TEXT)")
-    oggi = datetime.now().strftime("%Y-%m-%d")
-    con.execute(
-        "INSERT OR REPLACE INTO cruciverba_soluzioni (data, soluzioni) VALUES (?, ?)",
-        (oggi, soluzioni),
-    )
-    con.commit()
-    con.close()
-
-
-def _load_cruciverba_soluzioni_ieri() -> str | None:
-    from monitor import _db_connect
-    con = _db_connect()
-    con.execute("CREATE TABLE IF NOT EXISTS cruciverba_soluzioni (data TEXT PRIMARY KEY, soluzioni TEXT)")
-    ieri = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    row = con.execute("SELECT soluzioni FROM cruciverba_soluzioni WHERE data=?", (ieri,)).fetchone()
-    con.close()
-    return row[0] if row else None
-
-
-def _genera_cruciverba() -> dict | None:
-    parole = _genera_parole_cruciverba()
-    if len(parole) < 3:
-        return None
-    piazzate = _crossword_place(parole)
-    renderizzato = _crossword_render(piazzate)
-    if renderizzato:
-        _save_cruciverba_soluzioni(renderizzato["answers"])
-    return renderizzato
-
-
 # ── Composizione HTML ──────────────────────────────────────────────────────────────
 
 _CSS = """
@@ -1230,9 +1256,9 @@ _CSS = """
      interne di un giornale vero. CSS `columns` nativo (non split Python: quel primo
      tentativo bilanciava per numero di voci, non per spazio reale, e produceva colonne
      con enormi vuoti quando una voce era più corta delle altre — vedi git history
-     2026-09-15). Niente column-span qui: varie/meteo/cruciverba (che lo richiederebbero
-     per meteo e cruciverba, per occupare tutta la larghezza) stanno apposta fuori da
-     questo contenitore, tutti insieme sull'ultima pagina (_build_ultima_pagina) — quella
+     2026-09-15). Niente column-span qui: varie e meteo (il meteo lo richiederebbe per
+     occupare tutta la larghezza) stanno apposta fuori da questo contenitore, le varie
+     sull'ultima pagina (_build_ultima_pagina) e il meteo in prima pagina — quella
      combinazione mandava in crash WeasyPrint in modo intermittente, vedi nota nel codice
      Python del 2026-09-16. */
   .corpo-continuo { columns: 3; column-gap: 22px; column-rule: 1px solid #bbb;
@@ -1247,22 +1273,26 @@ _CSS = """
                                   color: #333; margin-bottom: 3px; }
   .corpo-continuo .fonte { display: block; margin-top: 2px; }
 
-  /* Prima pagina: titolo di apertura a piena larghezza, poi colonne per il resto */
+  /* Prima pagina: titolo di apertura a piena larghezza, poi meteo e adempimenti */
   .lead { border-bottom: 2px solid #111; padding-bottom: 14px; margin-bottom: 16px; }
   .lead .tag { font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
   .lead .titolo { display: block; font-size: 26px; font-weight: bold; line-height: 1.2;
                   margin-top: 4px; font-family: Georgia, serif; }
-  .front-cols { columns: 3; column-gap: 24px; column-rule: 1px solid #bbb; text-align: justify;
-                hyphens: auto; }
-  .headline { margin-bottom: 12px; break-inside: avoid; padding-bottom: 10px; border-bottom: 1px solid #ddd; }
-  .headline .tag { font-size: 9px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
-  .headline .titolo { font-size: 13px; font-weight: bold; display: block; line-height: 1.25; }
-
-  .todo { border: 1px solid #111; padding: 10px 14px; margin-bottom: 16px; }
-  .todo h3 { border: none; margin-bottom: 6px; }
-  .todo ul { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 20px; }
-  .todo li { font-size: 12px; margin-bottom: 6px; break-inside: avoid; }
-  .todo .checkbox { font-size: 13px; margin-right: 4px; }
+  /* Una colonna, una riga per adempimento: con ~30 voci le due colonne CSS non si
+     spezzano bene tra le pagine (Chromium sposta tutta la lista sul foglio dopo). */
+  .todo { border: 1px solid #111; padding: 8px 14px; margin-bottom: 16px; }
+  .todo h3 { border: none; margin-bottom: 4px; }
+  .todo ul { list-style: none; margin: 0; padding: 0; }
+  .todo li { font-size: 10.5px; line-height: 1.25; padding: 1px 0; border-top: 1px solid #eee;
+             break-inside: avoid; }
+  .todo li:first-child { border-top: none; }
+  .todo .checkbox { font-size: 12px; margin-right: 4px; }
+  .todo .todo-data { font-weight: bold; display: inline-block; min-width: 68px; }
+  .todo .ritardo { color: #a00; }
+  .todo .todo-chi { color: #666; font-style: italic; }
+  .arte { text-align: center; margin-top: 10px; }
+  .arte img { max-width: 100%; max-height: 15cm; }
+  .arte .didascalia { font-size: 10.5px; color: #555; font-style: italic; margin-top: 6px; }
 
   .varie-block { margin-bottom: 16px; }
   .varie-block .label { font-weight: bold; }
@@ -1278,65 +1308,63 @@ _CSS = """
   .meteo-icona svg { display: block; margin: 0 auto; }
   .meteo-temp { font-weight: bold; font-size: 13px; margin-top: 4px; }
   .meteo-vento { font-size: 9px; color: #555; margin-top: 3px; }
-  .cw-block { break-inside: avoid; page-break-inside: avoid; }
-  table.cw-grid { border-collapse: collapse; margin: 10px 0; break-inside: avoid;
-                   page-break-inside: avoid; }
-  table.cw-grid td { width: 26px; height: 26px; text-align: center; vertical-align: top;
-                      position: relative; }
-  td.cw-cell { border: 1px solid #111; }
-  td.cw-blank { border: none; }
-  .cw-num { font-size: 8px; position: absolute; top: 1px; left: 2px; }
-  .cw-clues { columns: 2; column-gap: 24px; font-size: 12px; }
-  .cw-answers { font-size: 9px; color: #999; margin-top: 14px; }
 """
 
 
-def _render_headline_list(items: list[dict], tag: str, title_key: str = "title") -> str:
-    out = []
-    for it in items:
-        out.append(
-            f'<div class="headline"><span class="tag">{tag}</span>'
-            f'<span class="titolo">{_clean_title(it.get(title_key, ""))}</span></div>'
-        )
-    return "".join(out)
+# Il blocco privato della prima pagina (meteo + adempimenti dello studio) è delimitato da
+# questi due commenti HTML: _versione_pubblica_pdf sostituisce tutto ciò che sta in mezzo
+# con l'immagine del giorno. Commenti e non un <div> da cercare con una regex perché il
+# blocco contiene div annidati, su cui un ".*?</div>" si fermerebbe troppo presto.
+_PRIVATO_INIZIO = "<!--PRIVATO-INIZIO-->"
+_PRIVATO_FINE = "<!--PRIVATO-FINE-->"
+
+_GIORNI_BREVI = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
 
 
-def _build_todo_checklist(todo: list[str]) -> str:
+def _build_todo_checklist(todo: list[dict]) -> str:
     if not todo:
         return ""
-    righe = "".join(f'<li><span class="checkbox">☐</span> {voce}</li>' for voce in todo)
-    return f'<div class="todo"><h3>Da fare</h3><ul>{righe}</ul></div>'
+    domani = (datetime.now() + timedelta(days=1)).date()
+    righe = []
+    for voce in todo:
+        d = voce["data"]
+        if d < domani:
+            quando = f'<span class="todo-data ritardo">scad. {d.strftime("%d/%m")}</span>'
+        else:
+            quando = f'<span class="todo-data">{_GIORNI_BREVI[d.weekday()]} {d.strftime("%d/%m")}</span>'
+        chi = f' <span class="todo-chi">({voce["chi"]})</span>' if voce.get("chi") else ""
+        righe.append(f'<li><span class="checkbox">☐</span> {quando} {voce["testo"]}{chi}</li>')
+    return f'<div class="todo"><h3>Da fare</h3><ul>{"".join(righe)}</ul></div>'
 
 
-def _build_front_page(settori: dict, interessi: list, attualita: list, todo: list[str]) -> str:
-    top_settori = [it for items in settori.values() for it in items][:6]
-    top_interessi = interessi[:7]
-    top_attualita = attualita[:7]
-
-    tutti = top_settori + top_interessi + top_attualita
+def _build_front_page(settori: dict, interessi: list, attualita: list, meteo: list[dict],
+                      todo: list[dict]) -> str:
+    """Prima pagina: testata, un solo titolo di apertura, poi meteo di domani e
+    adempimenti dello studio. Le tre colonne di titoli sono state tolte su richiesta di
+    Niccolò (2026-10-08): la prima pagina serve a organizzare la giornata, le notizie
+    stanno nelle pagine interne."""
+    candidati = (
+        [(it, "Professionale") for items in settori.values() for it in items][:1]
+        + [(it, "Interessi") for it in interessi[:1]]
+        + [(it, "Attualità") for it in attualita[:1]]
+    )
     lead_html = ""
-    if tutti:
-        lead = tutti[0]
-        tutti = tutti[1:]
-        tag = "Professionale" if lead in top_settori else ("Interessi" if lead in top_interessi else "Attualità")
+    if candidati:
+        lead, tag = candidati[0]
         lead_html = f"""
-    <div class="lead"><span class="tag">{tag}</span>
-      <span class="titolo">{_clean_title(lead.get("title", ""))}</span></div>"""
-        top_settori = [it for it in top_settori if it is not lead]
-        top_interessi = [it for it in top_interessi if it is not lead]
-        top_attualita = [it for it in top_attualita if it is not lead]
+  <div class="lead"><span class="tag">{tag}</span>
+    <span class="titolo">{_clean_title(lead.get("title", ""))}</span></div>"""
 
+    meteo_html = "".join(_render_meteo_blocco(m) for m in meteo)
     return f"""
 <div class="page page-front">
   <h1 class="masthead">NT REPORT</h1>
   <div class="data">{datetime.now().strftime("%A %d %B %Y")}</div>
   {lead_html}
-  <div class="front-cols">
-    {_render_headline_list(top_settori, "Professionale")}
-    {_render_headline_list(top_interessi, "Interessi")}
-    {_render_headline_list(top_attualita, "Attualità")}
-  </div>
+  {_PRIVATO_INIZIO}
+  {meteo_html}
   {_build_todo_checklist(todo)}
+  {_PRIVATO_FINE}
 </div>"""
 
 
@@ -1463,17 +1491,14 @@ def _render_meteo_blocco(m: dict) -> str:
     </div>"""
 
 
-def _build_ultima_pagina(varie: dict, varie_viaggio: dict | None, meteo: list[dict],
-                          cruciverba: dict | None, soluzioni_ieri: str | None) -> str:
-    """Ultima pagina del giornale: spunti di Varie, viaggio, meteo e cruciverba tutti
-    insieme (richiesta di Niccolò, 2026-09-16 — prima erano sparsi tra il flusso
-    continuo e una pagina a parte). Blocco singolo, niente colonne: meteo e cruciverba
-    richiederebbero "column-span: all" per occupare tutta la larghezza, che dentro un
-    contenitore multi-colonna paginato su più pagine fisiche manda in crash WeasyPrint
-    in modo intermittente (IndexError interno in skip_first_whitespace — bug del motore,
-    non del nostro CSS; riprodotto in produzione il 2026-09-15 e di nuovo il 2026-09-16).
-    Tenendo l'intera pagina fuori dal flusso a colonne, quella combinazione non si
-    presenta mai, per costruzione."""
+def _build_ultima_pagina(varie: dict, varie_viaggio: dict | None) -> str:
+    """Ultima pagina del giornale: spunti di Varie e viaggio tutti insieme (richiesta di
+    Niccolò, 2026-09-16 — prima erano sparsi tra il flusso continuo e una pagina a parte).
+    Il meteo è passato in prima pagina e il cruciverba è stato tolto (richiesta del
+    2026-10-08). Blocco singolo, niente colonne: dentro un contenitore multi-colonna
+    paginato su più pagine fisiche "column-span: all" manda in crash WeasyPrint in modo
+    intermittente (IndexError interno in skip_first_whitespace — bug del motore, non del
+    nostro CSS; riprodotto in produzione il 2026-09-15 e di nuovo il 2026-09-16)."""
     # "A tavola" per ultimo tra gli spunti (richiesta di Niccolò, 2026-09-15).
     labels = {
         "mostra": "Da vedere", "attivita_bambini": "Con i bambini",
@@ -1490,38 +1515,10 @@ def _build_ultima_pagina(varie: dict, varie_viaggio: dict | None, meteo: list[di
         )
         viaggio_html = f'<h3>In viaggio a {varie_viaggio["citta"]}</h3>{blocchi_viaggio}'
 
-    meteo_html = "".join(_render_meteo_blocco(m) for m in meteo).strip()
-
-    cw_html = ""
-    if cruciverba:
-        clues_a = "".join(f"<li>{n}. {c}</li>" for n, c in cruciverba["across"])
-        clues_d = "".join(f"<li>{n}. {c}</li>" for n, c in cruciverba["down"])
-        soluzioni_html = (
-            f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
-            if soluzioni_ieri else
-            '<div class="cw-answers">Soluzioni sul numero di domani.</div>'
-        )
-        cw_html = (
-            '<div class="cw-block">'
-            + "<h3>Cruciverba</h3>"
-            + cruciverba["grid_html"]
-            + '<div class="cw-clues">'
-            + f'<div><strong>Orizzontali</strong><ul>{clues_a}</ul></div>'
-            + f'<div><strong>Verticali</strong><ul>{clues_d}</ul></div>'
-            + "</div>"
-            + soluzioni_html
-            + "</div>"
-        )
-    elif soluzioni_ieri:
-        cw_html = f'<div class="cw-answers">Soluzioni del cruciverba di ieri: {soluzioni_ieri}</div>'
-    cw_html = cw_html.strip()
-
     return (
         '<div class="page"><h2 class="sezione">Varie</h2>'
         + viaggio_html
         + varie_html
-        + meteo_html
-        + cw_html
         + "</div>"
     )
 
@@ -1537,8 +1534,8 @@ def _build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stamp
     return f'<div class="page"><div class="corpo-continuo">{contenuto}</div></div>'
 
 
-def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
-                 todo, meteo, soluzioni_ieri, varie_viaggio, linkedin_vetrina) -> str:
+def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie,
+                 todo, meteo, varie_viaggio, linkedin_vetrina) -> str:
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -1546,11 +1543,186 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 <style>{_CSS}</style>
 </head>
 <body>
-  {_build_front_page(settori, interessi, attualita, todo)}
+  {_build_front_page(settori, interessi, attualita, meteo, todo)}
   {_build_corpo_continuo(settori, giustizia_amm, interessi, attualita, ft_stampa, linkedin_vetrina)}
-  {_build_ultima_pagina(varie, varie_viaggio, meteo, cruciverba, soluzioni_ieri)}
+  {_build_ultima_pagina(varie, varie_viaggio)}
 </body>
 </html>"""
+
+
+# ── Immagine del giorno (solo versione pubblica) ─────────────────────────────────────
+# Nella copia per nt-report.com meteo e adempimenti spariscono e al loro posto va
+# un'immagine (richiesta di Niccolò, 2026-10-08): a giorni alterni un quadro famoso di
+# pubblico dominio e un'immagine generata con AI, sempre con una didascalia che dice cos'è.
+# Se la fonte del giorno non risponde si prova la successiva; se falliscono tutte la prima
+# pagina pubblica esce con il solo titolo di apertura.
+# Quadri: Wikidata + Wikimedia Commons; riserva Cleveland Museum of Art (CC0). Art
+# Institute of Chicago e Met sono stati scartati il 2026-10-08: le loro immagini
+# rispondono 403 alle richieste non da browser.
+# Wikimedia chiede uno User-Agent descrittivo con un contatto, altrimenti risponde 403.
+_HTTP_UA = {"User-Agent": "NT-Report/1.0 (rassegna quotidiana; https://nt-report.com)"}
+
+
+def _img_data_uri(contenuto: bytes, taglia_basso: float = 0.0) -> str:
+    """Ridimensiona per la stampa e incorpora l'immagine nell'HTML: WeasyPrint non deve
+    andare in rete mentre impagina. taglia_basso toglie una fascia in fondo (serve per il
+    logo che Pollinations stampa nell'angolo in basso a destra)."""
+    import base64
+    import io
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(contenuto)).convert("RGB")
+    if taglia_basso:
+        img = img.crop((0, 0, img.width, int(img.height * (1 - taglia_basso))))
+    img.thumbnail((1400, 1400))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _quadri_famosi() -> list[dict]:
+    """Elenco di dipinti famosi di pubblico dominio da Wikidata: "famoso" vuol dire con
+    almeno 20 voci Wikipedia/Wikimedia collegate, "pubblico dominio" vuol dire autore
+    morto da oltre 100 anni. La query va su QLever (Università di Friburgo, stessi dati di
+    Wikidata) e non sul servizio SPARQL ufficiale: il 2026-10-08 quello impiegava 50
+    secondi o andava in timeout anche su query ridotte, QLever risponde in un secondo e
+    mezzo. L'elenco va comunque in cache su disco e si aggiorna una volta al mese; se
+    l'aggiornamento fallisce si continua con la cache vecchia."""
+    import json
+    import httpx
+
+    cache = BASE_DIR / "data" / "quadri_famosi.json"
+    if cache.exists() and (datetime.now().timestamp() - cache.stat().st_mtime) < 30 * 86400:
+        return json.loads(cache.read_text(encoding="utf-8"))
+
+    anno_limite = datetime.now().year - 100
+    query = f"""PREFIX wd: <http://www.wikidata.org/entity/>
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX schema: <http://schema.org/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?item (SAMPLE(?t) AS ?titolo) (SAMPLE(?au) AS ?autore) (MIN(?an) AS ?anno)
+       (SAMPLE(?im) AS ?img) WHERE {{
+  ?item wdt:P31 wd:Q3305213; wdt:P18 ?im; wdt:P170 ?a.
+  ?a wdt:P570 ?morte. FILTER(YEAR(?morte) < {anno_limite})
+  ?voce schema:about ?item.
+  ?item rdfs:label ?t. FILTER(LANG(?t) = "it")
+  ?a rdfs:label ?au. FILTER(LANG(?au) = "it")
+  OPTIONAL {{ ?item wdt:P571 ?d. BIND(YEAR(?d) AS ?an) }}
+}} GROUP BY ?item HAVING (COUNT(DISTINCT ?voce) >= 20)"""
+    try:
+        r = httpx.get("https://qlever.dev/api/wikidata", params={"query": query},
+                      headers={**_HTTP_UA, "Accept": "application/sparql-results+json"}, timeout=120)
+        r.raise_for_status()
+        elenco = sorted(
+            ({"titolo": b["titolo"]["value"], "autore": b["autore"]["value"],
+              "anno": b.get("anno", {}).get("value", ""), "img": b["img"]["value"]}
+             for b in r.json()["results"]["bindings"]),
+            key=lambda q: q["img"],
+        )
+        if not elenco:
+            raise ValueError("risposta vuota")
+        cache.parent.mkdir(exist_ok=True)
+        cache.write_text(json.dumps(elenco, ensure_ascii=False), encoding="utf-8")
+        return elenco
+    except Exception as e:
+        logger.warning(f"Rassegna: aggiornamento elenco quadri famosi da Wikidata fallito: {e}")
+        return json.loads(cache.read_text(encoding="utf-8")) if cache.exists() else []
+
+
+def _quadro_famoso_del_giorno() -> dict | None:
+    import httpx
+
+    quadri = _quadri_famosi()
+    if not quadri:
+        return None
+    # Ordine mescolato una volta con seme fisso e scorso un passo per edizione: nessun
+    # quadro si ripete prima di aver visto tutti gli altri. Il passo è ordinal // 2
+    # perché le opere escono un giorno sì e uno no (vedi _blocco_arte_html).
+    random.Random(0).shuffle(quadri)
+    q = quadri[(datetime.now().toordinal() // 2) % len(quadri)]
+    try:
+        img = httpx.get(q["img"], params={"width": 1400}, headers=_HTTP_UA,
+                        timeout=60, follow_redirects=True)
+        img.raise_for_status()
+    except Exception as e:
+        logger.warning(f"Rassegna: immagine di '{q['titolo']}' non scaricabile: {e}")
+        return None
+    anno = f", {q['anno']}" if q["anno"] else ""
+    return {"src": _img_data_uri(img.content),
+            "didascalia": f"Opera del giorno — {q['autore']}, {q['titolo']}{anno}. "
+                          f"Pubblico dominio, via Wikimedia Commons."}
+
+
+def _opera_cleveland() -> dict | None:
+    """Riserva per quando Wikidata/Commons non rispondono: un dipinto qualsiasi (non
+    necessariamente famoso) dalla collezione Open Access del Cleveland Museum of Art."""
+    import httpx
+
+    base = "https://openaccess-api.clevelandart.org/api/artworks/"
+    filtri = {"cc0": 1, "has_image": 1, "type": "Painting"}
+    try:
+        totale = httpx.get(base, params={**filtri, "limit": 1}, timeout=30).json()["info"]["total"]
+        # Scelta deterministica per data: rigenerare la stessa edizione dà la stessa opera.
+        indice = random.Random(datetime.now().strftime("%Y-%m-%d")).randrange(totale)
+        opera = httpx.get(base, params={**filtri, "limit": 1, "skip": indice},
+                          timeout=30).json()["data"][0]
+        img = httpx.get(opera["images"]["web"]["url"], headers=_HTTP_UA, timeout=60)
+        img.raise_for_status()
+    except Exception as e:
+        logger.warning(f"Rassegna: opera del giorno non disponibile: {e}")
+        return None
+    autore = (opera.get("creators") or [{}])[0].get("description") or "Autore ignoto"
+    titolo = opera["title"] if len(opera["title"]) <= 80 else opera["title"][:80].rsplit(" ", 1)[0] + "…"
+    didascalia = (f"Opera del giorno — {autore}, {titolo}, {opera.get('creation_date', '')}. "
+                  f"The Cleveland Museum of Art, pubblico dominio (CC0).")
+    return {"src": _img_data_uri(img.content), "didascalia": didascalia}
+
+
+def _immagine_ai_del_giorno() -> dict | None:
+    """Claude sceglie soggetto e stile e scrive la didascalia in italiano; l'immagine la
+    genera Pollinations (servizio gratuito, nessuna chiave: il prompt va nell'URL)."""
+    import urllib.parse
+    import httpx
+    from bot import call_claude
+
+    prompt = """\
+Inventa il soggetto di un'immagine artistica da mettere in prima pagina su un giornale
+quotidiano, al posto di una fotografia. Soggetto e stile ogni volta diversi: paesaggi,
+nature morte, architetture, scene marine, astrazioni, città immaginarie; stili pittorici,
+incisione, acquerello, fotografia d'autore. Niente persone riconoscibili, niente testo
+nell'immagine, niente marchi.
+
+Rispondi SOLO con un oggetto JSON:
+{"prompt_en": "prompt dettagliato in inglese per il generatore di immagini (max 60 parole)",
+ "didascalia": "una frase in italiano che descrive soggetto e stile (max 20 parole)"}"""
+    try:
+        msg = call_claude(model="claude-haiku-4-5", max_tokens=300,
+                          messages=[{"role": "user", "content": prompt}])
+        idea = _estrai_json(msg.content[0].text)
+        url = ("https://image.pollinations.ai/prompt/" + urllib.parse.quote(idea["prompt_en"])
+               + f"?width=1200&height=800&nologo=true&seed={datetime.now().toordinal()}")
+        img = httpx.get(url, headers=_HTTP_UA, timeout=120, follow_redirects=True)
+        img.raise_for_status()
+        if not img.headers.get("content-type", "").startswith("image/"):
+            raise ValueError(f"risposta non è un'immagine: {img.headers.get('content-type')}")
+    except Exception as e:
+        logger.warning(f"Rassegna: immagine AI non disponibile: {e}")
+        return None
+    return {"src": _img_data_uri(img.content, taglia_basso=0.07),
+            "didascalia": f"Immagine generata con AI — {idea['didascalia']}"}
+
+
+def _blocco_arte_html() -> str:
+    fonti = [_quadro_famoso_del_giorno, _immagine_ai_del_giorno]
+    if datetime.now().toordinal() % 2:
+        fonti.reverse()
+    fonti.append(_opera_cleveland)
+    for fonte in fonti:
+        arte = fonte()
+        if arte:
+            return (f'<div class="arte"><img src="{arte["src"]}">'
+                    f'<div class="didascalia">{arte["didascalia"]}</div></div>')
+    return ""
 
 
 # ── Orchestrazione ───────────────────────────────────────────────────────────────
@@ -1558,7 +1730,9 @@ def _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, 
 def _versione_pubblica_pdf(pdf_path: Path) -> bytes:
     """Restituisce i bytes di una versione pubblicabile su nt-report.com, rigenerata
     dall'HTML sorgente (salvato accanto al PDF da genera_rassegna_pdf) rimuovendo il
-    blocco con la ToDo list privata di Niccolò PRIMA di renderizzare il PDF. Non si basa
+    blocco privato della prima pagina (meteo + adempimenti, tra _PRIVATO_INIZIO e
+    _PRIVATO_FINE) PRIMA di renderizzare il PDF, e mettendo al suo posto l'immagine del
+    giorno (_blocco_arte_html). Non si basa
     sul conteggio delle pagine: se rimuovessimo solo "la prima pagina" del PDF finale,
     un'edizione con più notizie del solito potrebbe far sconfinare l'indice/ToDo sulla
     pagina 2, lasciando la ToDo list visibile pubblicamente (bug corretto il 22/09/2026,
@@ -1570,11 +1744,19 @@ def _versione_pubblica_pdf(pdf_path: Path) -> bytes:
     html_path = pdf_path.with_suffix(".html")
     if html_path.exists():
         html = html_path.read_text(encoding="utf-8")
-        html_pubblico = re.sub(r'<div class="todo">.*?</div>', "", html, flags=re.DOTALL)
-        if '<div class="todo">' in html_pubblico:
-            # Il regex non l'ha rimosso del tutto (es. markup cambiato) — meglio fallire
-            # rumorosamente che pubblicare per errore un HTML ancora privato.
-            raise ValueError("Rimozione ToDo list fallita — controllare _build_todo_checklist")
+        if _PRIVATO_INIZIO in html:
+            inizio = html.index(_PRIVATO_INIZIO)
+            fine = html.index(_PRIVATO_FINE) + len(_PRIVATO_FINE)
+            html_pubblico = html[:inizio] + _blocco_arte_html() + html[fine:]
+        else:
+            # Edizioni fino al 2026-10-08, prima dei marcatori: ToDo in un div senza
+            # div annidati, quindi il regex non annidato basta.
+            html_pubblico = re.sub(r'<div class="todo">.*?</div>', "", html, flags=re.DOTALL)
+        if (_PRIVATO_INIZIO in html_pubblico or '<div class="todo">' in html_pubblico
+                or 'class="varie-block meteo-blocco"' in html_pubblico):
+            # Rimozione incompleta (es. markup cambiato): meglio fallire rumorosamente che
+            # pubblicare per errore un HTML ancora privato.
+            raise ValueError("Rimozione del blocco privato fallita — controllare _build_front_page")
         return HTML(string=html_pubblico).write_pdf()
 
     # Fallback per PDF generati prima che genera_rassegna_pdf salvasse anche l'HTML
@@ -1600,7 +1782,7 @@ def _versione_pubblica_pdf_fallback_pypdf(pdf_path: Path) -> bytes:
 
 
 def _pubblica_rassegna_sul_sito(pdf_path: Path) -> bool:
-    """Carica la versione pubblica (senza prima pagina) su nt-report.com via l'endpoint
+    """Carica la versione pubblica (senza meteo e adempimenti) su nt-report.com via l'endpoint
     admin del sito. Richiede ADMIN_TOKEN nell'ambiente, condiviso con il servizio Render
     nt-report-api. Non blocca il resto del job se fallisce."""
     import os
@@ -1741,10 +1923,9 @@ async def genera_rassegna_html() -> str:
     attualita = await _fetch_attualita()
     giustizia_amm = await _fetch_giustizia_amministrativa()
     ft_stampa = _get_ft_stampa_queue()
-    cruciverba = _genera_cruciverba()
-    soluzioni_ieri = _load_cruciverba_soluzioni_ieri()
     todo = _fetch_todo_list()
     citta_viaggio = _rileva_citta_viaggio(todo)
+    todo = sorted(_unisci_e_accorcia(todo), key=lambda v: v["data"])
     varie = _genera_varie()
     varie_viaggio = _fetch_varie_viaggio(citta_viaggio)
     meteo = await _fetch_meteo(citta_viaggio)
@@ -1754,15 +1935,15 @@ async def genera_rassegna_html() -> str:
     settori_items = [it for items in settori.values() for it in items]
     await _arricchisci_con_riassunti(settori_items, interessi, attualita, giustizia_amm)
 
-    return _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie, cruciverba,
-                        todo, meteo, soluzioni_ieri, varie_viaggio, linkedin_vetrina)
+    return _build_html(settori, interessi, attualita, giustizia_amm, ft_stampa, varie,
+                        todo, meteo, varie_viaggio, linkedin_vetrina)
 
 
 async def genera_rassegna_pdf() -> Path:
     """Genera il PDF del giorno e lo salva in rassegna/YYYY-MM-DD.pdf. Non committato su
     git (artefatto binario giornaliero, escluso via .gitignore). Salva anche l'HTML
     sorgente accanto al PDF (stesso nome, .html): serve a _versione_pubblica_pdf per
-    ricostruire una copia senza la ToDo list privata, senza dover contare le pagine."""
+    ricostruire una copia senza meteo e adempimenti privati, senza dover contare le pagine."""
     from weasyprint import HTML
 
     html = await genera_rassegna_html()
