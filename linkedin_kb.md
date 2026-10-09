@@ -518,3 +518,52 @@ provvedimento" (tecnologia).
   l'incrocio privacy/sanità.
 - STEMi Srl — delibera ARERA 346/2026/R/com: azzerata dal 2027 la componente perequativa
   UR2 nel settore rifiuti urbani (ARERA lato rifiuti, fuori dal perimetro energia stretto).
+
+**2026-10-09** — Ottava sessione per la rubrica "Dal mio giro su LinkedIn". 4 pick nuovi
+salvati in `linkedin_vetrina` via script diretto sul server (serve
+`PYTHONPATH=/opt/ntreportbot` quando lo script sta in `/tmp`). Ricerche con filtro "Ultima
+settimana". Query usate: "ARERA delibera" (energia), "concessioni demaniali" (concessioni),
+"gioco pubblico ADM" (gioco), "AI Act decreto" (tecnologia). Due notizie fresche dominano:
+bozza del bando-tipo balneari in Conferenza Unificata e D.Lgs. 179/2026 (AI Act) in GU l'8/10.
+
+- Link dei post: il toast "Visualizza post" dopo "Copia link al post" sparisce in pochi
+  secondi; va cercato con `find` subito dopo il click. A volte il click per `ref` sul
+  bottone "···" non apre il menu: funziona il click per coordinate.
+- I 4 pick di oggi:
+  - Germana Cassar, Partner DLA Piper, Co-Head Energy Sector (energia) — delibera ARERA
+    332/2026, premio massimo MACSE 2029 a 27.000 €/MWh/anno; la sfida è trasformare i GWh
+    aggiudicati in BESS operativi. Intervista pv magazine Italia (con Astolfi e Martorana di
+    Legance). Già seguita da Niccolò: candidata profilo di riferimento energia.
+    https://www.linkedin.com/posts/germana-cassar-59281312a_macse-bess-energystorage-share-7514240725124042752-yN_i/
+  - Studio Legale Piselli & Partners (concessioni) — punti chiave della prima bozza del
+    bando-tipo MIT (scadenze 30/06 e 30/09/2027, Codice contratti applicato in modo
+    selettivo, indennizzo almeno 20% all'aggiudicazione, offerta economica fino al 10%). A
+    cura di Giuseppe Imbergamo e Alberto Boscarato.
+    https://www.linkedin.com/posts/concessionibalneari-demaniomarittimo-garepubbliche-share-7511769266786897920-kX0R/
+  - Vincenzo Sapone (gioco) — antiriciclaggio nel gioco pubblico (D.Lgs. 231/2007, quattro
+    pilastri, soglia 2.000 € case da gioco, conservazione dieci anni e incrocio GDPR).
+    Candidato del 02/10, confermato per qualità e costanza: profilo di riferimento gioco.
+    https://www.linkedin.com/posts/vincenzo-sapone_media-attachment-ugcPost-7513840671758131201-VyvD/
+  - Nadia Martini, Partner Tech & Data and AI, RÖDL Italy (tecnologia) — D.Lgs. 179/2026:
+    autorità, sanzioni (art. 23), decisioni sul lavoro non solo automatizzate (atti nulli),
+    sandbox, segreti commerciali. 101 reazioni, 9 repost.
+    https://www.linkedin.com/posts/nadiamartini_aiact-ai-digital-share-7514097437712666624-wdGS/
+
+**Altri trovati oggi, non ancora confermati:**
+- Nicola Fabiano (1° grado, ex Presidente Garante Privacy San Marino) — serie fissa
+  lunedì/giovedì su nicfab.eu sull'attuazione della L. 132/2025 (D.Lgs. 160 e 179/2026),
+  bilingue: fonte ricorrente per tecnologia.
+- Giacomo Lusardi (1° grado, DLA Piper) — sintesi pulita del D.Lgs. 179/2026, 38 reazioni.
+- Gianpiero Fortunato (già seguito) — CdS 9/9/2026 n. 6850: il 30/09/2027 è solo il limite
+  massimo delle proroghe tecniche, i Comuni possono assegnare prima.
+- Stefano D'Addona (Roma Tre) — paper su Land Use Policy sulle concessioni balneari:
+  canoni disallineati dal valore economico, aste stimate +60% di entrate.
+- Massimo Chiarillo / Coste360.it (1° grado) — mappa nazionale di 23.999 opere in muratura
+  sul demanio marittimo, utile per il tema indennizzi.
+- Fisascat Cisl — sindacati contro il bando-tipo: nessuna clausola sociale per i
+  dipendenti degli stabilimenti.
+- Utiliteam — ARERA approva cinque verifiche ispettive su variazioni unilaterali e rinnovi
+  delle condizioni economiche (vendita luce e gas).
+- Pavesio Studio Legale, CMS, Carmen Gardani (Lefebvre Giuffrè) — letture del D.Lgs.
+  160/2026 su responsabilità civile da IA (presunzione del nesso causale, azione diretta
+  contro l'assicuratore).
