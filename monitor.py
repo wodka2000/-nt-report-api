@@ -74,6 +74,7 @@ _SETTORI_DESC = """
 - gioco: gioco pubblico, concessioni giochi, ADM, slot machine, scommesse, lotterie, gioco online
 - tecnologia: AI Act, GDPR, DSA, DMA, NIS2, Data Act, cybersecurity, intelligenza artificiale, dati personali, piattaforme digitali
 - concessioni: concessioni pubbliche, demanio, appalti, gare pubbliche, autorizzazioni, licenze
+- salute: health, pharma e biotech — AIFA, EMA, FDA, Ministero della Salute, prezzi e rimborsabilità dei farmaci, payback, sperimentazioni cliniche, dispositivi medici, brevetti e SPC, pacchetto farmaceutico UE, HTA, autorizzazioni di nuovi farmaci, M&A, pipeline e finanziamenti pharma/biotech
 """.strip()
 
 TOPICS_CONFIG: dict[str, dict] = {
@@ -134,6 +135,43 @@ TOPICS_CONFIG: dict[str, dict] = {
             ("Agimeg",       "name",  "Agimeg"),
         ],
     },
+    "salute": {
+        "label": "💊 Health / Pharma / Biotech",
+        "settori": ["salute"],
+        "groups": ["GU", "AGCM"],
+        "prefixes": ["AIFA", "EMA"],
+        "names": ["Quotidiano Sanità", "pharmaphorum", "Labiotech", "BioPharma Dive",
+                  "STAT News"],
+        "filtered_groups": ["GU", "AGCM"],
+        "filtered_names": [],
+        "menu_buttons": [
+            ("GU",                        "group",  "GU"),
+            ("AGCM",                      "group",  "AGCM"),
+            ("AIFA",                      "prefix", "AIFA"),
+            ("EMA",                       "prefix", "EMA"),
+            ("Quotidiano Sanità",         "name",   "Quotidiano Sanità"),
+            ("pharmaphorum",              "name",   "pharmaphorum"),
+            ("Labiotech",                 "name",   "Labiotech"),
+            ("BioPharma Dive",            "name",   "BioPharma Dive"),
+            ("STAT News",                 "name",   "STAT News"),
+        ],
+    },
+    # Ex bot GiustAmm, accorpato il 2026-10-12. Topic a sé e non un gruppo dentro gli
+    # altri: la ricerca sul sito restituisce sentenze di tutti gli ambiti insieme, e una
+    # scansione lanciata da un singolo topic segnerebbe come già viste (e perderebbe) le
+    # sentenze degli altri ambiti scartate da settori_filter.
+    "giustizia": {
+        "label": "⚖️ Giustizia amministrativa",
+        "settori": ["energia", "gioco", "tecnologia", "concessioni", "salute"],
+        "groups": ["GA"],
+        "prefixes": [],
+        "names": [],
+        "filtered_groups": [],
+        "filtered_names": [],
+        "menu_buttons": [
+            ("Sentenze TAR / CdS", "group", "GA"),
+        ],
+    },
 }
 
 
@@ -171,7 +209,8 @@ def _resolve_topic_selector(topic_key: str, sel_type: str, sel_value: str, all_s
 
 _RELEVANCE_PROMPT = """\
 Sei un assistente legale specializzato in diritto dell'energia, gioco pubblico, \
-tecnologia (AI Act, GDPR, DSA) e concessioni pubbliche italiane ed europee.
+tecnologia (AI Act, GDPR, DSA), concessioni pubbliche e health/pharma/biotech, in ambito \
+italiano ed europeo.
 
 Valuta la rilevanza del seguente documento per uno studio legale italiano attivo in questi settori:
 {settori}
@@ -181,11 +220,11 @@ Titolo: {titolo}
 Sommario: {sommario}
 {esempi}
 Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo:
-{{"score": <intero 0-10>, "settore": "<energia|gioco|tecnologia|concessioni|altro>", "motivo": "<max 20 parole in italiano>"}}
+{{"score": <intero 0-10>, "settore": "<energia|gioco|tecnologia|concessioni|salute|altro>", "motivo": "<max 20 parole in italiano>"}}
 """
 
 _UNIFIED_POST_PROMPT = """\
-Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia e concessioni. Lingua del post: {lingua}.
+Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia, concessioni e health/pharma/biotech. Lingua del post: {lingua}.
 
 Hai esaminato i seguenti post LinkedIn già pubblicati, provenienti da fonti diverse:
 
@@ -263,8 +302,8 @@ Rules:
 """
 
 _WEEKLY_ARTICLE_PROMPT = """\
-Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia e concessioni \
-pubbliche, e scrivi il commento settimanale di approfondimento per il sito dello studio. Lingua: {lingua}.
+Sei un avvocato specializzato in diritto dell'energia, gioco pubblico, tecnologia, concessioni \
+pubbliche e health/pharma/biotech, e scrivi il commento settimanale di approfondimento per il sito dello studio. Lingua: {lingua}.
 
 Hai raccolto le seguenti notizie/post pubblicati questa settimana, su ambiti diversi:
 
@@ -1058,7 +1097,7 @@ async def _run_weekly_digest(context) -> None:
         parse_mode="Markdown",
     )
 
-    for settore in ("energia", "gioco", "tecnologia", "concessioni"):
+    for settore in ("energia", "gioco", "tecnologia", "concessioni", "salute"):
         items = by_settore.get(settore)
         if not items:
             continue
@@ -1117,7 +1156,7 @@ async def _run_weekly_digest(context) -> None:
 # ── Job principale ──────────────────────────────────────────────────────────────
 
 def _build_topic_kb() -> InlineKeyboardMarkup:
-    """Tastiera con i 3 topic principali."""
+    """Tastiera con i topic principali."""
     buttons = [
         [InlineKeyboardButton(cfg["label"], callback_data=f"mon_topic:{key}")]
         for key, cfg in TOPICS_CONFIG.items()
@@ -1276,13 +1315,15 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
         url  = source["url"]
 
         try:
-            items = (
-                await _fetch_rss(url, timeout=source.get("timeout", 20))
-                if source["type"] == "rss"
-                else await _fetch_html_links(url, link_filter=source.get("link_filter"),
-                                             timeout=source.get("timeout", 15),
-                                             no_verify=source.get("no_verify", False))
-            )
+            if source["type"] == "ga":
+                from ga_scraper import fetch_sentenze
+                items = await fetch_sentenze()
+            elif source["type"] == "rss":
+                items = await _fetch_rss(url, timeout=source.get("timeout", 20))
+            else:
+                items = await _fetch_html_links(url, link_filter=source.get("link_filter"),
+                                                timeout=source.get("timeout", 15),
+                                                no_verify=source.get("no_verify", False))
             fetch_err = ""
         except Exception as exc:
             items = None
@@ -1296,7 +1337,7 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
         logger.info(f"Monitor: {name} — {len(items)} elementi da controllare")
 
         # Non-owner + HTML: primo accesso → seed da owner e skip
-        if not is_owner_user and source["type"] == "html" and not _has_seen_source(str(chat_id), name):
+        if not is_owner_user and source["type"] in ("html", "ga") and not _has_seen_source(str(chat_id), name):
             for item in items:
                 if item["url"]:
                     _mark_seen(item["url"], item["title"], name, 0.0, str(chat_id))
@@ -1356,6 +1397,9 @@ async def _run_scan(context, sources: list[dict], chat_id: int = None, username:
             if source["type"] == "rss":
                 rss_content = item.get("content", "") or item.get("summary", "")
                 contenuto, data = rss_content[:8000], ""
+            elif source["type"] == "ga":
+                from ga_scraper import fetch_document_content
+                contenuto, data = await fetch_document_content(item_url)
             else:
                 contenuto, data = await _fetch_content(item_url)
             bozza = await loop.run_in_executor(

@@ -42,7 +42,7 @@ Tipi di messaggi gestiti:
 ### Al ricevimento di ogni messaggio inoltrato
 1. Se PDF o link a PDF → analisi con Claude (vedi sotto) → mostra riepilogo
 2. Chiede di classificare per tema con bottoni:
-   ⚡ Energia | 🎰 Gioco | 💻 Tecnologia | 📋 Concessioni | 📌 Altro
+   ⚡ Energia | 🎰 Gioco | 💻 Tecnologia | 📋 Concessioni | 💊 Health / Pharma / Biotech | 📌 Altro
 
 ### Analisi PDF con Claude
 Usa claude-sonnet-4-6, max_tokens=2000.

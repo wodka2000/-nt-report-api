@@ -2,13 +2,15 @@
 
 ## Contesto
 Questo progetto gestisce la raccolta settimanale di notizie e la generazione di post LinkedIn
-per uno studio legale specializzato in quattro aree tematiche.
+per uno studio legale specializzato in cinque aree tematiche.
 
 ## Aree tematiche presidiate
 - **Energia** — diritto dell'energia, rinnovabili, mercati energetici, regolazione ARERA
 - **Gioco** — gioco d'azzardo, concessioni ADM/AAMS, normativa di settore
 - **Tecnologia** — AI Act, protezione dati, cybersecurity, regolazione digitale
 - **Concessioni** — concessioni pubbliche, gare, demanio, balneari
+- **Health / Pharma / Biotech** — regolazione del farmaco (AIFA, EMA, FDA), prezzi e rimborsabilità,
+  sperimentazioni cliniche, dispositivi medici, brevetti/SPC; industria: M&A, pipeline, finanziamenti biotech
 
 ## Flusso di lavoro
 1. Durante la settimana i contenuti vengono raccolti tramite bot Telegram (`bot.py`)

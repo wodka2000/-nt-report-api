@@ -132,7 +132,8 @@ TOPICS = {
     "gioco":       "🎰 Gioco",
     "tecnologia":  "💻 Tecnologia",
     "concessioni": "🏖️ Concessioni",
-    "altro":       "📌 Altro",
+    "salute":      "💊 Health / Pharma / Biotech",
+    "altro":      "📌 Altro",
 }
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -767,7 +768,7 @@ async def generate_linkedin_post(
 
     prompt = (
         "Sei un avvocato specializzato in diritto dell'energia, gioco d'azzardo, "
-        "tecnologia e concessioni.\n"
+        "tecnologia, concessioni e health/pharma/biotech.\n"
         + intro
         + f"{content_block}\n\n"
         "---\n\n"

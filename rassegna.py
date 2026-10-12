@@ -11,7 +11,7 @@ Struttura del giornale (richiesta da Niccolò il 2026-09-14):
      "Aptus Daily" (dal 2026-10-08; prima c'erano i titoli di tutte le sezioni). Nella
      copia pubblica su nt-report.com meteo e adempimenti sono sostituiti da un quadro
      famoso o da un'immagine AI, a giorni alterni
-  2. Professionale — energia, giochi, concessioni, tecnologia (~2 pagine)
+  2. Professionale — energia, giochi, concessioni, health/pharma/biotech, tecnologia (~2 pagine)
   3. Interessi — geopolitica/guerra, difesa IT/UE, politica estera, cavidotti sottomarini,
      estrazione dai fondali marini, spazio, scienza (fisica/biologia/materiali) (~3 pagine,
      solo se c'è qualcosa di rilevante)
@@ -81,7 +81,8 @@ _INTERESSI_TEMI = """
 
 _GIUSTIZIA_AMMINISTRATIVA_URL = "https://www.giustizia-amministrativa.it/web/guest/echi-d-europa-ufficio-studi"
 
-_SETTORI_LABEL = {"energia": "Energia", "concessioni": "Concessioni demaniali", "giochi": "Giochi"}
+_SETTORI_LABEL = {"energia": "Energia", "concessioni": "Concessioni demaniali", "giochi": "Giochi",
+                  "salute": "Health / Pharma / Biotech"}
 
 _JUNK_TITLE_PATTERNS = re.compile(r"apre una nuova finestra|^(Facebook|X|Twitter|LinkedIn|Instagram|YouTube)\s*:?\s*$", re.IGNORECASE)
 _JUNK_TITLE_EXACT = {
@@ -245,8 +246,23 @@ async def _score_and_bucket(items: list[dict], valid_settori: set[str]) -> dict[
     return out
 
 
+def _alterna_fonti(items: list[dict]) -> list[dict]:
+    """Riordina gli item a giro tra le fonti (round-robin su source_name), mantenendo
+    l'ordine interno di ciascuna fonte."""
+    per_fonte: dict[str, list[dict]] = {}
+    for it in items:
+        per_fonte.setdefault(it.get("source_name", ""), []).append(it)
+    code = list(per_fonte.values())
+    out = []
+    while any(code):
+        for coda in code:
+            if coda:
+                out.append(coda.pop(0))
+    return out
+
+
 async def _fetch_settori_professionali(max_per_settore: int = 6) -> dict[str, list[dict]]:
-    """Notizie del giorno per energia/giochi/concessioni dalle fonti già configurate in
+    """Notizie del giorno per energia/giochi/concessioni/salute dalle fonti già configurate in
     sources.md (stesso meccanismo del monitoraggio principale, TOPICS_CONFIG, incluse le
     riviste di settore già censite lì — PV Magazine, Quotidiano Energia, Staffetta Online,
     Rinnovabili.it, Jamma.it, GiocoNews, Press Giochi, Agimeg, Mondo Balneare), più
@@ -280,8 +296,8 @@ async def _fetch_settori_professionali(max_per_settore: int = 6) -> dict[str, li
         con_data = [it for it in candidati if it.get("published")]
         return con_data[:max_per_settore]
 
-    topic_keys = ("energia", "concessioni", "giochi")
-    label_by_topic = {"energia": "Energia", "concessioni": "Concessioni demaniali", "giochi": "Giochi"}
+    topic_keys = ("energia", "concessioni", "giochi", "salute")
+    label_by_topic = _SETTORI_LABEL
 
     # Le fonti condivise tra più ambiti vengono raccolte una sola volta (non una per ambito)
     # per non moltiplicare fetch e chiamate di scoring.
@@ -310,6 +326,12 @@ async def _fetch_settori_professionali(max_per_settore: int = 6) -> dict[str, li
     for topic_key in topic_keys:
         target_settore = TOPICS_CONFIG[topic_key]["settori"][0]
         combinati = trusted_by_topic[topic_key] + verified_by_settore.get(target_settore, [])
+        if topic_key == "salute":
+            # Sette fonti mono-tema (AIFA, EMA, Quotidiano Sanità e quattro testate
+            # internazionali di industria): concatenate in ordine, il tetto di
+            # max_per_settore verrebbe riempito dalle prime due o tre — si alternano le
+            # fonti per tenere insieme regolatorio e industria (aggiunto il 2026-10-12).
+            combinati = _alterna_fonti(combinati)
         result[label_by_topic[topic_key]] = _select_with_fallback(combinati)
 
     tech_items = await _fetch_feed_list(_TECNOLOGIA_FEEDS, max_per_fonte=8, filter_recent=False)
@@ -1392,7 +1414,7 @@ def _frammento_settori(settori: dict, giustizia_amm: list) -> str:
         righe = "".join(_render_item_li(it) for it in giustizia_amm)
         corpo += f'<div class="settore-blocco"><h3>Giustizia Amministrativa — Ufficio Studi</h3><ul>{righe}</ul></div>'
 
-    return f'<h2 class="sezione">Professionale — Energia, Giochi, Concessioni, Tecnologia</h2>{corpo}'
+    return f'<h2 class="sezione">Professionale — Energia, Giochi, Concessioni, Health/Pharma/Biotech, Tecnologia</h2>{corpo}'
 
 
 def _frammento_interessi(interessi: list) -> str:

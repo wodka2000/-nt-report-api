@@ -24,6 +24,7 @@ TOPICS: dict[str, str] = {
     "gioco":       "🎰 Gioco",
     "tecnologia":  "💻 Tecnologia",
     "concessioni": "📋 Concessioni",
+    "salute":      "💊 Health / Pharma / Biotech",
     "altro":       "📌 Altro",
 }
 

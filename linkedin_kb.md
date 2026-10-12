@@ -262,6 +262,13 @@ più di una sessione per distinguere segnale da rumore)*
 
 ## Argomenti in voga (ricerca per keyword, non feed — vedi metodo sotto)
 
+**Dal 2026-10-12 le aree professionali sono 5**: alle quattro storiche si aggiunge
+**Health / Pharma / Biotech**, con taglio regolatorio e di industria. Query di partenza
+suggerite: "AIFA rimborsabilità", "payback farmaceutico", "pacchetto farmaceutico UE",
+"EMA approvazione", "dispositivi medici MDR", "biotech finanziamento", "pharma
+acquisizione". Fonti già attive nel monitoraggio: AIFA, EMA, Quotidiano Sanità,
+pharmaphorum, Labiotech, BioPharma Dive, STAT News.
+
 **2026-09-14** — Ricerca mirata su LinkedIn (search/content) per le 4 aree professionali,
 non lettura del feed (il feed generico resta poco verticale, vedi Osservazioni sopra):
 

@@ -1,7 +1,7 @@
 # Tono e stile dei post LinkedIn
 
 ## Identità
-Avvocato specializzato in diritto dell'energia, gioco, tecnologia e concessioni.
+Avvocato specializzato in diritto dell'energia, gioco, tecnologia, concessioni e health/pharma/biotech.
 La firma del post viene scelta volta per volta: prima persona oppure a nome dello studio.
 
 ## Tono di riferimento

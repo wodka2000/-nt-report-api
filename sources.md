@@ -33,6 +33,9 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | Corte Costituzionale | https://www.cortecostituzionale.it/comunicati-stampa | html | concessioni | link_filter:/comunicati-stampa/ |
 | Normattiva | https://www.normattiva.it/showArchivioNews?anno=2026 | html | concessioni | link_filter:/showNewsDetail |
 | Ministro Protezione Civile e Politiche del Mare — Notizie | https://www.ministroprotezionecivileemare.gov.it/it/notizie/ | html | concessioni | link_filter:/it/notizie/ — feed misto (anche Protezione Civile, non solo mare), va filtrato per pertinenza come GU/AGCM |
+| Giustizia Amministrativa — Sentenze | https://www.giustizia-amministrativa.it/web/guest/ricerca | ga | tutti | group:GA — ricerca per keyword via ga_scraper.py, ex bot GiustAmm accorpato il 2026-10-12 |
+| AIFA — Comunicati stampa | https://www.aifa.gov.it/comunicati-stampa | html | salute | link_filter:/-/ timeout:60 — nessun feed RSS (pagina /feed-rss vuota), verificato 2026-10-12 |
+| Ministero della Salute — Comunicati | https://www.salute.gov.it/new/it/comunicati-stampa/ | html | salute | aggiungere dopo (dietro protezione anti-bot Gcore, verificato 2026-10-12) |
 
 ---
 
@@ -42,6 +45,7 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 |------|-----|------|---------|------|
 | Commissione Europea — AI | https://digital-strategy.ec.europa.eu/en/news | html | tecnologia | aggiungere dopo |
 | ENISA | https://www.enisa.europa.eu/news | html | tecnologia | aggiungere dopo |
+| EMA — News | https://www.ema.europa.eu/en/news.xml | rss | salute | verificato attivo 2026-10-12 |
 
 ---
 
@@ -59,6 +63,14 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 | Agimeg | https://www.agimeg.it/feed/ | rss | gioco | |
 | Altalex | https://www.altalex.com/ | html | concessioni | aggiungere dopo (feed/documenti dietro login Wolters Kluwer, verificato 2026-09-14) |
 | Mondo Balneare | https://www.mondobalneare.com/feed/ | rss | concessioni | trovata durante sessione LinkedIn 2026-09-14, verificata attiva |
+| Quotidiano Sanità | https://www.quotidianosanita.it/feed/ | rss | salute | politica sanitaria e regolazione IT, verificato 2026-10-12 |
+| pharmaphorum | https://pharmaphorum.com/rss.xml | rss | salute | industria pharma europea, M&A, accesso al mercato, verificato 2026-10-12 |
+| Labiotech | https://www.labiotech.eu/feed/ | rss | salute | biotech europeo, finanziamenti e pipeline, verificato 2026-10-12 |
+| BioPharma Dive | https://www.biopharmadive.com/feeds/news/ | rss | salute | M&A, pipeline, FDA, verificato 2026-10-12 |
+| STAT News | https://www.statnews.com/feed/ | rss | salute | pharma/biotech USA, verificato 2026-10-12 |
+| AboutPharma | https://www.aboutpharma.com/feed/ | rss | salute | aggiungere dopo (403 al fetcher RSS del bot con header Chrome completi, 200 con UA semplice — verificato 2026-10-12) |
+| Pharmaceutical Technology | https://www.pharmaceutical-technology.com/feed/ | rss | salute | aggiungere dopo (403 sistematico al client httpx del bot, verificato 2026-10-12) |
+| Fierce Pharma / Fierce Biotech | https://www.fiercepharma.com/rss/xml | rss | salute | aggiungere dopo (403 ai client non-browser, come Endpoints News, verificato 2026-10-12) |
 
 ---
 
@@ -78,8 +90,9 @@ Le righe con `aggiungere dopo` nella colonna Note vengono ignorate.
 
 ## Note per l'agente
 
-- **Settori riconosciuti**: `energia`, `gioco`, `tecnologia`, `concessioni`, `altro`
+- **Settori riconosciuti**: `energia`, `gioco`, `tecnologia`, `concessioni`, `salute`, `altro`
 - **Score minimo per notifica**: 5/10 (valutato da Claude Haiku)
 - **Fonti attive**: GU + ARERA (prima fase)
 - **Fonti in coda**: EUR-Lex, ADM, AGCOM (seconda fase)
 - **Sintassi Note**: `link_filter:<path>` filtra solo i link che contengono quel percorso
+- **Tipo `ga`**: ricerca sentenze su giustizia-amministrativa.it tramite `ga_scraper.py` (l'URL è indicativo, le keyword sono nello scraper)
