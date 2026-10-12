@@ -574,3 +574,63 @@ bozza del bando-tipo balneari in Conferenza Unificata e D.Lgs. 179/2026 (AI Act)
 - Pavesio Studio Legale, CMS, Carmen Gardani (Lefebvre Giuffrè) — letture del D.Lgs.
   160/2026 su responsabilità civile da IA (presunzione del nesso causale, azione diretta
   contro l'assicuratore).
+
+**2026-10-12** — Nona sessione per la rubrica "Dal mio giro su LinkedIn", la prima su 5 aree
+(si aggiunge Health / Pharma / Biotech). 5 pick nuovi salvati in `linkedin_vetrina` via
+script diretto sul server. Ricerche con filtro "Ultima settimana". Query usate: "ARERA
+delibera" (energia), "concessioni balneari" e "concessioni demaniali" (concessioni, poco
+materiale), "gioco pubblico" (gioco), "Garante privacy provvedimento" (tecnologia), "AIFA
+rimborsabilità" e "payback dispositivi medici" (health/pharma).
+
+- **Metodo health/pharma**: "AIFA rimborsabilità" dà un solo risultato; una query in OR
+  con termini inglesi ("pharma package") porta solo annunci di lavoro e marketing di
+  packaging, da evitare. "payback dispositivi medici" invece è ricchissima: il payback è il
+  tema caldo del settore (questioni alla Consulta, richiesta di superarlo nella manovra 2027).
+- Link dei post: il click per coordinate sul bottone "···" (in alto a destra della prima
+  card, ~751,128 a 1568px) apre sempre il menu; "Copia link al post" sta ~90px più in basso.
+  Il toast dà uno short link lnkd.in/p/…: si risolve con `curl -w "%{redirect_url}"` e si
+  toglie la query string (contiene un identificativo dell'account).
+- I 5 pick di oggi:
+  - Stefano Rotini, CTO Sinapsi (energia) — delibera ARERA 352/2026/R/eel del 6/10: dieci
+    anni dopo la 87/2016, provvedimenti per l'uso pieno del canale Chain 2 e il CIR per lo
+    smart charging nella ricarica domestica. Profilo tecnico, ma notizia fresca (22h).
+    https://www.linkedin.com/posts/stefanorotini_delibera-06-ottobre-2026-3522026reel-ugcPost-7515073362872676352-u0tf/
+  - Massimiliano Campofranco, Studio Legale Campofranco (concessioni) — applicabilità della
+    Bolkestein alle concessioni balneari rilasciate prima del 28/12/2009 e poi prorogate o
+    rinnovate. Angolo nuovo dopo settimane di bando-tipo.
+    https://www.linkedin.com/posts/massimiliano-campofranco-7b74ab339_concessionibalneari-bolkestein-demaniomarittimo-share-7515352083106078720-DUAm/
+  - Studio Legale Ripamonti (gioco) — assoluzione definitiva (Trib. Treviso, abbreviato) di
+    un gestore AWP accusato di peculato per PREU non versato; la Cassazione qualifica il
+    gestore incaricato di pubblico servizio; proposta di Testo Unico sul gioco.
+    https://www.linkedin.com/posts/gestore-preu-assoluzione-share-7514207667406688257-MrKA/
+  - Simone Aliprandi (1° grado, tecnologia) — ricorso contro il Garante Privacy: il Garante
+    ammette di avere 12 funzionari e di lasciare indietro reclami "meno importanti",
+    archiviandone sette. Candidato profilo di riferimento per tecnologia.
+    https://www.linkedin.com/posts/aliprandi_continuo-con-gli-approfondimenti-legati-al-ugcPost-7515369682762256384-YSbp/
+  - Carlo Cerreta, Executive Director Pharma & Medical Device (health/pharma) — il payback
+    torna alla Consulta su tre fronti: TAR Lazio ord. 12115/2026 (farmaceutico, acquisti
+    diretti), ordinanze TAR Lazio di luglio (dispositivi medici, durata indefinita), CdS ord.
+    1588-1589/2026 (contributo 0,75% Fondo governance dispositivi). Primo pick dell'area.
+    https://www.linkedin.com/posts/carlo-cerreta-8505203_dove-siamo-con-i-payback-pharma-e-medical-share-7514390248672645120-Y-3J/
+
+**Altri trovati oggi, non ancora confermati:**
+- Forum ACADI 2026 "Impatto sociale delle regole" (Roma, Confcommercio): dati MEF 2025, raccolta
+  complessiva 164,6 mld (+4,55%) con AWP/VLT in calo da 46,5 a 31,4 mld dal 2019 (EGP FIPE,
+  Cangianelli: "riordino della rete fisica cantiere a metà"); Cardia (PressGiochi) e UCI
+  chiedono regole nazionali uniformi su orari e distanziamenti.
+- Confindustria Dispositivi Medici / AboutPharma — proposta in quattro punti per superare
+  tetti di spesa e payback; Conflavoro PMI Sanità (Gennaro Broya de Lucia) chiede di
+  cancellare il payback nella manovra 2027. Lato associativo dello stesso tema di Cerreta.
+- Francesco Maria Avitto — proposta del think tank Ithaca (su Quotidiano Sanità): schema di
+  decreto legislativo per un early access tra autorizzazione europea e rimborsabilità AIFA.
+- Garante Privacy, videosorveglianza: provv. n. 636 del 23/09/2026 (Comune, 4.000 €, base
+  giuridica TUEL insufficiente, privacy masking, DPIA solo formale: Salvatore Pasca, Studio
+  Legale Soccol) e provv. n. 620 del 3/9/2026 (INRIM, 10.000 €, anche il collaudo è
+  trattamento: Luca D'Amico). Federprivacy: provv. n. 634, Fondazione Rome Technopole 8.000 €.
+- Mario Valentini (1° grado, Pirola Pennuto Zei) — sintesi del D.Lgs. 179/2026 (AI Act) con
+  PDF annotato, in vigore dal 23/10: tema già coperto il 09/10.
+- Visconti Studio Legale e Giulio Palma — letture del caso IQVIA (anonimizzazione e
+  pseudonimizzazione; Palma: illecito GDPR non equivale a reato ex art. 167 Codice Privacy).
+- Fabio Costa (Leonardo) — Terna aggiorna il Codice di Rete per la delibera ARERA
+  339/2026/R/eel (UVAZ in aFRR/PICASSO) dal 15/10. Sandun Palliya / Azur Energia — scadenze
+  CCI (delibera 564/2025): obbligo e contributo massimo hanno date diverse.
