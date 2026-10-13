@@ -634,3 +634,55 @@ rimborsabilità" e "payback dispositivi medici" (health/pharma).
 - Fabio Costa (Leonardo) — Terna aggiorna il Codice di Rete per la delibera ARERA
   339/2026/R/eel (UVAZ in aFRR/PICASSO) dal 15/10. Sandun Palliya / Azur Energia — scadenze
   CCI (delibera 564/2025): obbligo e contributo massimo hanno date diverse.
+
+**2026-10-13** — Decima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. 5 pick nuovi
+salvati in `linkedin_vetrina` via script diretto sul server. Ricerche con filtro "Ultima
+settimana". Query usate: "ARERA delibera" (solo materiale già visto) e "MASE decreto energia"
+(energia), "concessioni balneari" e "concessioni demaniali sentenza" (concessioni), "gioco
+pubblico" (gioco), "Garante privacy provvedimento" (tecnologia), "AIFA farmaci" (health/pharma).
+
+- **Metodo link, più rapido**: con `find` si ottengono i ref del bottone "Apri il menu dei
+  controlli per il post di <autore>" e poi della voce "Copia link al post"; dopo il click,
+  sempre con `find`, si legge l'href del link "Visualizza post" nel toast (contiene
+  `lnkd.in/p/<codice>`). Niente screenshot né coordinate, poi si risolve con curl.
+- "MASE decreto energia" funziona bene per energia quando "ARERA delibera" è esaurita.
+- I 5 pick di oggi:
+  - Energy Law Italy - ADVANT Nctm (energia) — DM MASE 262/2026: uscita anticipata dal Conto
+    Energia (>20 kW), rifacimento integrale, vincoli decennali, accesso al FER-X.
+    https://www.linkedin.com/posts/energylawitaly-advantnctm-fotovoltaico-share-7512860496748908544-RSDU/
+  - Giulio Grottoli (concessioni, già profilo di riferimento) — TAR Lazio 7/10/2026 sul PEF
+    nelle concessioni sotto il D.Lgs. 36/2023; propone PEF obbligatorio sopra soglia. Numero
+    della sentenza incerto: 15736 nel testo, 15376 nel titolo del PDF allegato (in vetrina
+    citata solo per data).
+    https://www.linkedin.com/posts/giulio-grottoli-5a4a8b1a3_tar-lazio-15376-2026-ugcPost-7514992714598342657-_oh4/
+  - PressGiochi (gioco) — dal 21/10 YouTube apre il Masthead in homepage agli operatori di
+    gioco online certificati (prima solo scommesse sportive).
+    https://www.linkedin.com/posts/youtube-amplia-la-pubblicit%C3%A0-del-gioco-online-share-7515686210380414976-zEle/
+  - Rosa Mattera, KPMG Tax & Legal (tecnologia) — Cass. 31/8/2026 n. 24881: il termine annuale
+    dell'art. 143 Codice Privacy riguarda il reclamo e lascia intatto il potere sanzionatorio
+    del Garante. Si legge in coppia con il pick Aliprandi del 12/10.
+    https://www.linkedin.com/posts/rosa-mattera-8bbaa3a7_kpmg-kpmglegalpublic-privacy-share-7515733437438361600-hYg0/
+  - Pharma Pro Net (health/pharma) — Senato approva il ddl delega per il riordino della
+    legislazione farmaceutica; contromisure del Ministero della Salute ai prezzi USA "MFN".
+    https://www.linkedin.com/posts/le-ultime-news-dal-mondo-life-sciences-share-7515290175518765056-Vs-L/
+
+**Altri trovati oggi, non ancora confermati:**
+- Pattaro Oscar (decodeata) — EPBD "case green": recepimento scaduto il 29/05/2026, decreto
+  subordinato alla delegazione europea 2026, nessuna data (risposta Pichetto Fratin al Senato
+  8/10). Testo dichiaratamente generato con AI: buono come segnale, da non citare come autore.
+- Waste to Consensus — delibera ARERA 346/2026/R/com azzera dal 2027 la componente UR2
+  (rifiuti): stesso tema già visto con STEMi.
+- Alessio De Rita (A D R Studio Legale) — diritto di ripensamento nei contratti luce e gas
+  (delibera ARERA 395/2024/R/com), chiude con CTA "condividi nei commenti", da non imitare.
+- Stefania Frandi, avvocato demanialista — relatrice a InOut 2026 (Fiera di Rimini, 14/10,
+  "Sportello Balneari"): evento di settore per le gare balneari.
+- Jamma — Centallo (CN): bancomat dentro la sala giochi, sospesi 23 apparecchi per 10 giorni,
+  sanzione possibile fino a 138.000 euro.
+- Simone Sansoni / Altalex (Martorana) — Garante provv. n. 616/2026, dossier sanitario dei
+  dipendenti: accesso improprio della struttura sanitaria-datore di lavoro.
+- Patrizia Comite (Comitato Etico Territoriale, ANMAR) — "switch informato" sui biosimilari
+  nel terzo Position Paper AIFA: chiede consenso scritto e decisione clinica individuale.
+- Informatori.it — AIFA e SIO sui criteri di rimborsabilità progressiva dei farmaci anti-obesità
+  (GLP-1), ciclo di 6 mesi per le categorie a maggior rischio.
+- Farmaceutica Younger — rassegna settimanale pharma (Flamma rileva il sito API Lundbeck di
+  Padova, IBSA a Lodi, proposta Ithaca su accesso anticipato): newsletter utile come fonte.
