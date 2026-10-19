@@ -686,3 +686,65 @@ pubblico" (gioco), "Garante privacy provvedimento" (tecnologia), "AIFA farmaci" 
   (GLP-1), ciclo di 6 mesi per le categorie a maggior rischio.
 - Farmaceutica Younger — rassegna settimanale pharma (Flamma rileva il sito API Lundbeck di
   Padova, IBSA a Lodi, proposta Ithaca su accesso anticipato): newsletter utile come fonte.
+
+**2026-10-19** — Undicesima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. 5 pick nuovi
+salvati in `linkedin_vetrina` via script diretto sul server. Ricerche con filtro "Ultima
+settimana". Query usate: "ARERA delibera" ordinata per data (energia), "concessioni balneari"
+ordinata per data (concessioni), "gioco pubblico ADM" e "gioco pubblico" per rilevanza (gioco),
+"Garante privacy provvedimento" (tecnologia), "farmaceutica decreto" e "accesso personalizzato
+ai farmaci linee di indirizzo" (health/pharma).
+
+- **Sessione LinkedIn scaduta** all'avvio: pagina di login, Niccolò ha rifatto l'accesso a mano.
+- **Metodo link aggiornato**: nella nuova pagina dei risultati gli URN dei post non sono più nel
+  DOM (`data-urn` assente), e `find` non vede né la voce "Copia link al post" né il toast. Funziona
+  così: click via ref sul bottone "Apri il menu dei controlli per il post di <autore>", poi click
+  via `javascript_tool` sull'elemento con testo esatto "Copia link al post", poi subito (entro ~1 s)
+  lettura via JS del link "Visualizza post" del toast. L'href passa da `linkedin.com/safety/go/`:
+  il link vero è nel parametro `url` (`lnkd.in/p/<codice>`). Restituire solo il link senza query
+  string, altrimenti l'output del tool viene bloccato. Poi curl per il permalink.
+- Query a vuoto: "AIFA" da sola (omonimi: AIFA Solutions, AIFA Technology), "payback
+  farmaceutico" (zero risultati), "gioco pubblico" ordinata per data (solo usi generici di
+  "gioco"/"pubblico"). Per gioco ordinare per rilevanza.
+- I 5 pick di oggi:
+  - Marco Sgalla (energia) — delibera ARERA 344/2026/R/eel sui clienti ospitati sotto un unico
+    POD: agevolabile per l'energivoro solo l'energia della propria attività produttiva, terzi da
+    scorporare con sottomisure; moratoria per tutto il 2027.
+    https://www.linkedin.com/posts/marco-sgalla-8845053b_energivori-arera-esco-share-7517228777027014656-W1Gj/
+  - ODCEC Rimini (concessioni) — linee guida CNDCEC sulla stima degli indennizzi ai concessionari
+    balneari uscenti, destinate al bando-tipo (art. 4, c. 9, L. 118/2022).
+    https://www.linkedin.com/posts/linee-guida-ugcPost-7517880178396569600-J_k8/
+  - PressGiochi (gioco) — Lollobrigida (ADM) al forum Fondazione FAIR: più coordinamento tra
+    concessionari sulle campagne di gioco responsabile, attuare la legge delega 111/2023.
+    https://www.linkedin.com/posts/forum-fondazione-fair-lollobrigida-adm-share-7516146698503634945-XoJQ/
+  - Severino Nappi (tecnologia) — Garante provv. n. 583 del 6/8/2026, 225.000 euro per accesso
+    alle email di ex dipendenti alla ricerca di prove di concorrenza sleale.
+    https://www.linkedin.com/posts/severino-nappi-32b7a219a_cercate-le-prove-contro-lex-dipendente-share-7517554808866897920-LB0l/
+  - Roberto Natale (health/pharma, collegamento di 1° grado) — DM Salute 11/9/2026, in GU il 14/10,
+    linee di indirizzo nazionali sul deblistering (accesso personalizzato ai farmaci).
+    https://www.linkedin.com/posts/roberto-natale_deblistering-farmacia-farmacista-share-7516783638873673728-YLGK/
+
+**Altri trovati oggi, non ancora confermati:**
+- Giusi Statella (Juridiq / ALI Energy Advisor) — ETS2: il Consiglio Europeo del 15/10 conferma
+  le date, prima asta il 18/1/2027, manca ancora una delibera ARERA sul ribaltamento del costo ai
+  clienti finali. Chiude con offerta di consulenza.
+- Simone Nicolini — delibera ARERA 333/2026/E/com: 5 verifiche ispettive sui venditori luce e gas
+  per variazioni unilaterali e rinnovi dal 1/1/2025, entro il 30/6/2027.
+- Stefano Amandolesi — delibera ARERA 335/2026/E/gas, due ispezioni sui distributori gas (dati di
+  misura SII, indennizzi smart meter, CIND). Scrive post lunghi e precisi sulla regolazione ARERA
+  gas/idrico/rifiuti: candidato profilo di riferimento per energia.
+- Alfredo Centore (SOS Energia) — onere di recesso fino a 350 euro su un'offerta a prezzo fisso
+  ventennale (D.Lgs. 210/2021, delibera ARERA 250/2023/R/com). Tono da campagna, utile come segnale.
+- Massimiliano Campofranco, avvocato — parere della Conferenza Unificata sul bando-tipo balneari
+  all'ordine del giorno del 22/10 (intervista a La Nazione).
+- CognitiveLogic — Cervia ha già sorteggiato i periti per gli indennizzi e chiesto documenti ai
+  concessionari, scadenza 28/11/2026.
+- PressGiochi — Piemonte: obbligo di formazione sul gioco responsabile esteso ai titolari di
+  tabaccherie con AWP (nota STS FIT).
+- Tatiana Revenco — Garante, provv. 23/9/2026: 7 milioni a una CRO per dati sanitari di circa
+  1 milione di pazienti pseudonimizzati e presentati come anonimi.
+- Simone Sansoni / Altalex — Garante provv. n. 550/2026: sanzionata l'Agenzia regionale per il
+  lavoro dell'Emilia-Romagna per la pubblicazione online dei nominativi nelle liste di collocamento.
+- Edy Vastano — sostenibilità dei generici a basso prezzo dopo gli aggiornamenti AIFA delle liste
+  di trasparenza.
+- Ministero della Salute — newsletter "Trova Norme Salute": fonte istituzionale settimanale sulle
+  nuove norme sanitarie, da valutare per `sources.md`.
