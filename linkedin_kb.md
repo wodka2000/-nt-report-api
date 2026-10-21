@@ -748,3 +748,50 @@ ai farmaci linee di indirizzo" (health/pharma).
   di trasparenza.
 - Ministero della Salute — newsletter "Trova Norme Salute": fonte istituzionale settimanale sulle
   nuove norme sanitarie, da valutare per `sources.md`.
+
+**2026-10-21** — Dodicesima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. 5 pick nuovi
+salvati in `linkedin_vetrina` via script diretto sul server, **insieme ai 5 del 19/10** (richiesta di
+Niccolò: non perderli, perché la rubrica legge solo la data più recente). In tabella risultano quindi
+10 righe con data 2026-10-21; le righe del 19/10 restano anche sotto la loro data. Ricerche con
+filtro "Ultima settimana". Query usate: "ARERA delibera" ordinata per data (energia), "concessioni
+balneari" ordinata per data e "bando-tipo balneari" (concessioni), "gioco pubblico ADM" e "gioco
+pubblico" per rilevanza (gioco), "Garante privacy provvedimento" (tecnologia), "AIFA determina"
+(health/pharma).
+
+- **Metodo link, ancora più semplice**: il click via ref sul bottone del menu non apriva il menu e
+  gli screenshot andavano in timeout. Funziona tutto in un unico `javascript_tool`: click sul bottone
+  con `aria-label` contenente "post di <autore>", attesa 800 ms, click sull'elemento con testo
+  esatto "Copia link al post", attesa 1 s, lettura del parametro `url` dell'href di "Visualizza post"
+  (senza query string). Poi curl per il permalink.
+- "AIFA determina" funziona per health/pharma (meglio di "AIFA" da sola).
+- I 5 pick di oggi:
+  - Techzen (energia) — delibera ARERA 369/2026: nuovo algoritmo Terna per le garanzie degli UDD in
+    prelievo, dal 2027 pesa la qualità della programmazione.
+    https://www.linkedin.com/posts/energia-resellerenergia-dispacciamento-share-7518235240058974208-I0kB/
+  - Mondo Balneare (concessioni) — CNA Balneari a InOut sulla seconda bozza del bando-tipo e la
+    continuità aziendale.
+    https://www.linkedin.com/posts/mondobalneare-demanio-balneari-share-7517956074050666498-aJ7E/
+  - Jamma Magazine (gioco) — Chiacchio (AGSI): misure ponte per la rete fisica in attesa delle gare.
+    https://www.linkedin.com/posts/giochi-chiacchio-agsi-la-rete-fisica-share-7518199770482671616-TIvi/
+  - Rosario De Marco (tecnologia, collegamento di 1° grado) — linee guida Garante sui pixel di
+    tracciamento nelle email (provv. 284/2026), scadenza 29/10.
+    https://www.linkedin.com/posts/rosario-de-marco-4867b8103_tracking-pixels-a-29-october-deadline-that-share-7515363343344439296-ia8V/
+  - More Than Access (health/pharma) — Osservatorio IN-Salute 2026: ritardi regionali nell'accesso ai
+    farmaci dopo la determina AIFA, 165 giorni mediani fino all'aggiudicazione della gara.
+    https://www.linkedin.com/posts/il-vero-collo-di-bottiglia-%C3%A8-regionale-share-7515878574499938304-V4Jw/
+
+**Altri trovati oggi, non ancora confermati:**
+- Donato Leo (Consorzio Unionenergia) — tetto al prezzo del gas per i termoelettrici: dopo l'accordo
+  Governo-Commissione serve un nuovo decreto che modifichi l'art. 6, c. 3, del DL Bollette togliendo
+  il riferimento all'ETS; cap probabile poco sotto 60 €/MWh. Tono polemico, buon segnale.
+- Ciro Varriale — delibera ARERA 268/2026/R/com: avvio del procedimento per far convergere Portale
+  Offerte e Portale Consumi, attivazione entro il 31/12/2027. Candidato profilo di riferimento energia.
+- Mondo Balneare — Follonica affida un incarico da 22.838 euro per preparare i bandi balneari.
+- PressGiochi — controlli GdF in Basilicata su sale giochi, centri scommesse e PVR, sanzioni fino a
+  20.000 euro.
+- Marco Tripi — campagne di gioco responsabile: 0,2% dei ricavi netti (max 1 milione), sponsorizzate
+  digitali entro il 35% della spesa.
+- Simone Aliprandi — reclamo al Garante archiviato e spam ripreso (toghe per avvocati da albi
+  professionali): caso utile sul tema dell'efficacia dei reclami.
+- Dino Biselli (MioPharma Blog) — serie sul market access regionale dei farmaci, stesso tema del pick
+  More Than Access.
