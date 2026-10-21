@@ -188,7 +188,28 @@ def _send_telegram_alert(config: dict, text: str) -> None:
         print(f"Anche l'alert Telegram è fallito: {e}")
 
 
+def _salta_oggi() -> str | None:
+    """Motivo per non stampare oggi secondo calendario_rassegna.json (stampa già fatta a
+    mano, oppure Niccolò in trasferta e quindi non in studio a ritirarla), o None."""
+    try:
+        cal = json.loads((BASE_DIR / "calendario_rassegna.json").read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    oggi = datetime.now().strftime("%Y-%m-%d")
+    if oggi in cal.get("salta_stampa", []):
+        return "giorno in salta_stampa"
+    if oggi in cal.get("trasferte", {}):
+        return f"trasferta a {cal['trasferte'][oggi]}"
+    return None
+
+
 def main() -> None:
+    # --forza: stampa subito ignorando calendario_rassegna.json (stampa manuale)
+    if "--forza" not in sys.argv:
+        motivo = _salta_oggi()
+        if motivo:
+            print(f"Stampa di oggi saltata: {motivo}.")
+            return
     config = _load_config()
     drive = _get_drive_service()
 

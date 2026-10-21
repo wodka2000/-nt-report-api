@@ -28,6 +28,7 @@ esistente — mai creando un file nuovo, per non incappare di nuovo in storageQu
 """
 
 import asyncio
+import json
 import logging
 import random
 import re
@@ -38,6 +39,17 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).parent
 RASSEGNA_DIR = BASE_DIR / "rassegna"
+CALENDARIO_FILE = BASE_DIR / "calendario_rassegna.json"
+
+
+def carica_calendario() -> dict:
+    """Eccezioni al calendario scritte a mano in calendario_rassegna.json (trasferte,
+    giorni senza job o senza stampa). Usato anche da bot.py e print_agent.py. File
+    mancante o illeggibile = nessuna eccezione."""
+    try:
+        return json.loads(CALENDARIO_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 # ── Fonti ────────────────────────────────────────────────────────────────────────
 # NB: il feed storico corriere.it/rss/homepage.xml serve contenuto fermo al 2024 (sezione
@@ -903,6 +915,11 @@ def _rileva_citta_viaggio(todo: list[dict]) -> str | None:
     sono in trasferta', non un itinerario multi-tappa. Solo domani, non i giorni dopo:
     altrimenti meteo e consigli di viaggio comparirebbero con giorni di anticipo."""
     domani = (datetime.now() + timedelta(days=1)).date()
+    # Le trasferte scritte a mano in calendario_rassegna.json hanno la precedenza: servono
+    # per i viaggi che non passano dall'agenda dello studio (es. Lugano, 22-23/10/2026).
+    manuale = carica_calendario().get("trasferte", {}).get(domani.isoformat())
+    if manuale:
+        return manuale
     return next((v["trasferta"] for v in todo if v.get("trasferta") and v["data"] == domani), None)
 
 # Condizioni riconosciute: mappate su un'icona SVG disegnata a mano (vedi _METEO_ICONE) —
@@ -1230,9 +1247,10 @@ qualcosa di raggiungibile senza viaggiare.
    di streaming, etichetta)
 5. film_serie: un film o una serie tv (al cinema ora, oppure in streaming/casa), con link
    a una pagina reale (sito del cinema/programmazione, piattaforma di streaming, Wikipedia)
-6. piatto_vino: una ricetta, una bottiglia o un ristorante reale — se un ristorante,
-   preferibilmente a Roma/Lazio — con link alla fonte trovata (sito della ricetta, cantina,
-   ristorante)
+6. piatto_vino: SOLO qualcosa da mangiare o da bere: una ricetta, una bottiglia di vino o
+   un ristorante reale — se un ristorante, preferibilmente a Roma/Lazio — con link alla
+   fonte trovata (sito della ricetta, cantina, ristorante). MAI un libro, un film, un disco
+   o altro: questa voce finisce sotto il titolo "A tavola"
 
 Rispondi SOLO con un oggetto JSON valido, in questo ordine di chiavi:
 {{"mostra": {{"testo": "...", "link": "https://..."}},
@@ -1247,9 +1265,37 @@ piuttosto che inventarla.""",
         max_tokens=2000,
     )
     dati = dati or {}
+    if _a_tavola_fuori_tema(dati):
+        logger.warning(f"Rassegna: 'A tavola' scartato perché fuori tema: {dati['piatto_vino']}")
+        dati.pop("piatto_vino")
     if dati:
         _save_varie_storico(dati)
     return dati
+
+
+# Siti di editori e librerie: un link lì sotto "A tavola" vuol dire che il modello ha
+# messo un libro al posto del piatto (successo il 2026-10-21 con un saggio del Mulino).
+_DOMINI_LIBRI = ("mulino.it", "einaudi.it", "laterza.it", "adelphi.it", "feltrinelli",
+                 "mondadori", "ibs.it", "libraccio.it", "hoepli.it", "giunti.it",
+                 "rizzolilibri.it", "bollatiboringhieri.it", "amazon.")
+
+
+def _a_tavola_fuori_tema(dati: dict) -> bool:
+    """Vero se la voce "A tavola" non parla di cibo: stesso link di un'altra voce, link a
+    un editore o a una libreria, oppure testo da scheda libraria. Meglio un giorno senza
+    "A tavola" che un libro da mangiare."""
+    voce = dati.get("piatto_vino")
+    if not isinstance(voce, dict):
+        return False
+    link = (voce.get("link") or "").lower()
+    altri_link = {(v.get("link") or "").lower() for k, v in dati.items()
+                  if k != "piatto_vino" and isinstance(v, dict)}
+    if link and link in altri_link:
+        return True
+    if any(d in link for d in _DOMINI_LIBRI):
+        return True
+    testo = (voce.get("testo") or "").lower()
+    return bool(re.search(r"\b(editore|edizioni|il mulino|volume|saggio|romanzo|album)\b", testo))
 
 
 # ── Composizione HTML ──────────────────────────────────────────────────────────────

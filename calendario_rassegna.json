@@ -1,0 +1,9 @@
+{
+  "_nota": "Eccezioni al calendario della rassegna, modificate a mano. trasferte: giorno in cui Niccolò è fuori Roma -> città (meteo e consigli di viaggio nell'edizione del giorno prima; niente stampa automatica quel giorno). salta_job: giorni in cui il job delle 16:30 non parte (es. rassegna già generata a mano). salta_stampa: giorni in cui il print agent delle 17:00 non stampa.",
+  "trasferte": {
+    "2026-10-22": "Lugano",
+    "2026-10-23": "Lugano"
+  },
+  "salta_job": ["2026-10-21"],
+  "salta_stampa": ["2026-10-21"]
+}

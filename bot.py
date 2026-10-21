@@ -2553,7 +2553,11 @@ def main():
     app.job_queue.run_daily(_linkedin_kb_session_reminder, time=dt_time(hour=16, minute=0, tzinfo=_ROME_TZ))
 
     async def _rassegna_job(context):
-        from rassegna import run_rassegna_job
+        from rassegna import run_rassegna_job, carica_calendario
+        oggi = datetime.now(_ROME_TZ).strftime("%Y-%m-%d")
+        if oggi in carica_calendario().get("salta_job", []):
+            logger.info(f"Rassegna: job delle 16:30 saltato, {oggi} è in salta_job")
+            return
         await run_rassegna_job(context)
 
     # Ogni giorno alle 16:30 Rome — stampa serale (17:00): notizie della giornata piu
