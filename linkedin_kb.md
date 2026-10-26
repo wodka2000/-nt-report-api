@@ -795,3 +795,49 @@ pubblico" per rilevanza (gioco), "Garante privacy provvedimento" (tecnologia), "
   professionali): caso utile sul tema dell'efficacia dei reclami.
 - Dino Biselli (MioPharma Blog) — serie sul market access regionale dei farmaci, stesso tema del pick
   More Than Access.
+
+**2026-10-26** — Tredicesima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. Ricerche con
+filtro "Ultima settimana". Query usate: "ARERA delibera" ordinata per data (energia), "concessioni
+balneari" ordinata per data (concessioni), "gioco pubblico ADM" e "riordino gioco fisico" per rilevanza
+(gioco), "Garante privacy provvedimento" (tecnologia), "AIFA determina" (health/pharma).
+
+- Metodo link del 21/10 (un solo `javascript_tool`) funzionante al primo colpo su tutti e 5 i post.
+- Sessione LinkedIn ancora attiva, nessun login.
+- I 5 pick di oggi:
+  - MARVIV SRLS (energia) — delibera ARERA 376/2026/R/gas del 23/10: servizio di liquidità del DL
+    21/2026, Snam mette all'asta fino a 100.000 MWh/giorno per gennaio-febbraio 2027 sul MGP-GAS a
+    TTF più un corrispettivo di volatilità (tetto 0,5 €/MWh); a regime dal 1/10/2027.
+    https://www.linkedin.com/posts/mercatogas-arera-complianceenergia-share-7520435100107292672-722c/
+  - Gianpaolo Caianiello, avvocato (concessioni, collegamento di 1° grado) — Riccione chiude la prima
+    gara su 14 concessioni di solo arenile: 13 aggiudicazioni provvisorie, 17 offerte, 10 lotti con
+    un'unica offerta. Dubbi sull'effettiva contendibilità.
+    https://www.linkedin.com/posts/gianpaolo-caianiello-a99558203_comune-di-riccione-23-ottobre-2026-ugcPost-7520421714397122560-SJY1/
+  - R.B. Video Games (gioco) — Bollettino statistico ADM del II trimestre 2026: gettito giochi 2,82
+    miliardi (1,17 dagli apparecchi), 6.708 esercizi controllati, +25% sullo stesso trimestre 2025.
+    https://www.linkedin.com/posts/rbvideogames-adm-awp-share-7518684643446173696-J2iW/
+  - Federprivacy (tecnologia) — nuova sanzione del Garante ad AgID (provv. 745 del 7/10/2026): 15.000
+    euro per la pubblicazione illecita di dati di candidati a un concorso.
+    https://www.linkedin.com/posts/nuova-sanzione-del-garante-per-la-privacy-share-7518651753878298624-BgYD/
+  - Dino Biselli, MioPharma Blog (health/pharma) — Rapporto attività 2025 di AIFA: 1.042 procedure di
+    prezzo e rimborso, 6-7 mesi medi fino alla Gazzetta; il rapporto non misura i tempi di inserimento
+    nei prontuari regionali.
+    https://www.linkedin.com/posts/bisellidino_aifa-marketaccess-sanitaeq-share-7519389501371310080-8uvH/
+
+**Altri trovati oggi, non ancora confermati:**
+- Davide Dal Pozzo — delibera ARERA 370/2026/R/eel (14/10): disposizioni Terna per il capacity market
+  2028, derating degli accumuli in aumento.
+- CLUB360 Srl — Regione Calabria, DGR 663 del 14/10/2026: linee guida ai Comuni per la verifica di
+  scarsità (30% spiaggia libera, 4 mq/persona, 50 m di fronte mare) e interesse transfrontaliero.
+- Massimo Chiarillo (1° grado) — collaborazione Piselli & Partners, Coste360, OmbraSociale per la
+  consulenza nelle gare balneari.
+- Riccardo Carugati — articolo sull'attestazione del PEF nei bandi balneari.
+- Bottadiculo — Corte d'Appello di Bari annulla una multa Balduzzi da 20.000 euro applicando C. cost.
+  104/2025; nota che la Consulta non ha detto cosa sia consentito nei locali.
+- Geronimo Cardia / ACADI — "Il riordino che non c'è" su Jamma: delega scaduta il 29/8, quattro linee
+  (proroghe tecniche, misure ponte, legge di bilancio, tavoli permanenti). Tema già in vetrina il 21/10.
+- Volantia Legal Intelligence — Garante: sanzione a Cairo Editore per le immagini del caso Garlasco
+  (provv. 759/2026) e ammonimento a un istituto comprensivo (provv. 610/2026).
+- Studio Rossella Fullin — Tribunale di Cosenza (1/7/2026) annulla la sanzione del Garante da 50.000 euro
+  sulla geolocalizzazione in smart working.
+- Giovanni Castiglione — payback della spesa farmaceutica per acquisti diretti 2025: sforamento 4,77
+  miliardi, quota aziende ~2,38, attribuzione AIFA entro il 31/10. Notizia da seguire.
