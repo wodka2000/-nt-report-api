@@ -841,3 +841,63 @@ balneari" ordinata per data (concessioni), "gioco pubblico ADM" e "riordino gioc
   sulla geolocalizzazione in smart working.
 - Giovanni Castiglione — payback della spesa farmaceutica per acquisti diretti 2025: sforamento 4,77
   miliardi, quota aziende ~2,38, attribuzione AIFA entro il 31/10. Notizia da seguire.
+
+**2026-11-03** — Quattordicesima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. Ricerche con
+filtro "Ultima settimana". Query usate: "ARERA delibera" ordinata per data (energia), "concessioni
+balneari" ordinata per data (concessioni), "gioco pubblico ADM" e "PREU manovra giochi" per rilevanza
+(gioco), "Garante privacy provvedimento" (tecnologia), "AIFA payback" per rilevanza (health/pharma).
+
+- A inizio sessione l'estensione Chrome risultava scollegata (nessun browser connesso): è bastato
+  che Niccolò la riattivasse. Sessione LinkedIn ancora attiva, nessun login.
+- Metodo link del 21/10 (un solo `javascript_tool`) funzionante su tutti i post, anche due in fila
+  nella stessa chiamata con 2,5 s di pausa.
+- 5 pick salvati in `linkedin_vetrina` con script lanciato come `ntbot` in `/opt/ntreportbot`.
+- I 5 pick di oggi:
+  - PermitRadar (energia) — delibera ARERA 363/2026/E/eel del 23/10: accolto il reclamo di uno
+    sviluppatore su due impianti FV da 5,8 MW; anche senza termine TICA specifico il gestore deve
+    segnalare subito le carenze documentali, 59 giorni lavorativi conteggiati nel tempo di connessione.
+    https://www.linkedin.com/posts/fotovoltaico-connessioni-arera-share-7522604164569260032-KHOI/
+  - Giuseppe Loffreda, Legal4Transport (concessioni, collegamento di 1° grado) — AGCM impugna al TAR gli
+    atti di Fiumicino su 108 concessioni (parere AS2197, Bollettino 42 del 2/11/2026): la ripresa delle
+    procedure 2020 rinvierebbe la gara al 2033, il "rende noto" dell'art. 37 Cod. nav. non basta.
+    https://www.linkedin.com/posts/giuseppe-loffreda-phd-89812818_concessioni-balneari-il-semplice-rende-ugcPost-7523104358721601536-D_Am/
+  - Jamma Magazine (gioco) — Manovra 2027, relazione di Giorgetti alla Camera: PREU, proroga delle
+    concessioni, Bingo, lotterie, apparecchi senza vincita in denaro.
+    https://www.linkedin.com/posts/manovra-2027-giorgetti-mef-alla-camera-share-7522966475691782144-alxo/
+  - Giulio Palma, avvocato (tecnologia) — Garante provv. 749 del 7/10/2026: sentenza di Cassazione su
+    rapporti familiari pubblicata con i nomi coperti da barre nel PDF, ancora recuperabili con ricerca
+    testuale. Diffusione illecita ex art. 52 Codice privacy.
+    https://www.linkedin.com/posts/avvocatogiuliopalma_garanteprivacy-dirittopenale-digitalforensics-share-7522323677842038784-6hVm/
+  - Andrea Marcellusi, Università di Milano (health/pharma) — payback a confronto con Francia, Regno Unito
+    e Grecia (clawback 2024: 2,9 mld UK, 2,0 Italia); con le regole greche dal 2019 al 2025 le aziende
+    avrebbero versato 22,3 miliardi invece di 11,1. Proposta di tetto calcolato su stima pubblica.
+    Candidato profilo di riferimento per health/pharma.
+    https://www.linkedin.com/posts/andrea-marcellusi-5564642a_clawback-in-eu-scenario-analysis-ugcPost-7520825340332679169-1XB9/
+
+**Altri trovati oggi, non ancora confermati:**
+- Paolo Clemente, avvocato — TAR Lecce, sent. 1346 del 2/11/2026: annullato il bando balneare di
+  Castellaneta, niente gare senza Piano Comunale delle Coste (L.R. Puglia 17/2015). Stessa notizia da
+  Avv. Danilo Lorenzo, difensore dei ricorrenti. Candidato pick forte, link già pronto:
+  https://www.linkedin.com/posts/paolo-clemente-068b8038_massime-sent-tar-le-n-13462026-ugcPost-7523068413481721856-WdrF/
+- Fabrizio Gianfrate (health economics) — il Governo introduce in manovra il rimborso anticipato per
+  farmaci senza alternative, subito dopo l'ok EMA, 70 milioni l'anno dal Fondo innovativi:
+  https://www.linkedin.com/posts/fabrizio-gianfrate-04aa59_italy-early-reimbursement-approved-by-the-share-7523317348259225602-xck4/
+- Neil Grubert — proposta del Ministero della Salute: tetto al payback a 1,644 miliardi l'anno nel
+  2027-2029, fondo sperimentale da 250 milioni per terapie avanzate.
+- Federica Santi (Pfizer) / Quotidiano Sanità — AIFA attribuisce alle aziende 2,38 miliardi di payback
+  2025: chiude il filone "da seguire" del 26/10.
+- ARERA — delibere 387 e 389/2026 sugli incentivi alla continuità del servizio elettrico (TIQD); conferma
+  della delibera 238/2026/R/eel sul contributo volontario del DL Bollette.
+- Riforma dello switching (delibera ARERA 58/2026/R/eel, dal 1/12/2026): molti post (Fabio Tesser,
+  Antonio Ciocia, Iperutility, Nicola Longo). Tema in voga per dicembre.
+- Valentina Magnano S. Lio — TAR Catania 2784/2026 sull'impugnabilità della delibera EGA sul valore
+  di subentro nel servizio idrico integrato.
+- Antichi Studio Legale / Mondo Balneare — Grosseto, circa 60 concessioni verso la gara.
+- TradeLab — sintesi della bozza MIT di bando-tipo nazionale (5-20 anni, bandi entro il 30/6/2027).
+- ECONOMIX — manovra 2027: 1.200 euro l'anno per postazione nelle sale LAN, nello stesso articolo
+  delle slot. Marco Tripi: PREU AWP dal 24% al 25%, VLT dal 8,6% al 9,6%, proroghe al 31/12/2029.
+- Velvet De Santa — Garante provv. 753/2026, 4.000 euro a un Ateneo per i dati di un dipendente
+  nell'ordine del giorno del CdA. Marco Bellocco / Byte.it — Barbuti, provv. 644/2026, 5.000 euro per
+  una richiesta di cancellazione finita nella casella sbagliata.
+- Elena Cangelosi — parere del Garante (provv. 760/2026) sul regolamento IA della Provincia di Trento,
+  letto in chiave DPIA.
