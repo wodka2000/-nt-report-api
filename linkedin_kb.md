@@ -901,3 +901,67 @@ balneari" ordinata per data (concessioni), "gioco pubblico ADM" e "PREU manovra 
   una richiesta di cancellazione finita nella casella sbagliata.
 - Elena Cangelosi — parere del Garante (provv. 760/2026) sul regolamento IA della Provincia di Trento,
   letto in chiave DPIA.
+
+**2026-11-04** — Quindicesima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. Ricerche con
+filtro "Ultima settimana". Query usate: "ARERA delibera" per data e per rilevanza, poi "switching ARERA
+dicembre" (energia; "ARERA energia rete connessioni" dà zero risultati), "concessioni balneari" per data
+(concessioni), "gioco pubblico ADM" e "PREU concessioni manovra 2027" (gioco), "Garante privacy
+provvedimento" e "AI Act decreto legislativo" (tecnologia), "AIFA farmaci", "payback farmaceutico
+manovra" e "payback dispositivi medici Corte di giustizia" (health/pharma).
+
+- Le ricerche mostrano 3-4 post per volta: per vederne di più serve cliccare "Carica altro".
+- Metodo link del 21/10 funzionante su tutti i post. Un `browser_batch` con 5 ricerche di fila ha fatto
+  scollegare l'estensione a metà: meglio due post per batch. Il link va risolto con curl.
+- 5 pick salvati in `linkedin_vetrina` con `/opt/ntreportbot/venv/bin/python` come `ntbot` (il python3
+  di sistema non ha `httpx`).
+- I 5 pick di oggi:
+  - Alfredo Centore, SOS Energia (energia) — switching in 24 ore dal 1/12 (delibera 58/2026/R/eel): il
+    tavolo tecnico sui dati del SII (art. 1-sexies DL 21/2026) è arrivato il 20/10 con la delibera
+    379/2026/R/com, 94 giorni dopo il termine di legge. Consulente con recapiti commerciali nel post.
+    https://www.linkedin.com/posts/alfredo-centore-100re_sosenergia-arera-switching24ore-share-7522988982259970048-bD1J/
+  - Giuseppe Loffreda, Legal4Transport (concessioni, collegamento di 1° grado) — Public Procurement Act,
+    COM(2026) 590, dossier Camera n. 177 del 3/11: regolamento unico al posto delle direttive del 2014,
+    artt. 16 e 114-126, incroci con Porti d'Italia S.p.A. e con i porti turistici. Secondo giorno di fila
+    in vetrina: scelto perché è un tema nuovo. Chiude con domande al pubblico, omesse dal testo.
+    https://www.linkedin.com/posts/giuseppe-loffreda-phd-89812818_leuropa-riscrive-le-regole-delle-concessioni-share-7523751520924803073-LUCW/
+  - PressGiochi (gioco) — Intermonte e Banca Akros sull'impatto della Manovra 2027 su Lottomatica,
+    giudicato contenuto. Testo del post troncato: il resto è sul sito.
+    https://www.linkedin.com/posts/lottomatica-impatto-contenuto-dalla-manovra-share-7523015649242288128-0uLE/
+  - Giovanni Crea (tecnologia, collegamento di 1° grado) — Quadernini n. 10: il Garante non è costante
+    sulla deroga dell'art. 4, c. 2, L. 300/70 per posta e internet. 95 reazioni, 14 commenti, 9 repost.
+    Note e fonti precise, vicino a TONO.md: candidato profilo di riferimento per tecnologia/lavoro.
+    https://www.linkedin.com/posts/giovanni-crea-67a621189_garante-postaelettronica-internet-share-7522321895879471104-DLZy/
+  - Silvia Stefanelli, Studio Legale Stefanelli&Stefanelli (health/pharma) — due rinvii alla Corte di
+    giustizia sui dispositivi medici: payback (CdS, 28/10) e misura IPI (TAR Toscana, ord. 2080). Lo studio
+    è parte in entrambi i giudizi. 37 reazioni. Candidata profilo di riferimento per health/pharma.
+    https://www.linkedin.com/posts/silvia-stefanelli-679182a_dispositivimedici-medicaldevices-dirittosanitario-share-7523074069404221440-tZUM/
+
+**Altri trovati oggi, non ancora confermati:**
+- Stefano Palomba (Energy Solution) — stesso tema del pick Centore, in chiave ironica: 41 reazioni, il
+  post da cui Centore prende spunto.
+- Adriano Vinci — su Altalex: switching in 24 ore e voice cloning, propone di importare l'autenticazione
+  forte PSD2 nelle utenze domestiche. Incrocio energia/tecnologia.
+- ARERA, delibera 384/2026/E/com — obbligo per gli operatori inadempienti di partecipare al Servizio
+  Conciliazione (via Salvatore Calafato). Delibera 385/2026/R/tlr — bonus sociale teleriscaldamento, nel
+  2027 doppia gestione 2026 e 2027 (via Cerbero Solutions, post commerciale).
+- Paolo Clemente — TAR Lecce 1346/2026 su Castellaneta, già segnalato il 3/11 e ancora non usato.
+- EGP FIPE — con l'aumento del PREU una sala specializzata su cinque rischia di diventare diseconomica;
+  raccolta apparecchi -35% circa sul 2019; chiede l'avvio delle gare invece delle proroghe.
+- Jamma Magazine — SiGMA Roma, Giuliani (ADM): credibilità del gioco pubblico, meno aggressività
+  commerciale. Conferenza SiGMA World a Fiera Roma, 3-5 novembre.
+- ECONOMIX — sale LAN: 8% su 15.000 euro presunti per postazione, minimo 20 postazioni, 5,87 milioni
+  stimati nel 2027 e 66,03 nel 2028.
+- Giacomo Conti (1° grado) — linee guida del Garante su newsletter e tracking pixel: consenso unificabile,
+  doppio opt-out obbligatorio.
+- simone carmignani — Garante, sanzione alla Fondazione Rome Technopole per i dati di 480 studenti nelle
+  graduatorie online (provv. del 23/9).
+- Pino S. Labarbuta, Francesco Costanzini, Lekton.AI — D.Lgs. 179/2026, art. 41: decisione finale sul
+  lavoro a una persona fisica, atti nulli altrimenti. Filone caldo. Labarbuta distingue bene decreto e
+  opinione, e dichiara il proprio interesse.
+- Simone S. — art. 73 della manovra sul payback DM: tetto dal 4,6% al 4,7%, sforamenti 2019-2023 circa 4
+  miliardi (2,6 a carico delle imprese), prima scadenza 30/7/2027. Gabriele Perego cita l'ordinanza CdS n.
+  7831/2026. TopLegal: Delfino Willkie per Applied Medical, oltre 5 miliardi richiesti per il 2019-2025.
+- Egualia e Farmindustria sulla manovra — early access, payback da distinguere tra branded e generici,
+  tetto acquisti diretti da anticipare al 2027. SIF (Genazzani) sulla stessa linea, via INNLIFES.
+- Sara Maria Patisso / Cosetta Bianchi (RAReg) — SIFO, 7/11: analisi inedita delle valutazioni AIFA di
+  innovatività sui farmaci orfani. Risultati da cercare dopo il congresso.
