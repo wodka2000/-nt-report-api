@@ -965,3 +965,68 @@ manovra" e "payback dispositivi medici Corte di giustizia" (health/pharma).
   tetto acquisti diretti da anticipare al 2027. SIF (Genazzani) sulla stessa linea, via INNLIFES.
 - Sara Maria Patisso / Cosetta Bianchi (RAReg) — SIFO, 7/11: analisi inedita delle valutazioni AIFA di
   innovatività sui farmaci orfani. Risultati da cercare dopo il congresso.
+
+**2026-11-05** — Sedicesima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. Ricerche con
+filtro "Ultima settimana". Query usate: "ARERA delibera" per data e "TAR energia fotovoltaico sentenza"
+(energia), "concessioni balneari" per data (concessioni), "gioco pubblico ADM", "PREU manovra concessioni
+gioco" e "gioco online concessioni SiGMA Italia" (gioco; "gioco azzardo sentenza TAR sala scommesse" dà
+zero risultati), "Garante privacy provvedimento" (tecnologia), "AIFA farmaci" per data e "accesso precoce
+farmaci manovra" (health/pharma; "farmaceutica Italia prezzi AIFA innovativi" dà zero risultati).
+
+- Metodo link del 21/10: due post in fila nello stesso `javascript_tool` hanno restituito lo stesso link,
+  perché il secondo ha letto il toast del primo ancora a schermo (il 3/11 aveva funzionato). Meglio un post
+  per chiamata, e controllare sempre il permalink risolto con curl: lo slug contiene l'autore o il tema.
+- Dopo `navigate` serve un'attesa di 3-4 s prima di leggere la pagina, altrimenti si rilegge la ricerca
+  precedente. L'estensione si è scollegata una volta durante un'attesa ed è tornata da sola.
+- 5 pick salvati in `linkedin_vetrina` con `/opt/ntreportbot/venv/bin/python` come `ntbot`, usando
+  `_save_linkedin_vetrina`.
+- I 5 pick di oggi:
+  - Danilo Conti, avvocato (energia) — CdS, Sez. IV, n. 7584 del 16/10/2026: pergola fotovoltaica in area
+    vincolata in Toscana, struttura stabile ancorata al suolo come nuova costruzione, serve il permesso di
+    costruire. Chiude con una domanda al pubblico, omessa dal testo. Candidato profilo (urbanistica/energia).
+    https://www.linkedin.com/posts/danilo-conti-40124115b_urbanistica-dirittoedilizio-fotovoltaico-share-7522226258471182336-mtY5/
+  - Gianpaolo Caianiello, avvocato (concessioni, collegamento di 1° grado) — TAR Lecce, Sez. I, n. 1363 del
+    3/11/2026: niente ridisegno dell'intero litorale senza Piano Comunale delle Coste, in continuità con la
+    n. 1210/2025 su Ginosa. 18 reazioni, sentenza allegata (25 pagine).
+    https://www.linkedin.com/posts/gianpaolo-caianiello-a99558203_tar-lecce-sez-i-sentenza-n-1363-del-3-ugcPost-7524057180648464385-nRZy/
+  - PressGiochi (gioco) — Giuliani (ADM) al panel di SiGMA World a Roma: credibilità, tutela dei giocatori,
+    offerta non aggressiva. Testo del post troncato: il resto è sul sito.
+    https://www.linkedin.com/posts/giuliani-adm-la-sostenibilit%C3%A0-del-gioco-share-7523804571832315904-hczd/
+  - Daniele Cirio, avvocato (tecnologia) — Garante provv. 107 del 24/2/2026, Amazon Passo Corese: note in
+    campo libero su salute e attività sindacale, telecamere vicino ai bagni. Provvedimento di febbraio,
+    ripreso ora. Le tre domande finali sono omesse dal testo.
+    https://www.linkedin.com/posts/avv-daniele-cirio-vercelli_gdpr-privacy-hr-share-7521891573513740288-Ynhm/
+  - Giovanni Castiglione (health/pharma) — 441 giorni per accesso e rimborso, rischio di lanci ritardati per
+    la Most Favoured Nation (piano Ministero della Salute al MEF, 23/10). Post di una settimana fa, area
+    manager in cerca di incarico: il taglio operativo sulle reti commerciali è omesso dal testo.
+    https://www.linkedin.com/posts/giovanni-castiglione_pharma-marketaccess-mfn-share-7521245576462696448-tyIt/
+
+**Altri trovati oggi, non ancora confermati:**
+- Avvocati Matranga — ordinanza TAR Puglia sul Comune di Bari: per bandire le gare non occorre attendere
+  piani costieri definitivi né decreti sugli indennizzi. In apparente tensione con TAR Lecce 1363/2026 e
+  1346/2026 (Castellaneta) sul Piano Comunale delle Coste: tema da seguire. Il post non dà il numero
+  dell'ordinanza, da cercare.
+  https://www.linkedin.com/posts/avvocati-matranga-b052331a6_concessioni-balneari-il-tar-sblocca-share-7524093028127662081-7pXk/
+- Mondo Balneare — nove Comuni abruzzesi a Francavilla al Mare per una linea condivisa sulle gare.
+- Vincenzo Quagliuolo — flash sulle scadenze: bando-tipo non ancora approvato, 30/6/2027 avvio gare,
+  30/9/2027 fine transitorio, 31/3/2028 possibile differimento.
+- Techzen — delibera ARERA 397/2026 sul contributo volontario: attestazione di Acquirente Unico spendibile
+  commercialmente, divieto di usare i dati dei beneficiari per campagne o retention, sospensione o
+  cancellazione dall'elenco in caso di irregolarità. Stessa conferma nel post di ARERA.
+- EKA — delibera ARERA 333/2026/E/com del 29/9: cinque verifiche ispettive sulle variazioni unilaterali e
+  sui rinnovi. Delibera 336/2026/R/eel: gare per la salvaguardia 2027-2028.
+- Fabrizio Mariani — TAR Lombardia, 29/10: FV in ex cava non respingibile senza esame concreto del
+  progetto e del recupero ambientale (via QualEnergia). Prezzi negativi al Sud e valore dei BESS.
+- Trilance — nuovo TIQV, delibera 213/2026/R/com, in vigore dal 1/1/2027.
+- UtilityDay — working group Energy Regulation & Compliance, Milano, 18/11: switching, teleselling, recesso.
+- Davide Diodato (HBG), via Jamma — nuove concessioni online: si può programmare, riordino completato solo
+  a metà. IGN Magazine — bilancio del sen. Melchiorre dopo la scadenza della delega.
+- PressGiochi — incontro ADM con Sapar, Acadi, Acmi, Agic, As.Tro. su VLT e PREU. Jamma — Chiacchio (AGSI):
+  proroga quinquennale con regole ponte.
+- ECONOMIX — sale LAN: già segnalato il 3 e il 4/11, ancora non usato. Stime governo: 200 sale nel 2027,
+  2.300 dal 2028.
+- Antonio Vilfredo Sannino e DWF Italy (Falco, Ceresani) — Garante provv. 644/2026, già segnalato il 3/11.
+- Homnya / Quotidiano Sanità — Ithaca Day 2026, live oggi: proposta C(nn)-R sull'accesso precoce a confronto
+  con la manovra, con Russo (AIFA), Rasi, Mennini. Da recuperare la sintesi.
+- Antonio Addis, via Quotidiano Sanità — tetto acquisti diretti al 9% con 292 milioni in più dal 2028, 160
+  milioni per ridurre il payback alle aziende che investono in Italia.
