@@ -1030,3 +1030,66 @@ farmaci manovra" (health/pharma; "farmaceutica Italia prezzi AIFA innovativi" d�
   con la manovra, con Russo (AIFA), Rasi, Mennini. Da recuperare la sintesi.
 - Antonio Addis, via Quotidiano Sanità — tetto acquisti diretti al 9% con 292 milioni in più dal 2028, 160
   milioni per ridurre il payback alle aziende che investono in Italia.
+
+**2026-11-09** — Diciassettesima sessione per la rubrica "Dal mio giro su LinkedIn", 5 aree. Ricerche con
+filtro "Ultima settimana". Query usate: "ARERA delibera" per data e per rilevanza (energia), "concessioni
+balneari" per data (concessioni), "gioco pubblico ADM", "riordino gioco fisico" e "gioco scommesse
+concessionari" per data (gioco; le prime due restituiscono quasi solo i resoconti di SiGMA già visti il
+5/11), "Garante privacy provvedimento" (tecnologia), "AIFA farmaci" per data (health/pharma).
+
+- Metodo link del 21/10, un post per chiamata, con ricerca del bottone ripetuta dopo "Carica altro" quando
+  il post non è tra i primi risultati: funzionante su tutti e 5. Slug dei permalink verificati.
+- 5 pick salvati in `linkedin_vetrina` con `/opt/ntreportbot/venv/bin/python` come `ntbot`, usando
+  `_save_linkedin_vetrina`.
+- I 5 pick di oggi:
+  - MARVIV SRLS (energia) — delibera ARERA 407/2026/R/com, primo atto attuativo del D.Lgs. 136/2026 (gas
+    package, dir. UE 2024/1788): idrogeno dentro i poteri della L. 481/95, sezioni idrogeno nel Piano
+    decennale 2027, certificazione/unbundling/incentivi/costi rinviati a consultazioni. Società di consulenza:
+    la parte su come presidiare le consultazioni e la domanda finale sono omesse dal testo.
+    https://www.linkedin.com/posts/arera-idrogeno-gaspackage-share-7525463841195835392-UinF/
+  - Laura Cefalo, avvocato, Studio Arlini Cefalo (concessioni, collegamento di 1° grado) — Vasto, gara-ponte
+    per 34 concessioni via C.U.C. Unione dei Miracoli, affidamenti fino al 30/9/2027, offerte entro il
+    28/12/2026. Candidato profilo (concessioni, Abruzzo).
+    https://www.linkedin.com/posts/laura-cefalo-94198a71_aclegal-dirittoamministrativo-concessionibalneari-share-7525502561894895616-z_DS/
+  - NetWin Italia (gioco) — Commissione Antimafia, Doc. XXIII nn. 28 e 29 del 3/11/2026: scommesse tra i
+    settori esposti, quattro interdittive nel Leccese nel 2025. Post di un concessionario: tema nuovo.
+    https://www.linkedin.com/posts/netwinitalia-gamingcompliance-antiriciclaggio-share-7525463154160451584-_zn7/
+  - Avv. Emiliano Vitelli, DPO (tecnologia) — Garante provv. 746 e 747 del 7/10/2026, Poste e banca partner
+    titolari autonomi e non responsabili reciproci. L'esempio della clinica con finanziaria è omesso dal
+    testo. Angolo diverso dal pick Amazon del 5/11 (lavoro).
+    https://www.linkedin.com/posts/emiliano-vitelli_gdpr-privacy-funzionigramma-share-7524471117349228545-BIVm/
+  - Luigi Francesco Iannone, farmacologo clinico (health/pharma) — revisione AIFA dei registri di
+    monitoraggio di lunga durata, proposta di chiudere o rivedere quello sugli anti-CGRP. Post di 40 minuti
+    prima della ricerca, notizia AIFA fresca.
+    https://www.linkedin.com/posts/luigi-francesco-iannone-md_la-revisione-in-corso-dei-registri-di-lunga-share-7525566789338951680-TlZF/
+
+**Altri trovati oggi, non ancora confermati:**
+- Roberto Quadrini (Tecnalogic) — oggi giornata senza sole e vento: per lui l'emergenza dipende dai mancati
+  programmi di prelievo dell'industria (circa 38% dei consumi) previsti dalla delibera ARERA 227/2025/R/eel e
+  dall'art. 4-19.1.1 del TIDE, una leva da circa 20 GW. Da capire cosa è successo oggi sulla rete.
+- ARERA — delibera 368/2026/A: tavolo consultivo stabile con i portatori di interesse su tutti i settori
+  regolati, prima riunione entro il 30/11/2026 (via PA Digitale). Delibera 384/2026/E/com: richiamo agli
+  operatori inadempienti sull'obbligo di partecipare al Servizio Conciliazione. Delibera 385/2026/R/tlr: bonus
+  sociale teleriscaldamento, nel 2027 da gestire insieme competenza 2026 e 2027.
+- Stefano Palomba (Energy Solution) — delibera ARERA 222/2025/R/gas e garanzie a carico delle società di
+  vendita: rischio di concentrazione del mercato. Post polemico, utile come termometro dei venditori.
+- Valentina Magnano S. Lio — TAR Catania, Sez. III, n. 2784/2026: impugnabilità immediata della delibera EGA
+  sul valore di subentro nel servizio idrico. Alessandro Angelone — Ruzzo Reti (Teramo), acqua depurata a un
+  data center privato, art. 141 c. 2 d.lgs. 152/2006.
+- CLUB360 / Giuseppe Francesco Gioffrè (via ItaliaOggi) — ancora TAR Lecce su Castellaneta e Piano Comunale
+  delle Coste; il Comune annuncia appello al Consiglio di Stato. Norma (Chiara Campanelli) — decadenza per
+  gestione non autorizzata dei servizi dello stabilimento.
+- Jamma / PressGiochi — 13/11 a Roma, sesto Studio CGIA Mestre–As.Tro sul gioco, con anteprima del terzo
+  Report dell'Osservatorio Nexus sul gioco online illegale. Daniela Agnello (Jamma): ADM assente al SiGMA
+  Central Europe. Cardia (ACADI, via Agimeg): impossibile investire senza riordino del fisico.
+- Giuseppe Francesco Ferrara — Polymarket e midterm USA: ammenda fino a 516 euro per chi scommette (art. 4
+  c. 3 L. 401/1989). Taglio divulgativo.
+- Davide Malagoli, avvocato — Garante provv. 620 del 3/9/2026: telecamere attivate "in prova" già soggette
+  all'art. 4 dello Statuto, informativa e DPIA prima del collaudo. Francesco Gasparinetti — Garante provv.
+  760 del 7/10, parere sul regolamento IA della Provincia di Trento: la cancellazione alla fonte non elimina
+  gli effetti sul modello addestrato. Giacomo Conti (1° grado) — linee guida Garante su newsletter e tracking
+  pixel, punto 6, doppio opt-out.
+- Pietro Pio Napolitano — bando AIFA di fine settembre sulla farmacovigilanza attiva negli over 65 in
+  politerapia: circa 10,5 milioni, solo Regioni, proposte entro il 31/12/2026. INNLIFES — intervista a
+  Nisticò (AIFA) su innovazione, Prontuario, farmaci per l'obesità. La Stampa (via Ilaria Mazzoli) — AIFA e
+  nuovi oncologici, stima 10 miliardi per il SSN.
