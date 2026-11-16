@@ -224,8 +224,10 @@ def _testate_del_giorno(oggi=None) -> list[tuple[str, list[str]]]:
 
 _MESI_IT = {"gen": 1, "feb": 2, "mar": 3, "apr": 4, "mag": 5, "giu": 6,
             "lug": 7, "ago": 8, "set": 9, "ott": 10, "nov": 11, "dic": 12}
-# Sezioni Dagospia lette per prime; sport/salute/viaggi/cafonal solo se manca altro.
-_DAGOSPIA_SEZIONI_PRIMA = ("politica", "business", "cronache", "")
+# Sezioni Dagospia lette per prime; sport/salute/viaggi/cafonal solo se manca altro. Il
+# pezzo d'apertura della homepage non ha sezione nel link e può essere gossip puro (il
+# 2026-11-16 lo era): sta nella fascia intermedia, non tra le prioritarie.
+_DAGOSPIA_SEZIONI_PRIMA = ("politica", "business", "cronache")
 _DAGOSPIA_SEZIONI_ESCLUSE = ("sport", "salute", "viaggi", "cafonal")
 
 
@@ -993,7 +995,9 @@ async def _ensure_material(it: dict) -> None:
     from monitor import _fetch_content
 
     materiale = _clean_summary_text(it.get("summary") or it.get("content") or "")
-    if len(materiale) < 60:
+    # Sotto i ~500 caratteri (il tipico sommario RSS di una o due frasi) non basta per
+    # una sintesi di 4-5 righe senza inventare: si scarica l'articolo (2026-11-16).
+    if len(materiale) < 500:
         url = it.get("url", "")
         try:
             testo = await _fetch_pdf_text(url) if ".pdf" in url.lower() else (await _fetch_content(url))[0]
@@ -1001,14 +1005,16 @@ async def _ensure_material(it: dict) -> None:
                 materiale = testo
         except Exception as e:
             logger.warning(f"Rassegna: fetch contenuto fallito per {url}: {e}")
-    it["materiale"] = materiale[:1500]
+    it["materiale"] = materiale[:3000]
 
 
 def _summarize_items(items: list[dict]) -> None:
-    """Genera un riassunto fattuale di 4-5 righe stampate per ciascun item (chiave
-    'riassunto', mutato in place). Una sola chiamata Claude per l'intero batch. Il PDF va
-    stampato e deve essere autosufficiente: niente voci con solo titolo e link (Niccolò,
-    2026-11-16: "voglio anche una sintesi di 4-5 righe per ciascuna news")."""
+    """Genera un riassunto fattuale di 2-3 frasi per ciascun item (chiave 'riassunto',
+    mutato in place). Una sola chiamata Claude per l'intero batch. Il PDF va stampato e
+    deve essere autosufficiente: niente voci con solo titolo e link. NB: nel corpo a 3
+    colonne una riga stampata è di 5-6 parole, quindi 50 parole sono già 8-9 righe (il
+    2026-11-16 Niccolò ha chiesto "4-5 righe" vedendo un'edizione senza riassunti per
+    credito API esaurito: la lunghezza non era il problema)."""
     if not items:
         return
     from bot import call_claude
@@ -1020,9 +1026,9 @@ def _summarize_items(items: list[dict]) -> None:
         for i, it in enumerate(items)
     )
     prompt = f"""\
-Per ciascuna delle seguenti notizie scrivi un riassunto fattuale di 3-4 frasi (60-80
-parole, cioè 4-5 righe stampate), in italiano, SOLO sulla base del materiale fornito: chi,
-cosa, quando e perché conta, senza ripetere il titolo. Non inventare MAI cifre,
+Per ciascuna delle seguenti notizie scrivi un riassunto fattuale di 2-3 frasi (max 50
+parole), in italiano, SOLO sulla base del materiale fornito: chi, cosa, quando e perché
+conta, senza ripetere il titolo. Non inventare MAI cifre,
 nomi, date o dettagli non presenti nel materiale: se il materiale è insufficiente,
 riassumi in modo più generico basandoti solo sul titolo, restando onesto sui limiti
 dell'informazione disponibile invece di inventare.
@@ -1047,6 +1053,17 @@ Rispondi SOLO con un array JSON: [{{"indice": <int>, "riassunto": "..."}}, ...]
     except Exception as e:
         logger.warning(f"Rassegna: riassunto batch fallito: {e}")
         _segnala_errore_api("riassunti", e)
+
+    # Voci rimaste senza sintesi (il modello ogni tanto ne salta una): meglio l'inizio
+    # del materiale, già fedele, che il solo titolo.
+    mancanti = 0
+    for it in items:
+        if not it.get("riassunto") and it.get("materiale"):
+            parole = it["materiale"].split()
+            it["riassunto"] = " ".join(parole[:50]) + ("…" if len(parole) > 50 else "")
+            mancanti += 1
+    if mancanti:
+        logger.warning(f"Rassegna: {mancanti} riassunti mancanti, usato l'inizio del materiale")
 
 
 # Errori delle chiamate Claude durante la generazione: il job li manda su Telegram.
