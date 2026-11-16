@@ -7,6 +7,14 @@ aggiorna questo file a mano.
 Il job del digest settimanale (`monitor.py`) legge la sezione "Condotte / pattern" per
 calibrare tono e timing dei post generati.
 
+**Vetrina = riserva (dal 16/11/2026, richiesta di Niccolò).** A fine giro si salvano con
+`_save_linkedin_vetrina` non solo i 5 pick ma anche gli altri spunti validi, 10-15 voci in
+tutto, in ordine di preferenza (le stesse regole redazionali dei pick: testo solo da quel
+post, link diretto). La rassegna ne stampa fino a 5 al giorno, ciascuna una volta sola,
+dalla più recente; nei giorni senza giro pesca dalla riserva (voci di un giro precedente
+con la data "giro del gg/mm"), le voci scadono dopo 10 giorni e se non resta niente di
+nuovo la sezione sparisce.
+
 ---
 
 ## Profili di riferimento

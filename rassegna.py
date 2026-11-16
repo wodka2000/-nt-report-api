@@ -15,10 +15,12 @@ Struttura del giornale (richiesta da Niccolò il 2026-09-14):
   3. Interessi — geopolitica/guerra, difesa IT/UE, politica estera, cavidotti sottomarini,
      estrazione dai fondali marini, spazio, scienza (fisica/biologia/materiali) (~3 pagine,
      solo se c'è qualcosa di rilevante)
-  4. Attualità — cronaca, politica/economia generale, sport, spettacolo (~1 pagina)
+  4. Attualità — cronaca, politica/economia generale, sport, spettacolo (~1 pagina): 4
+     notizie per testata, Dagospia/Sole/Repubblica/Corriere fisse + 3 testate a rotazione;
+     segue "Dal mio giro su LinkedIn" solo se ci sono voci mai stampate
   5. Varie — eventuali suggerimenti per la città di viaggio, una mostra, un'attività coi
-     bambini, un libro, un disco, un film/serie da guardare, un piatto/vino/ristorante
-     (per ultimo) — ciascuno con un link reale trovato via web
+     bambini, un libro, un disco, un film/serie da guardare, "A tavola" (per ultimo, a
+     rotazione ristorante/vino/esperienza) — ciascuno con un link reale trovato via web
      search, non inventato (~1 pagina). Niente oroscopo (rimosso il 2026-09-15 su
      richiesta esplicita, cruciverba rimosso il 2026-10-08).
 
@@ -52,16 +54,50 @@ def carica_calendario() -> dict:
         return {}
 
 # ── Fonti ────────────────────────────────────────────────────────────────────────
-# NB: il feed storico corriere.it/rss/homepage.xml serve contenuto fermo al 2024 (sezione
-# abbandonata) — si usano le sezioni principali verificate attive (verificato 2026-09-14,
-# tutte con pubDate di oggi).
-_ATTUALITA_FEEDS = [
-    ("Corriere — Politica", "https://www.corriere.it/dynamic-feed/rss/section/Politica.xml"),
-    ("Corriere — Economia", "https://www.corriere.it/dynamic-feed/rss/section/Economia.xml"),
-    ("Corriere — Cronache", "https://www.corriere.it/dynamic-feed/rss/section/Cronache.xml"),
-    ("Corriere — Spettacoli", "https://www.corriere.it/dynamic-feed/rss/section/Spettacoli.xml"),
-    ("Il Foglio", "https://naxos.ilfoglio.it/api/v5/rss/stories/latest"),
-    ("Dagospia", "https://raw.githubusercontent.com/this1-it/dagospia/main/rss.xml"),
+# Attualità per TESTATA, non per feed (richiesta di Niccolò, 2026-11-16: con 4 feed di
+# sezione da 5 voci il Corriere copriva da solo quasi tutta la sezione). Ogni testata
+# porta al massimo _ATTUALITA_PER_TESTATA notizie, alternando le sue sezioni. Le fisse
+# escono ogni giorno, le altre a rotazione (_ATTUALITA_ROTAZIONE_AL_GIORNO al giorno).
+# NB: il feed storico corriere.it/rss/homepage.xml serve contenuto fermo al 2024 — si usano
+# le sezioni. Dagospia non ha RSS proprio: il mirror GitHub usato fino a novembre 2026 si è
+# fermato al 3/11 senza errori (sparito in silenzio dal filtro 30 ore), quindi si legge la
+# homepage (_fetch_dagospia). Feed verificati attivi il 2026-11-16; scartati Il Post (403),
+# HuffPost e Avvenire (404).
+_ATTUALITA_PER_TESTATA = 4
+_ATTUALITA_ROTAZIONE_AL_GIORNO = 3
+_DAGOSPIA = "Dagospia"
+
+_ATTUALITA_FISSE = [
+    (_DAGOSPIA, []),
+    ("Il Sole 24 Ore", [
+        "https://www.ilsole24ore.com/rss/italia.xml",
+        "https://www.ilsole24ore.com/rss/economia.xml",
+        "https://www.ilsole24ore.com/rss/mondo.xml",
+    ]),
+    ("la Repubblica", [
+        "https://www.repubblica.it/rss/politica/rss2.0.xml",
+        "https://www.repubblica.it/rss/cronaca/rss2.0.xml",
+        "https://www.repubblica.it/rss/economia/rss2.0.xml",
+    ]),
+    ("Corriere della Sera", [
+        "https://www.corriere.it/dynamic-feed/rss/section/Politica.xml",
+        "https://www.corriere.it/dynamic-feed/rss/section/Economia.xml",
+        "https://www.corriere.it/dynamic-feed/rss/section/Cronache.xml",
+        "https://www.corriere.it/dynamic-feed/rss/section/Spettacoli.xml",
+    ]),
+]
+
+_ATTUALITA_ROTAZIONE = [
+    ("Il Foglio", ["https://naxos.ilfoglio.it/api/v5/rss/stories/latest"]),
+    ("La Stampa", ["https://www.lastampa.it/rss/copertina.xml"]),
+    ("Il Messaggero", ["https://www.ilmessaggero.it/rss/home.xml"]),
+    ("Il Fatto Quotidiano", ["https://www.ilfattoquotidiano.it/feed/"]),
+    ("Domani", ["https://www.editorialedomani.it/rss"]),
+    ("ANSA", [
+        "https://www.ansa.it/sito/notizie/politica/politica_rss.xml",
+        "https://www.ansa.it/sito/notizie/cronaca/cronaca_rss.xml",
+    ]),
+    ("Open", ["https://www.open.online/feed/"]),
 ]
 
 _TECNOLOGIA_FEEDS = [
@@ -174,8 +210,142 @@ async def _fetch_feed_list(feeds: list[tuple[str, str]], max_per_fonte: int, hou
     return out
 
 
-async def _fetch_attualita(max_per_fonte: int = 5) -> list[dict]:
-    return await _fetch_feed_list(_ATTUALITA_FEEDS, max_per_fonte)
+def _testate_del_giorno(oggi=None) -> list[tuple[str, list[str]]]:
+    """Fisse + _ATTUALITA_ROTAZIONE_AL_GIORNO testate a rotazione, scelte in base alla data
+    (prevedibile, e in pochi giorni le ruota tutte). Prima le fisse: in prima pagina il
+    titolo di apertura d'attualità è la prima voce della lista."""
+    oggi = oggi or datetime.now().date()
+    n = len(_ATTUALITA_ROTAZIONE)
+    k = min(_ATTUALITA_ROTAZIONE_AL_GIORNO, n)
+    inizio = (oggi.toordinal() * k) % n
+    rotazione = [_ATTUALITA_ROTAZIONE[(inizio + i) % n] for i in range(k)]
+    return _ATTUALITA_FISSE + rotazione
+
+
+_MESI_IT = {"gen": 1, "feb": 2, "mar": 3, "apr": 4, "mag": 5, "giu": 6,
+            "lug": 7, "ago": 8, "set": 9, "ott": 10, "nov": 11, "dic": 12}
+# Sezioni Dagospia lette per prime; sport/salute/viaggi/cafonal solo se manca altro.
+_DAGOSPIA_SEZIONI_PRIMA = ("politica", "business", "cronache", "")
+_DAGOSPIA_SEZIONI_ESCLUSE = ("sport", "salute", "viaggi", "cafonal")
+
+
+def _parse_ora_dagospia(testo: str):
+    """'16 nov 15:39' (ora di Roma) → time.struct_time UTC, come i feed RSS. None se non
+    riconosciuta (l'item viene tenuto comunque da _recent)."""
+    m = re.match(r"\s*(\d{1,2})\s+([a-z]{3})\w*\s+(\d{1,2}):(\d{2})", (testo or "").lower())
+    if not m or m.group(2) not in _MESI_IT:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        adesso = datetime.now(ZoneInfo("Europe/Rome"))
+    except Exception:  # Windows senza tzdata (anteprime locali): ora locale della macchina
+        adesso = datetime.now().astimezone()
+    try:
+        dt = adesso.replace(month=_MESI_IT[m.group(2)], day=int(m.group(1)),
+                            hour=int(m.group(3)), minute=int(m.group(4)), second=0, microsecond=0)
+    except ValueError:
+        return None
+    if dt > adesso + timedelta(days=1):  # pezzo di dicembre letto a gennaio
+        dt = dt.replace(year=dt.year - 1)
+    return dt.astimezone(timezone.utc).timetuple()
+
+
+async def _fetch_dagospia() -> list[dict]:
+    """Legge le notizie dalla homepage di Dagospia (blocchi <article> con link, ora e
+    sommario). Il titolo è la prima frase del sommario, fino al primo trattino lungo."""
+    import httpx
+    from bs4 import BeautifulSoup
+
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+            resp = await client.get("https://www.dagospia.com/", headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                              "(KHTML, like Gecko) Chrome/130.0 Safari/537.36"})
+        resp.raise_for_status()
+    except Exception as e:
+        logger.warning(f"Rassegna: fetch Dagospia fallito: {e}")
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    items, visti = [], set()
+    for a in soup.select("a[href]"):
+        href = a["href"]
+        m = re.match(r"^/(?:([a-z0-9-]+)/)?[a-z0-9-]+-\d{5,}$", href)
+        if not m or href in visti:
+            continue
+        p = a.find("p")
+        if not p:
+            continue
+        testo = re.sub(r"\s+", " ", p.get_text(" ", strip=True)).strip()
+        if len(testo) < 20:
+            continue
+        visti.add(href)
+        parti = re.split(r"\s[–—-]\s", testo, maxsplit=2)
+        titolo = parti[0].strip()
+        if len(titolo) < 30 and len(parti) > 1:  # occhiello tipo "DAGOREPORT – ..."
+            titolo = f"{titolo} – {parti[1].strip()}"
+        if len(titolo) > 220:
+            titolo = titolo[:217].rsplit(" ", 1)[0] + "…"
+        ora = a.find("time")
+        items.append({
+            "url": f"https://www.dagospia.com{href}",
+            "title": titolo,
+            "summary": testo,
+            "content": "",
+            "published": _parse_ora_dagospia(ora.get_text() if ora else ""),
+            "sezione": m.group(1) or "",
+        })
+
+    def priorita(it):
+        sez = it["sezione"]
+        if sez in _DAGOSPIA_SEZIONI_ESCLUSE:
+            return 2
+        return 0 if sez in _DAGOSPIA_SEZIONI_PRIMA else 1
+    # sorted è stabile: dentro ogni fascia resta l'ordine della homepage
+    return sorted(_recent(items), key=priorita)
+
+
+def _titolo_chiave(titolo: str) -> str:
+    return re.sub(r"\W+", " ", (titolo or "").lower()).strip()[:80]
+
+
+async def _fetch_attualita(per_testata: int = _ATTUALITA_PER_TESTATA) -> list[dict]:
+    """Al massimo `per_testata` notizie per giornale, pescando a turno dalle sue sezioni;
+    le notizie con lo stesso titolo su testate diverse escono una volta sola."""
+    from monitor import _fetch_rss
+
+    async def per_feed(url):
+        try:
+            return _recent(await _fetch_rss(url) or [])
+        except Exception as e:
+            logger.warning(f"Rassegna: fetch fallito per {url}: {e}")
+            return []
+
+    testate = _testate_del_giorno()
+    risultati = await asyncio.gather(*[
+        _fetch_dagospia() if nome == _DAGOSPIA else asyncio.gather(*[per_feed(u) for u in urls])
+        for nome, urls in testate
+    ])
+
+    out, titoli_visti = [], set()
+    for (nome, _), ris in zip(testate, risultati):
+        sezioni = [ris] if nome == _DAGOSPIA else [list(s) for s in ris]
+        presi = 0
+        while presi < per_testata and any(sezioni):
+            for sez in sezioni:
+                if presi >= per_testata or not sez:
+                    continue
+                it = sez.pop(0)
+                chiave = _titolo_chiave(it.get("title"))
+                if not chiave or chiave in titoli_visti or _is_junk_title(it.get("title", "")):
+                    continue
+                titoli_visti.add(chiave)
+                it["source_name"] = nome
+                out.append(it)
+                presi += 1
+        if not presi:
+            logger.warning(f"Rassegna: nessuna notizia recente da {nome}")
+    return out
 
 
 _SETTORI_CHAT_ID = "rassegna_settori"  # namespace dedicato in seen_docs, separato da "owner"
@@ -718,18 +888,38 @@ def _get_ft_stampa_queue() -> list[dict]:
     return [{"testo": r[1], "url": r[2]} for r in rows]
 
 
-def _save_linkedin_vetrina(items: list[dict]) -> None:
-    """Salva i pick di un giro supervisionato su LinkedIn (Niccolò + Claude presenti,
-    MAI un cron automatico — vedi linkedin_kb.md e memoria di progetto). Sovrascrive
-    solo le voci di oggi (INSERT preceduto da DELETE della stessa data), così rigenerare
-    più volte nello stesso giorno non duplica."""
+# Vetrina LinkedIn come riserva (richiesta di Niccolò, 2026-11-16): ogni voce va in stampa
+# UNA volta sola (colonna usato_il); se non resta niente di nuovo la sezione sparisce. Nei
+# giri si salvano anche gli spunti validi oltre ai pick (10-15 in tutto, nell'ordine di
+# preferenza): nei giorni senza giro la rassegna pesca da lì le voci non ancora usate.
+_LINKEDIN_PER_EDIZIONE = 5
+_LINKEDIN_SCADENZA_GIORNI = 10
+
+
+def _linkedin_vetrina_connect():
     from monitor import _db_connect
     con = _db_connect()
     con.execute(
         "CREATE TABLE IF NOT EXISTS linkedin_vetrina (data TEXT, testo TEXT, url TEXT, autore TEXT)"
     )
+    colonne = {r[1] for r in con.execute("PRAGMA table_info(linkedin_vetrina)")}
+    if "usato_il" not in colonne:
+        con.execute("ALTER TABLE linkedin_vetrina ADD COLUMN usato_il TEXT")
+        # Le voci salvate prima della modifica sono già uscite in stampa.
+        con.execute("UPDATE linkedin_vetrina SET usato_il = data")
+        con.commit()
+    return con
+
+
+def _save_linkedin_vetrina(items: list[dict]) -> None:
+    """Salva pick e riserva di un giro supervisionato su LinkedIn (Niccolò + Claude
+    presenti, MAI un cron automatico — vedi linkedin_kb.md e memoria di progetto), in
+    ordine di preferenza: i primi escono nella prossima edizione, gli altri nei giorni
+    senza giro. Risalvare nello stesso giorno sostituisce solo le voci di oggi non ancora
+    andate in stampa, così non si duplica nulla."""
+    con = _linkedin_vetrina_connect()
     oggi = datetime.now().strftime("%Y-%m-%d")
-    con.execute("DELETE FROM linkedin_vetrina WHERE data=?", (oggi,))
+    con.execute("DELETE FROM linkedin_vetrina WHERE data=? AND usato_il IS NULL", (oggi,))
     for it in items:
         con.execute(
             "INSERT INTO linkedin_vetrina (data, testo, url, autore) VALUES (?, ?, ?, ?)",
@@ -739,29 +929,31 @@ def _save_linkedin_vetrina(items: list[dict]) -> None:
     con.close()
 
 
-def _load_linkedin_vetrina_recente(giorni: int = 5) -> list[dict]:
-    """Ritorna i pick dell'ultimo giro su LinkedIn, solo se abbastanza recente (default
-    5 giorni) — altrimenti la rubrica sparisce invece di mostrare contenuto vecchio
-    spacciato per "dal mio giro" di oggi. Nessuna navigazione automatica qui: questa
-    funzione legge solo quello che una sessione supervisionata ha già salvato."""
-    from monitor import _db_connect
-    con = _db_connect()
-    con.execute(
-        "CREATE TABLE IF NOT EXISTS linkedin_vetrina (data TEXT, testo TEXT, url TEXT, autore TEXT)"
-    )
-    ultima_data = con.execute("SELECT MAX(data) FROM linkedin_vetrina").fetchone()[0]
-    if not ultima_data:
-        con.close()
-        return []
+def _load_linkedin_vetrina_recente(n: int = _LINKEDIN_PER_EDIZIONE,
+                                   giorni: int = _LINKEDIN_SCADENZA_GIORNI) -> list[dict]:
+    """Fino a `n` voci mai stampate, dal giro più recente in giù, non più vecchie di
+    `giorni`, e le segna come usate oggi. Rigenerare la rassegna nello stesso giorno
+    ripropone le stesse voci (usato_il = oggi) invece di consumarne altre. Nessuna
+    navigazione automatica qui: si legge solo quello che una sessione supervisionata ha
+    già salvato."""
+    con = _linkedin_vetrina_connect()
+    oggi = datetime.now().strftime("%Y-%m-%d")
     soglia = (datetime.now() - timedelta(days=giorni)).strftime("%Y-%m-%d")
-    if ultima_data < soglia:
-        con.close()
-        return []
     righe = con.execute(
-        "SELECT testo, url, autore FROM linkedin_vetrina WHERE data=?", (ultima_data,)
+        "SELECT rowid, data, testo, url, autore FROM linkedin_vetrina WHERE usato_il=? "
+        "ORDER BY data DESC, rowid", (oggi,)
     ).fetchall()
+    if not righe:
+        righe = con.execute(
+            "SELECT rowid, data, testo, url, autore FROM linkedin_vetrina "
+            "WHERE usato_il IS NULL AND data >= ? ORDER BY data DESC, rowid LIMIT ?",
+            (soglia, n),
+        ).fetchall()
+        con.executemany("UPDATE linkedin_vetrina SET usato_il=? WHERE rowid=?",
+                        [(oggi, r[0]) for r in righe])
+        con.commit()
     con.close()
-    return [{"testo": t, "url": u, "autore": a} for t, u, a in righe]
+    return [{"data": d, "testo": t, "url": u, "autore": a} for _, d, t, u, a in righe]
 
 
 # ── Riassunti (il giornale stampato deve essere autosufficiente, non solo link) ────
@@ -1207,7 +1399,8 @@ def _genera_varie() -> dict[str, dict]:
     recenti = _load_varie_recenti()
     label_recenti = {
         "mostra": "mostre", "attivita_bambini": "attività con i bambini", "libro": "libri",
-        "disco": "dischi", "film_serie": "film/serie", "piatto_vino": "piatti/vini/ristoranti",
+        "disco": "dischi", "film_serie": "film/serie",
+        "piatto_vino": "ristoranti/vini/esperienze a tavola",
     }
     blocco_recenti = ""
     if recenti:
@@ -1222,6 +1415,7 @@ def _genera_varie() -> dict[str, dict]:
                 "diverso per ciascuna categoria):\n" + "\n".join(righe) + "\n"
             )
 
+    tipo_a_tavola = _tipo_a_tavola()
     dati = _claude_web_search_json(
         f"""\
 Cerca sul web spunti REALI e verificabili per la rubrica "Varie" di una rassegna stampa
@@ -1247,10 +1441,11 @@ qualcosa di raggiungibile senza viaggiare.
    di streaming, etichetta)
 5. film_serie: un film o una serie tv (al cinema ora, oppure in streaming/casa), con link
    a una pagina reale (sito del cinema/programmazione, piattaforma di streaming, Wikipedia)
-6. piatto_vino: SOLO qualcosa da mangiare o da bere: una ricetta, una bottiglia di vino o
-   un ristorante reale — se un ristorante, preferibilmente a Roma/Lazio — con link alla
-   fonte trovata (sito della ricetta, cantina, ristorante). MAI un libro, un film, un disco
-   o altro: questa voce finisce sotto il titolo "A tavola"
+6. piatto_vino: OGGI deve essere {tipo_a_tavola}. Link alla fonte trovata (sito del
+   ristorante, della cantina, dell'enoteca, dell'evento o una recensione/guida autorevole).
+   MAI una ricetta e MAI siti di ricette (GialloZafferano, Cookaround, Cucchiaio d'Argento
+   e simili). MAI un libro, un film, un disco o altro: questa voce finisce sotto il
+   titolo "A tavola"
 
 Rispondi SOLO con un oggetto JSON valido, in questo ordine di chiavi:
 {{"mostra": {{"testo": "...", "link": "https://..."}},
@@ -1273,11 +1468,32 @@ piuttosto che inventarla.""",
     return dati
 
 
+# "A tavola" a rotazione per data (richiesta di Niccolò, 2026-11-16): con "una ricetta"
+# tra le opzioni il modello finiva sempre su GialloZafferano. Niente più ricette.
+_TIPI_A_TAVOLA = (
+    "un RISTORANTE reale, preferibilmente a Roma o nel Lazio (trattoria, osteria, "
+    "ristorante, anche una pizzeria o un locale storico), con cosa ordinare",
+    "una BOTTIGLIA di vino reale (cantina, denominazione, annata se nota), con perché "
+    "vale la pena e una fascia di prezzo indicativa",
+    "un'ESPERIENZA culinaria reale a Roma o nel Lazio: una degustazione, una visita in "
+    "cantina o da un produttore, un mercato, una bottega storica, un'enoteca, una sagra, "
+    "un corso di cucina o un evento gastronomico in programma",
+)
+
+
+def _tipo_a_tavola(oggi=None) -> str:
+    oggi = oggi or datetime.now().date()
+    return _TIPI_A_TAVOLA[oggi.toordinal() % len(_TIPI_A_TAVOLA)]
+
+
 # Siti di editori e librerie: un link lì sotto "A tavola" vuol dire che il modello ha
 # messo un libro al posto del piatto (successo il 2026-10-21 con un saggio del Mulino).
+# Siti di ricette: esclusi dal 2026-11-16, la voce deve essere ristorante/vino/esperienza.
 _DOMINI_LIBRI = ("mulino.it", "einaudi.it", "laterza.it", "adelphi.it", "feltrinelli",
                  "mondadori", "ibs.it", "libraccio.it", "hoepli.it", "giunti.it",
-                 "rizzolilibri.it", "bollatiboringhieri.it", "amazon.")
+                 "rizzolilibri.it", "bollatiboringhieri.it", "amazon.",
+                 "giallozafferano", "cookaround", "cucchiaio.it", "misya.info",
+                 "fattoincasadabenedetta", "ricette")
 
 
 def _a_tavola_fuori_tema(dati: dict) -> bool:
@@ -1494,16 +1710,25 @@ def _frammento_attualita(attualita: list, ft_stampa: list) -> str:
 
 
 def _frammento_linkedin(vetrina: list[dict]) -> str:
-    """Vetrina di post/spunti raccolti nell'ultimo giro supervisionato su LinkedIn
-    (richiesta di Niccolò, 2026-09-16). Non appare affatto se non c'è un giro abbastanza
-    recente (vedi _load_linkedin_vetrina_recente) — niente sezione vuota o con contenuto
-    stantio."""
+    """Vetrina di post/spunti raccolti nei giri supervisionati su LinkedIn (richiesta di
+    Niccolò, 2026-09-16). Non appare affatto se non ci sono voci mai stampate (vedi
+    _load_linkedin_vetrina_recente). Le voci di un giro precedente portano la data del
+    giro, così si vede che non sono di oggi."""
     if not vetrina:
         return ""
+    oggi = datetime.now().strftime("%Y-%m-%d")
+
+    def data_giro(it):
+        d = it.get("data")
+        if not d or d >= oggi:
+            return ""
+        return f' <span class="fonte">(giro del {d[8:10]}/{d[5:7]})</span>'
+
     righe = "".join(
         "<li>"
         + it["testo"]
         + (f' — <span class="fonte">{it["autore"]}</span>' if it.get("autore") else "")
+        + data_giro(it)
         + (f' <a href="{it["url"]}">link</a>' if it.get("url") else "")
         + "</li>"
         for it in vetrina
