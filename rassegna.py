@@ -1480,9 +1480,14 @@ _TIPI_A_TAVOLA = (
     "turistici o catene; con cosa ordinare",
     "una BOTTIGLIA di vino raffinata: SOLO vini naturali/artigianali di piccoli produttori, "
     "oppure grandi vini come Bordeaux, Borgogna, Champagne di vignaioli, e simili. IN QUESTO "
-    "PERIODO il lettore ha una passione per Borgogna e Beaujolais (cru come Morgon, Fleurie, "
-    "Moulin-à-Vent, vignaioli naturali): proponi soprattutto quelli, variando produttore e "
-    "denominazione, con qualche eccezione ogni tanto. MAI "
+    "PERIODO il lettore ama lo STILE di Borgogna e Beaujolais, non la regione in sé: rossi "
+    "fini, eleganti, di bevibilità e precisione (Pinot Nero, Gamay e affini) da qualunque "
+    "paese, purché di piccoli vignaioli artigianali o naturali (es. il Pinot di Fenja Hinz "
+    "in Germania, i cru del Beaujolais come Morgon o Fleurie, i borgognoni di piccoli "
+    "domaine). Ama moltissimo anche Gravner: i bianchi macerati in anfora e gli orange "
+    "wine artigianali di quella scuola (Friuli, Collio, Slovenia, Georgia) sono "
+    "benvenuti. Proponi soprattutto vini di questi due stili, variando produttore e paese, "
+    "e non riproporre sempre i nomi degli esempi. MAI "
     "cantine industriali o grandi marchi da supermercato (es. Casale del Giglio, Fontana "
     "Candida, Cantine Riunite, Santa Margherita, Mezzacorona e simili). Indica produttore, "
     "denominazione, annata se nota, perché vale la pena e fascia di prezzo",
