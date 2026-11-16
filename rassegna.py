@@ -1005,9 +1005,10 @@ async def _ensure_material(it: dict) -> None:
 
 
 def _summarize_items(items: list[dict]) -> None:
-    """Genera un riassunto fattuale di 2-3 frasi per ciascun item (chiave 'riassunto',
-    mutato in place). Una sola chiamata Claude per l'intero batch. Il PDF va stampato e
-    deve essere autosufficiente: niente voci con solo titolo e link."""
+    """Genera un riassunto fattuale di 4-5 righe stampate per ciascun item (chiave
+    'riassunto', mutato in place). Una sola chiamata Claude per l'intero batch. Il PDF va
+    stampato e deve essere autosufficiente: niente voci con solo titolo e link (Niccolò,
+    2026-11-16: "voglio anche una sintesi di 4-5 righe per ciascuna news")."""
     if not items:
         return
     from bot import call_claude
@@ -1019,8 +1020,9 @@ def _summarize_items(items: list[dict]) -> None:
         for i, it in enumerate(items)
     )
     prompt = f"""\
-Per ciascuna delle seguenti notizie scrivi un riassunto fattuale di 2-3 frasi (max 50
-parole), in italiano, SOLO sulla base del materiale fornito. Non inventare MAI cifre,
+Per ciascuna delle seguenti notizie scrivi un riassunto fattuale di 3-4 frasi (60-80
+parole, cioè 4-5 righe stampate), in italiano, SOLO sulla base del materiale fornito: chi,
+cosa, quando e perché conta, senza ripetere il titolo. Non inventare MAI cifre,
 nomi, date o dettagli non presenti nel materiale: se il materiale è insufficiente,
 riassumi in modo più generico basandoti solo sul titolo, restando onesto sui limiti
 dell'informazione disponibile invece di inventare.
@@ -1032,7 +1034,7 @@ Rispondi SOLO con un array JSON: [{{"indice": <int>, "riassunto": "..."}}, ...]
     try:
         msg = call_claude(
             model="claude-haiku-4-5",
-            max_tokens=400 + 120 * len(items),
+            max_tokens=400 + 250 * len(items),
             messages=[{"role": "user", "content": prompt}],
         )
         raw = msg.content[0].text.strip()
@@ -1044,6 +1046,22 @@ Rispondi SOLO con un array JSON: [{{"indice": <int>, "riassunto": "..."}}, ...]
                 items[idx]["riassunto"] = r.get("riassunto", "")
     except Exception as e:
         logger.warning(f"Rassegna: riassunto batch fallito: {e}")
+        _segnala_errore_api("riassunti", e)
+
+
+# Errori delle chiamate Claude durante la generazione: il job li manda su Telegram.
+# Il 2026-11-16 il credito API era esaurito e la rassegna è uscita senza riassunti e senza
+# Varie con il job "executed successfully", senza che nessuno se ne accorgesse.
+_ERRORI_API: list[str] = []
+
+
+def _segnala_errore_api(dove: str, errore: Exception) -> None:
+    testo = str(errore)
+    if "credit balance is too low" in testo:
+        testo = "credito API Anthropic esaurito"
+    voce = f"{dove}: {testo[:200]}"
+    if voce not in _ERRORI_API:
+        _ERRORI_API.append(voce)
 
 
 async def _arricchisci_con_riassunti(*gruppi: list[dict]) -> None:
@@ -1085,17 +1103,19 @@ def _claude_web_search_json(prompt: str, model: str = "claude-sonnet-4-6", max_t
                 return json.loads(raw)
             except json.JSONDecodeError:
                 # Il modello a volte aggiunge prosa prima/dopo il JSON nonostante
-                # l'istruzione di rispondere solo con l'oggetto — ultimo tentativo:
-                # estrai la sottostringa tra la prima { e l'ultima }.
-                match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
-                if not match:
+                # l'istruzione di rispondere solo con l'oggetto: si legge il primo oggetto
+                # completo a partire dalla prima { e si ignora il resto ("Extra data",
+                # 2026-11-16 — la vecchia regex dalla prima { all'ultima } non bastava).
+                inizio = raw.find("{")
+                if inizio < 0:
                     raise
-                return json.loads(match.group())
+                return json.JSONDecoder().raw_decode(raw[inizio:])[0]
         except Exception as e:
             if tentativo == 0:
                 logger.info(f"Rassegna: ricerca web Claude fallita al primo tentativo, riprovo: {e}")
                 continue
             logger.warning(f"Rassegna: ricerca web Claude fallita (2 tentativi): {e}")
+            _segnala_errore_api("ricerca web (Varie/meteo)", e)
             return None
 
 
@@ -2187,6 +2207,13 @@ async def run_rassegna_job(context) -> None:
         await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Rassegna: generazione PDF fallita: {str(e)[:300]}")
         return
 
+    if _ERRORI_API:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="⚠️ Rassegna generata ma incompleta, chiamate Claude fallite:\n- "
+                 + "\n- ".join(_ERRORI_API),
+        )
+
     import asyncio
     loop = asyncio.get_event_loop()
     uploaded = await loop.run_in_executor(None, _upload_rassegna_to_drive, pdf_path)
@@ -2228,6 +2255,7 @@ async def run_rassegna_job(context) -> None:
 async def genera_rassegna_html() -> str:
     """Esegue tutti i fetch/generazioni e ritorna l'HTML completo (usato sia dal path di
     produzione — che poi lo converte in PDF con WeasyPrint — sia da test locali)."""
+    _ERRORI_API.clear()
     settori = await _fetch_settori_professionali()
     interessi = await _fetch_interessi()
     attualita = await _fetch_attualita()
