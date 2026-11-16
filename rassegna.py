@@ -1441,7 +1441,8 @@ qualcosa di raggiungibile senza viaggiare.
    di streaming, etichetta)
 5. film_serie: un film o una serie tv (al cinema ora, oppure in streaming/casa), con link
    a una pagina reale (sito del cinema/programmazione, piattaforma di streaming, Wikipedia)
-6. piatto_vino: OGGI deve essere {tipo_a_tavola}. Link alla fonte trovata (sito del
+6. piatto_vino: OGGI deve essere {tipo_a_tavola}. Il lettore ha gusti esigenti: niente
+   di dozzinale, commerciale o di massa. Link alla fonte trovata (sito del
    ristorante, della cantina, dell'enoteca, dell'evento o una recensione/guida autorevole).
    MAI una ricetta e MAI siti di ricette (GialloZafferano, Cookaround, Cucchiaio d'Argento
    e simili). MAI un libro, un film, un disco o altro: questa voce finisce sotto il
@@ -1470,14 +1471,25 @@ piuttosto che inventarla.""",
 
 # "A tavola" a rotazione per data (richiesta di Niccolò, 2026-11-16): con "una ricetta"
 # tra le opzioni il modello finiva sempre su GialloZafferano. Niente più ricette.
+# Livello alto, niente di dozzinale (Niccolò, 2026-11-16: "Casale del Giglio e simili te
+# li bevi te"): vini naturali, piccoli produttori, Bordeaux e simili; mai cantine
+# industriali o etichette da scaffale del supermercato.
 _TIPI_A_TAVOLA = (
-    "un RISTORANTE reale, preferibilmente a Roma o nel Lazio (trattoria, osteria, "
-    "ristorante, anche una pizzeria o un locale storico), con cosa ordinare",
-    "una BOTTIGLIA di vino reale (cantina, denominazione, annata se nota), con perché "
-    "vale la pena e una fascia di prezzo indicativa",
-    "un'ESPERIENZA culinaria reale a Roma o nel Lazio: una degustazione, una visita in "
-    "cantina o da un produttore, un mercato, una bottega storica, un'enoteca, una sagra, "
-    "un corso di cucina o un evento gastronomico in programma",
+    "un RISTORANTE reale di livello, preferibilmente a Roma o nel Lazio: cucina d'autore, "
+    "osteria o trattoria di qualità riconosciuta (guide, critica gastronomica), mai locali "
+    "turistici o catene; con cosa ordinare",
+    "una BOTTIGLIA di vino raffinata: SOLO vini naturali/artigianali di piccoli produttori, "
+    "oppure grandi vini come Bordeaux, Borgogna, Champagne di vignaioli, e simili. IN QUESTO "
+    "PERIODO il lettore ha una passione per Borgogna e Beaujolais (cru come Morgon, Fleurie, "
+    "Moulin-à-Vent, vignaioli naturali): proponi soprattutto quelli, variando produttore e "
+    "denominazione, con qualche eccezione ogni tanto. MAI "
+    "cantine industriali o grandi marchi da supermercato (es. Casale del Giglio, Fontana "
+    "Candida, Cantine Riunite, Santa Margherita, Mezzacorona e simili). Indica produttore, "
+    "denominazione, annata se nota, perché vale la pena e fascia di prezzo",
+    "un'ESPERIENZA culinaria raffinata e reale a Roma o nel Lazio: una degustazione, una "
+    "visita da un piccolo produttore o vignaiolo naturale, un'enoteca o una bottega di "
+    "eccellenza, un evento gastronomico di qualità in programma; mai sagre o eventi "
+    "commerciali di massa",
 )
 
 
