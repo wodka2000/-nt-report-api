@@ -665,6 +665,11 @@ def _nomi_unici(nomi) -> str:
     return ", ".join(visti.values())
 
 
+_RE_IMPEGNO_DI_PERSONA = re.compile(
+    r"\b(udienz\w*|appuntament\w*|sopralluog\w*|incontr\w*|riunion\w*|convegn\w*|"
+    r"mediazion\w*|presidiar\w*|trasfert\w*)\b", re.IGNORECASE)
+
+
 def _fetch_scadenze_studio(drive, da, a) -> list[dict]:
     """Legge le scadenze 'da fare' tra le date da e a (incluse) dal PDF più recente del
     gestionale. Il PDF è una tabella larga con celle su più righe: l'estrazione testuale
@@ -731,9 +736,19 @@ Rispondi SOLO con un array JSON:
         except (KeyError, TypeError, ValueError):
             continue
         if da <= d <= a and r.get("testo"):
-            out.append({"data": d, "testo": r["testo"],
-                        "chi": _solo_collaboratori(r.get("assegnatari", "")),
-                        "trasferta": r.get("trasferta") or None})
+            assegnatari = r.get("assegnatari") or ""
+            chi = _solo_collaboratori(assegnatari)
+            # Il 2026-11-16 la scadenza per un'opposizione a cartella esattoriale (foro di
+            # Lecco, pratica di Morelli) è uscita come "In viaggio a Lecco": il modello
+            # segna trasferte anche dove il prompt dice null. Controllo lato codice:
+            # trasferta solo per impegni di persona (udienza, appuntamento, sopralluogo...)
+            # e solo se ci va Niccolò ("Travia" tra gli assegnatari, o nessun collaboratore).
+            trasferta = r.get("trasferta") or None
+            if trasferta and not _RE_IMPEGNO_DI_PERSONA.search(r["testo"]):
+                trasferta = None
+            if trasferta and chi and "travia" not in assegnatari.lower():
+                trasferta = None
+            out.append({"data": d, "testo": r["testo"], "chi": chi, "trasferta": trasferta})
     return out
 
 
@@ -795,6 +810,77 @@ def _fetch_checklist_task(drive, da, a) -> list[dict]:
     return out
 
 
+_TODO_DOCX_NAME = "ToDo_aggiornato"
+_RE_VOCE_DOCX = re.compile(r"^(\d{1,2})/(\d{1,2})\s*[—–-]\s*(.+)$")
+_RE_STATO_CHIUSO = re.compile(r"\b(completat\w*|eseguit\w*|chius[oa])\b", re.IGNORECASE)
+
+
+def _data_senza_anno(giorno: int, mese: int, oggi):
+    """'13/11' → la data più vicina a oggi (a cavallo d'anno 28/12 letto il 3/1 è dell'anno
+    prima, 03/01 letto il 28/12 dell'anno dopo)."""
+    candidati = []
+    for anno in (oggi.year - 1, oggi.year, oggi.year + 1):
+        try:
+            candidati.append(datetime(anno, mese, giorno).date())
+        except ValueError:
+            pass
+    return min(candidati, key=lambda d: abs((d - oggi).days)) if candidati else None
+
+
+def _fetch_todo_aggiornato(drive, da, a) -> list[dict]:
+    """Voci con data della "Vista operativa aggiornata" in ToDo_aggiornato.docx (cartella
+    Aptus Daily, rigenerato ogni giorno da un altro agente; richiesta di Niccolò del
+    2026-11-16: "guarda ToDo aggiornato... o meglio ancora entrambi", cioè insieme alla
+    checklist). Il documento ha in cima la vista del giorno, divisa per collaboratore
+    (titolo = nome, poi righe "gg/mm — pratica: attività. Stato: ..."), e sotto gli
+    aggiornamenti precedenti, che si ignorano: ci si ferma al primo "Aggiornamento
+    operativo". Voci "da definire"/"senza data" escluse come nella checklist; stessa
+    finestra (scadute da non più di _TODO_GIORNI giorni fino ad a). Il .docx si legge
+    dall'XML: python-docx non è installato sul server e non serve altro."""
+    import io
+    import html as html_mod
+    import zipfile
+
+    res = drive.files().list(
+        q=f"name contains '{_TODO_DOCX_NAME}' and trashed=false",
+        orderBy="modifiedTime desc", fields="files(id,name,mimeType)", pageSize=1,
+    ).execute()
+    files = res.get("files", [])
+    if not files:
+        logger.warning(f"Rassegna: '{_TODO_DOCX_NAME}' non trovato tra i file del Service Account")
+        return []
+    xml = zipfile.ZipFile(io.BytesIO(_scarica_da_drive(drive, files[0]))).read(
+        "word/document.xml").decode("utf-8")
+
+    paragrafi = []
+    for p in re.findall(r"<w:p[ >].*?</w:p>", xml, flags=re.DOTALL):
+        testo = html_mod.unescape(re.sub(r"<[^>]+>", "", p)).strip()
+        if testo:
+            paragrafi.append(re.sub(r"\s+", " ", testo))
+
+    oggi = datetime.now().date()
+    limite_ritardo = da - timedelta(days=_TODO_GIORNI)
+    persona, out = "", []
+    for i, par in enumerate(paragrafi):
+        if i > 0 and par.lower().startswith("aggiornamento operativo"):
+            break
+        m = _RE_VOCE_DOCX.match(par)
+        if not m:
+            if len(par) <= 40 and "—" not in par:  # intestazione di sezione: un nome
+                persona = par
+            continue
+        d = _data_senza_anno(int(m.group(1)), int(m.group(2)), oggi)
+        if not d or not (limite_ritardo <= d <= a):
+            continue
+        attivita, _, stato = m.group(3).partition(" Stato:")
+        if _RE_STATO_CHIUSO.search(stato):
+            continue
+        attivita = attivita.strip().rstrip(".")
+        out.append({"data": d, "testo": attivita.replace(" / ", " ", 1).replace(": ", " — ", 1),
+                    "chi": _solo_collaboratori(persona)})
+    return out
+
+
 def _unisci_e_accorcia(voci: list[dict]) -> list[dict]:
     """Le due fonti si sovrappongono (la stessa scadenza è spesso sia nell'agenda del
     gestionale sia nella checklist, scritta in modo diverso) e i task della checklist sono
@@ -809,7 +895,7 @@ def _unisci_e_accorcia(voci: list[dict]) -> list[dict]:
         return voci
     elenco = "\n".join(f"{i}. [{v['data'].isoformat()}] {v['testo']}" for i, v in enumerate(voci))
     prompt = f"""\
-Ecco gli adempimenti di uno studio legale per i prossimi giorni, presi da due elenchi
+Ecco gli adempimenti di uno studio legale per i prossimi giorni, presi da tre elenchi
 diversi che si sovrappongono.
 
 {elenco}
@@ -845,7 +931,8 @@ Rispondi SOLO con un array JSON: [{{"indici": [0, 7], "testo": "..."}}]"""
 
 
 def _fetch_todo_list() -> list[dict]:
-    """Adempimenti ravvicinati da scadenze del gestionale + checklist mobile, ordinati
+    """Adempimenti ravvicinati da scadenze del gestionale + checklist mobile +
+    ToDo_aggiornato.docx (dal 2026-11-16), ordinati
     per data e non ancora uniti (vedi _unisci_e_accorcia, chiamata dopo
     _rileva_citta_viaggio perché l'unione perde il campo "trasferta"). Ogni voce:
     {"data": date, "testo": str, "chi": str, "trasferta": str | None — solo dal PDF}.
@@ -865,7 +952,7 @@ def _fetch_todo_list() -> list[dict]:
     da = (datetime.now() + timedelta(days=1)).date()
     a = da + timedelta(days=_TODO_GIORNI - 1)
     voci = []
-    for fonte in (_fetch_scadenze_studio, _fetch_checklist_task):
+    for fonte in (_fetch_scadenze_studio, _fetch_checklist_task, _fetch_todo_aggiornato):
         try:
             voci += fonte(drive, da, a)
         except Exception as e:
